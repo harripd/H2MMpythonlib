@@ -194,13 +194,13 @@ def Calc_Rho(transmat_t,R):
                     if R_temp[Rind,1] == 1:
                         Rho_1 = Rho[R_temp[Rind,0],:,:,:,:]
                     else:
-                        Rho_1 = Rho_product_fast(transmat_1,Rho_1,R_temp[Rind,1])
+                        Rho_1 = Rho_power_fast(transmat_1,Rho[R_temp[Rind,0],:,:,:,:],R_temp[Rind,1])
                         transmat_1 = matrix_power(transmat_1,R_temp[Rind,1])
                     transmat_2 = transmat_t[R_temp[Rind+1,0],:,:]
                     if R_temp[Rind+1,1] == 1:
                         Rho_2 = Rho[R_temp[Rind+1,0],:,:,:,:]
                     else:
-                        Rho_2 = Rho_power_fast(transmat_2,Rho_2,R_temp[Rind,1])
+                        Rho_2 = Rho_power_fast(transmat_2,Rho[R_temp[Rind+1,0],:,:,:,:],R_temp[Rind+1,1])
                         transmat_2 = matrix_power(transmat_2,Rho_2,R_temp[Rind,1])
                     Rho_temp = Rho_product_fast(transmat_1,transmat_2,Rho_1,Rho_2)
                 else:
