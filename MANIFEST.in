@@ -1,0 +1,7 @@
+include C_H2MM.h
+include H2MM_C.pyx
+include C_H2MM_interface.c
+include viterbi_interface.c
+include C_H2MM_txtread.c
+include README.md
+include LICENSE.txt
