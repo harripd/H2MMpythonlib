@@ -1,3 +1,9 @@
+// File: viterbi_interface.c
+// Author: Paul David Harris
+// Purpose: Wrapper function for commandline interface with viterbi
+// Date created: 03 Apr 2021
+// Date modified: 13 May 2021
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -22,22 +28,18 @@ int main(int argc, char **argv)
 	phstream *b;
 	h2mm_mod *in_model;
 	int n = 0;
-	if (argc == 3)
-	{
-		//~ printf("Read bursts\n");	
-		head = burst_read(argv[1],&num_burst);
-		//~ printf("Read model\n");
-		in_model = h2mm_read(argv[2]);
-	}
-	else if (argc < 3)
+	if (argc < 3)
 	{
 		fprintf(stderr,"Too few arguments\n");
 		exit(EXIT_FAILURE);
 	}
-	else
+	else if (argc != 3 )
 	{
 		printf("Skipping additional arguments, not implemented\n");
 	}
+	head = burst_read(argv[1],&num_burst);
+	//~ printf("Read model\n");
+	in_model = h2mm_read(argv[2]);
 	// recast linked list of burst_read into
 	// first step is to allocate the necessary arrays of pointers and lengths 
 	times = (unsigned long long**)calloc(num_burst, sizeof(unsigned long long*));
@@ -60,7 +62,7 @@ int main(int argc, char **argv)
 	printf("main(): in_model->ndet: %d\n", (int)in_model->ndet);
 	printf("Entering main algorithm\n");
 	ph_path *path_ret = (ph_path*) malloc(num_burst * sizeof(ph_path));
-	int e_val = viterbi(num_burst,len_bursts,times,detectors,in_model,path_ret);
+	int e_val = viterbi(num_burst,len_bursts,times,detectors,in_model,path_ret,4);
 	if (e_val == 1)
 		printf("You have an out of order photon\n");
 	else if 

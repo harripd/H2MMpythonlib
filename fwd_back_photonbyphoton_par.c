@@ -1,7 +1,8 @@
 // File: fwd_back_photonbyphoton.c
 // Author: Paul David Harris
 // Purpose: Central H2MM algorithms for calculating the logliklihood of data given the model, and creating an updated model
-// Date: 13 Feb 2021
+// Date created : 13 Feb 2021
+// Data modified: 14 May 2021
 
 #ifdef linux
 #include <unistd.h>
@@ -28,16 +29,18 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 {
 	fback_vals *D = (fback_vals*) burst;
 	size_t i, k, t; // basic iterator variables
-	size_t salphad, salphadi, salphao, sbetad, sbetadi, sbetao, sxi, sA, sAi, sRho, sRhoi, sobs;
-	size_t recursion_size = D->sk * D->max_phot;
+	size_t salphad, salphadi, salphao, sbetad, sbetadi, sbetao, sxi, sA, sAi, sRho, sRhoi, sobs; // variables for current shifts
+	size_t recursion_size = D->sk * D->max_phot; // size of maximum needed alpha, beta and gamma arrays
 	size_t recursion_stride;
 	size_t cont;
-	size_t cur_burst;
+	size_t cur_burst; // burst being calculated 
 	int llerror = FALSE;
+	// allocate some arrays
 	double *alpha = (double*) calloc(recursion_size,sizeof(double));
 	double *beta = (double*) calloc(recursion_size,sizeof(double));
 	double *gamma = (double*) calloc(recursion_size,sizeof(double));
 	double *b  = (double*) calloc(D->sk,sizeof(double));
+	// make running sum varaibles
 	double runsumalpha = 0.0;
 	double runsumbeta = 0.0;
 	double runsumgamma = 0.0;
@@ -47,6 +50,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 	double *xi_temp = (double*) calloc(D->sj,sizeof(double));
 	double *xi_summed = (double*) calloc(D->sj,sizeof(double));
 	double *obs_temp = (double*) calloc(D->current->nstate * D->current->ndet,sizeof(double));
+	// find the burst to calculate must be done with mutex locked so multiple thread don't work on same burst
 #ifdef linux
 	pthread_mutex_lock(D->h2mm_lock);
 	if ( D->cur_burst[0] < D->num_burst)
@@ -77,7 +81,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 	}
 #endif
 	//printf("fwd_back_PhotonByPhoton(): (A) cur_burst: %4u  threadId: %8x Start\n", (unsigned int)cur_burst, GetCurrentThreadId());
-	while(cont)
+	while(cont) // loop over all the bursts, coordinated between threads
 	{
 		//~ printf("Brst: %ld,  ",cur_burst);
 		// initialize alpha
@@ -220,6 +224,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 		if(llerror) printf("We got a NaN\n");
 		for (i = 0; i < D->sk; i++) prior[i] += gamma[i];
 		//printf("fwd_back_PhotonByPhoton(): (B) cur_burst: %4u  threadId: %8x, xi_temp[1] = %f, xi_temp[2] = %f\n", (unsigned int)cur_burst, GetCurrentThreadId(),(double)xi_temp[1],(double)xi_temp[2]);
+		// find the next burst to be calculated
 #ifdef linux
 		pthread_mutex_lock(D->h2mm_lock);
 		if (D->cur_burst[0] < D->num_burst)
@@ -227,7 +232,10 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 			cur_burst = D->cur_burst[0]++;
 			cont = TRUE;
 		}
-		else cont = FALSE;
+		else
+		{ 
+			cont = FALSE;
+		}
 		pthread_mutex_unlock(D->h2mm_lock);
 #elif _WIN32
 		if (WaitForSingleObject(h2mm_lock, INFINITE) == WAIT_OBJECT_0)
@@ -243,6 +251,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 #endif
 		//printf("fwd_back_PhotonByPhoton(): (C) cur_burst: %4u  threadId: %8x\n", (unsigned int)cur_burst, GetCurrentThreadId());
 	}
+	// update the h2mm_model
 #ifdef linux
 	pthread_mutex_lock(D->h2mm_lock);
 	if (!llerror && !isnan(D->new->loglik))
@@ -291,6 +300,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 		ReleaseMutex(h2mm_lock);
 	}
 #endif
+	// free the allocated arrays
 	free(alpha);
 	free(beta);
 	free(gamma);
@@ -334,6 +344,8 @@ void h2mm_normalize(h2mm_mod *model_params)
 
 h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits) 
 {
+	if ( limits->num_cores > num_bursts )
+		limits->num_cores = num_bursts;
 	// initiate variables
 	size_t cont = TRUE;
 	size_t i, j;
@@ -343,8 +355,9 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	clock_t t_start, t_current, t_new;
 	double t_iter = 0;
 	double t_total = 0;
-	double *pcp, *pct, *pco, *pnp, *pnt, *pno, *pop, *pot, *poo;
+	double *pcp, *pct, *pco, *pnp, *pnt, *pno, *pop, *pot, *poo; // pointers used for freeing- stores copies of other pointers that get swapped around, these do not
 	h2mm_mod *pcur, *pnew, *pold;
+	// initialize the thread id's and mutexes
 #ifdef linux
 	pthread_t *tid = (pthread_t*) malloc(limits->num_cores * sizeof(pthread_t));
 	pthread_mutex_t *h2mm_lock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
@@ -352,13 +365,14 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 #elif _WIN32
 	HANDLE* tid = (HANDLE*)calloc(limits->num_cores, sizeof(HANDLE));
 	DWORD  windowsThreadId = 0;
-	//HANDLE h2mm_lock;
 	h2mm_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
+	// allocate h2mm_mod arrays
 	h2mm_mod *current = (h2mm_mod*) malloc(sizeof(h2mm_mod));
 	h2mm_mod *new = (h2mm_mod*) malloc(sizeof(h2mm_mod));
 	h2mm_mod *old = (h2mm_mod*) malloc(sizeof(h2mm_mod));
 	h2mm_mod *mod_temp;
+	// get pointers and allocatiosn ready
 	pcur = current;
 	pnew = new;
 	pold = old;
@@ -380,7 +394,13 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	pno = new->obs = (double*) calloc(current->nstate * current->ndet, sizeof(double));
 	old->loglik = -INFINITY;
 	current->loglik = 0.0;
+	// set up inputs for threading
 	fback_vals *burst_submit = (fback_vals*) calloc(limits->num_cores,sizeof(fback_vals));
+	for ( i = 0; i < num_bursts; i++)
+	{
+		if ( burst_submit[0].max_phot < b[i].nphot) 
+			burst_submit[0].max_phot = b[i].nphot;
+	}
 	for ( j = 0; j < limits->num_cores; j++)
 	{
 		burst_submit[j].phot = b;
@@ -394,22 +414,19 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		burst_submit[j].A = powers->A;
 		burst_submit[j].current = current;
 		burst_submit[j].new = new;
+		burst_submit[j].max_phot = burst_submit[0].max_phot;
 #ifdef linux
 		burst_submit[j].h2mm_lock = h2mm_lock;
 #endif
-		for ( i = 0; i < num_bursts; i++)
-		{
-			if ( burst_submit[j].max_phot < b[i].nphot) burst_submit[j].max_phot = b[i].nphot;
-		}
 	}
 	//begin main computation
 	t_start = clock();
 	t_current = t_start;
-	while(cont)
+	while(cont) // loop iterates until converged or maximum iteration or time is reached
 	{
 		// calculate rho
 		rho_all(current->nstate, current->trans, powers);
-		// calculate forward and backward recurrsion variable, running in parallel for all bursts
+		// spinn up the threads, calculate forward and backward recurrsion variable, running in parallel for all bursts
 #ifdef linux
 		for(i = 0; i < limits->num_cores; i++) pthread_create(&tid[i],NULL,fwd_back_PhotonByPhoton,(void*) &burst_submit[i]); // create a thread for each burst
 		for(i = 0; i < limits->num_cores; i++) pthread_join(tid[i],NULL); // wait for all bursts to finish
@@ -481,6 +498,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		}
 		t_current = t_new;
 	}
+	// prepare final model for output
 	h2mm_mod *out = (h2mm_mod*) malloc(sizeof(h2mm_mod));
 	out->nstate = current->nstate;
 	out->ndet = current->ndet;
@@ -494,6 +512,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	for ( i = 0; i < in->nstate * in->nstate; i++) out->trans[i] = current->trans[i];
 	out->obs = (double*) malloc(in->nstate * in->ndet * sizeof(double));
 	for ( i = 0; i < in->nstate * in->ndet; i++) out->obs[i] = current->obs[i];
+	// destroy mutexes, thread ids and free allocated memory
 #ifdef linux
 	pthread_mutex_destroy(h2mm_lock);
 	if (h2mm_lock != NULL)

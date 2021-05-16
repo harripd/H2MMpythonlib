@@ -42,7 +42,7 @@ cdef extern from "C_H2MM.h":
         double *omega
     void h2mm_normalize(h2mm_mod *model_params)
     h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits) nogil
-    int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array) nogil
+    int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
 
 cdef unsigned long long* get_ptr_ull(np.ndarray[unsigned long long, ndim=1] arr):
     cdef unsigned long long[::1] arr_view = arr
@@ -423,7 +423,7 @@ cpdef EM_H2MM_C(h2mm_model h_mod, list burst_colors, list burst_times, max_iter=
     PyMem_Free(burst_sizes)
     return out
 
-def viterbi_path(h2mm_model h_mod, list burst_colors, list burst_times):
+def viterbi_path(h2mm_model h_mod, list burst_colors, list burst_times, num_cores = os.cpu_count()//2):
     """
     Calculate the most likely state path through a set of data given a H2MM model
 
@@ -443,6 +443,17 @@ def viterbi_path(h2mm_model h_mod, list burst_colors, list burst_times):
         Each element of the list (a numpy array) cooresponds to a burst, and
         each element of the array is a singular photon.
         The times list must maintain  1to1 coorespondence to the indexes list
+    Optional Keyword Parameters
+    ___________________
+    num_cores = os.cpu_count()//2 : int
+        the number of C threads (which ignore the gil, thus functioning more
+        like python processes) used to calculate the viterbi path. The default
+        is to take half of what python reports as the cpu count, because most
+        cpus have multithreading enabled, so the os.cpu_count() will return
+        twice the number of physical cores. Consider setting this parameter
+        manually if either you want to optimize the speed of the computation,
+        or if you want to reduce the number of cores used so your computer has
+        more cpu time to spend on other tasks
     
     Returns
     -------
@@ -470,6 +481,7 @@ def viterbi_path(h2mm_model h_mod, list burst_colors, list burst_times):
     cdef unsigned long long **b_time = <unsigned long long**> PyMem_Malloc(num_burst * sizeof(unsigned long long*))
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef ph_path *path_ret = <ph_path*> PyMem_Malloc(num_burst * sizeof(ph_path))
+    cdef n_core = <unsigned long> num_cores if num_cores > 0 else 1
     # for loop casts the values to the right datat type, then makes sure the data is contiguous, but don't copy the pointers just yet, that is in a separate for loop to make sure no numpy shenanigans 
     for i in range(num_burst):
         burst_sizes[i] = burst_colors[i].shape[0]
@@ -487,7 +499,7 @@ def viterbi_path(h2mm_model h_mod, list burst_colors, list burst_times):
         b_det[i] = get_ptr_l(burst_colors[i])
         b_time[i] = get_ptr_ull(burst_times[i])
     # set up the in and out h2mm_mod variables
-    cdef int e_val = viterbi(num_burst,burst_sizes,b_time,b_det,&h_mod.model,path_ret)
+    cdef int e_val = viterbi(num_burst,burst_sizes,b_time,b_det,&h_mod.model,path_ret,n_core)
     if e_val == 1:
         PyMem_Free(b_det)
         PyMem_Free(b_time)
@@ -517,7 +529,7 @@ def viterbi_path(h2mm_model h_mod, list burst_colors, list burst_times):
     return path, scale, ll, icl
 
 
-def viterbi_sort(h2mm_model hmod, list indexes, list times):
+def viterbi_sort(h2mm_model hmod, list indexes, list times, num_cores = os.cpu_count()//2):
     """
     An all inclusive viterbi processing algorithm. Returns the ICL, the most likely
     state path, posterior probabilities, and a host of information sorted by
@@ -539,6 +551,17 @@ def viterbi_sort(h2mm_model hmod, list indexes, list times):
         Each element of the list (a numpy array) cooresponds to a burst, and
         each element of the array is a singular photon.
         The times list must maintain  1to1 coorespondence to the indexes list
+    Optional Keyword Parameters
+    ___________________
+    num_cores = os.cpu_count()//2 : int
+        the number of C threads (which ignore the gil, thus functioning more
+        like python processes) used to calculate the viterbi path. The default
+        is to take half of what python reports as the cpu count, because most
+        cpus have multithreading enabled, so the os.cpu_count() will return
+        twice the number of physical cores. Consider setting this parameter
+        manually if either you want to optimize the speed of the computation,
+        or if you want to reduce the number of cores used so your computer has
+        more cpu time to spend on other tasks
 
     Returns
     -------
@@ -582,7 +605,7 @@ def viterbi_sort(h2mm_model hmod, list indexes, list times):
     cdef list paths, scale
     cdef np.ndarray[double,ndim=1] ll
     cdef double icl
-    paths, scale, ll, icl = viterbi_path(hmod,indexes,times)
+    paths, scale, ll, icl = viterbi_path(hmod,indexes,times,num_cores=num_cores)
     
     # sorting bursts based on which dwells occur in them
     cdef np.ndarray[long, ndim=1] burst_type = np.zeros(len(indexes),dtype=int)

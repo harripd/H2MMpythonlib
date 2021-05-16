@@ -1,138 +1,168 @@
 // File:  C_H2MM.h
-// 
-// fwd_back_photonbyphoton
+// Author: Paul David Harris
+// Purpose: Header files for H2MM and H2MM Viterbi algorithm
+// Date Created: 13 Feb 2021
+// Data Modified: 13 May 2021
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+// typedefs for fwd_back_photonbyphoton.c
+
+// Stucture for a single burst
 typedef struct
 {
-	size_t nphot;
-	size_t *delta;
-	size_t *det;
+	size_t nphot; // size of burst (# of photons
+	size_t *delta; // pointer to array of deltas, size fo nphot
+	size_t *det; // pointer to array of photon stream indexes, size of nphot
 } phstream;
 
+// Structure for building linked list fo bursts, before calculating deltas
 struct temp
 {
-	long len_burst;
-	unsigned long long *times;
-	long *detectors;
-	struct temp *next;
+	long len_burst; // size of burst
+	unsigned long long *times; // absolute arrival time
+	long *detectors; // detector index
+	struct temp *next; // pointer to next burst
 };
 typedef struct temp temps;
 
+// Structure for h2mm model
 typedef struct
 {
-	size_t nstate;
-	size_t ndet;
-	size_t nphot;
-	size_t niter;
-	size_t conv;
-	double *prior;
-	double *trans;
-	double *obs;
-	double loglik;
+	size_t nstate; // number of states in the h2mm model
+	size_t ndet; // number of photon streams in the model
+	size_t nphot; // number of photons in data set, filled out by C_H2MM function
+	size_t niter; // number of iterations to converged, filled out by compute_ess_dhmm function
+	size_t conv; // converged status, filled out by compute_ess_dhmm function- 1 is converged, 0 is not converged, others indicate errors
+	double *prior; // prior array (1D), size: nstate
+	double *trans; // trans array (2D), size: nstate x nstate
+	double *obs; // obs array (2D), size: (ndet x nstate)
+	double loglik; // loglike, updated by fwd_back_PhotonByPhoton threads
 } h2mm_mod;
 
+
+// structure contains all inputs for fwd_back_PhotonByPhoton
 typedef struct
 {
-	phstream *phot;
-	size_t max_phot;
-	size_t *cur_burst;
-	size_t num_burst;
+	phstream *phot; // array of phstream structures (burst data)
+	size_t max_phot; // the size of the larges burst, used for allocating various arrays
+	size_t *cur_burst; // ponter to same size_t, lets each thread of fwd_back_PhotonByPhoton know which burst to compute next
+	size_t num_burst; // number of bursts in data set, the size of the phot array
 	size_t sk; // number of states, indexing chosen to match
 	size_t sj; // square of the number of states
 	size_t si; // cube of the number of states
 	size_t sT; // fourth power of number of states
-	double *Rho;
-	double *A;
-	h2mm_mod *current;
-	h2mm_mod *new;
+	double *Rho; // Rho array, an sT x sk x sk x sk x sk array
+	double *A; // contains powers of transition matrix, a sT x sk x sK array
+	h2mm_mod *current; // the h2mm_mod from last iteration
+	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
 #ifdef linux
-	pthread_mutex_t *h2mm_lock;
+	pthread_mutex_t *h2mm_lock; // mutex for checking on cur_burst
 #endif
 } fback_vals;
 
-// C_H2MM
+// C_H2MM.c structures
+
+// the "limits" for calculations
 typedef struct
 {
-	size_t max_iter;
-	size_t num_cores;
-	double max_time;
-	double min_conv;
+	size_t max_iter; // number of iterations before algorithm stops optimization
+	size_t num_cores; // number of cores to use (threads to spin up)
+	double max_time; // maximum time in seconds before stoping optimization
+	double min_conv; // minimum difference between loglik of iterations for algorithm to consider the model converged
 } lm;
 
 
-// rho_calc
+// rho_calc.c structures 
+
+// structure for the Rho and A array
 typedef struct // pwrs is a structure that contains pointers to the A (transmat) and Rho arrays, plus information on dimensions and which values are to be calculated
 {
-	size_t max_pow;
-	size_t sT;
+	size_t max_pow; // maximum power, the maximum delta in the data set
+	size_t sT; // stride for Rho of 0th index, cooresponds to the delta t of
 	size_t si;
 	size_t sj; // note that this is also the stride for the delta t in the A array
 	size_t sk; // note that this is also the number of states
-	size_t tv;
-	size_t tq;
-	size_t td;
-	size_t *pow_list;
-	double *A;
-	double *Rho;
+	size_t tv; // for future imporovments if Rho calculation is parallelized, idenfifies one of the two powers to use to calculate the next
+	size_t tq; // same as tv, but the other power
+	size_t td; // for future improvements if Rho calculation is parallelized, idenfifies destination power, tv and tq should match 
+	size_t *pow_list; // for future improvemtns if Rho calculation is parallelized, identifies which powers are needed to be calculated
+	double *A; // the A array, contains the powers of the tranistion probability matrix
+	double *Rho; // the Rho array, as defined in H2MM
 } pwrs;
 
-// viterbi
+// viterbi.c structures 
+
+// structure identifies a burst, and its viterbi values
 typedef struct
 {
-	size_t nphot;
-	size_t nstate;
-	double loglik;
-	size_t *path;
-	double *scale;
+	size_t nphot; // number of photons in burst
+	size_t nstate; // number of states in model
+	double loglik; // loglikelihood of the path being the actual path
+	size_t *path; // most likely state of each photon
+	double *scale; // likelihood of assignment of state of photon
 } ph_path;
 
-
+// structure contains all inputs for viterbi_burst thread
 typedef struct
 {
-	size_t si;
-	size_t sT;
-	double *A;
-	phstream *phot;
-	ph_path *path;
-	h2mm_mod *model;
+	size_t si; // the number of states, also stride of 1st dimension of A
+	size_t sT; // stride of 0th dimension of A, gives power of A
+	size_t *cur_burst; // pointer to common record of next burst to be calculated
+	size_t max_phot; // size of larges burst, used for allocating arrays
+	size_t num_burst; // number of bursts in data set
+	double *A; // A array, the powers of the transition probability matrix
+	phstream *phot; // pointer to burst array, part of input
+	ph_path *path; // pointer to viterbi path found by viterbi algorithm
+	h2mm_mod *model; // h2mm model used in calculating the path
+#ifdef linux
+	pthread_mutex_t *vit_lock; // mutex for updating cur_burst
+#endif
 } vit_vals;
 
 
-// C_H2MM
+// Function definitions
 
-pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, phstream *b);
+// C_H2MM.c function signatures
+pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
 
-h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits);
+h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits); // The algorithm called by the wrappers/interface files
 
-// fwd_back_photonbyphoton
+// fwd_back_photonbyphoton_par.c function signatures
+
+// function called by each thread in H2MM, each thread calculates succesive bursts
 #ifdef linux
 void* fwd_back_PhotonByPhoton(void* burst);
 #elif _WIN32
 DWORD WINAPI fwd_back_PhotonByPhoton(void* burst);
 #endif
 
-void h2mm_normalize(h2mm_mod *model_params);
+void h2mm_normalize(h2mm_mod *model_params); // funciton to normalize new H2MM model calculated by fw_back_PhotonByPhoton threads
 
-h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits);
+h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits); // called to optimize H2MM model, 
 
-// rho_calc
+// rho_calc.c function signatures
 
-void* rhoulate(void *vals);
+void* rhoulate(void *vals); // calculates a power of Rho and A
 
-void* rho_all(size_t nstate, double* transmat, pwrs *powers);
+void* rho_all(size_t nstate, double* transmat, pwrs *powers); // calculated new Rho and A matrixes
 
-// viterbi
+// viterbi.c function signatures 
+
+// function called by each thread in viterbi, each thread calculates succesive bursts
 #ifdef linux
 void* viterbi_burst(void* in_vals);
 #elif _WIN32
 DWORD WINAPI viterbi_burst(void* in_vals);
 #endif
-int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array);
+
+// main function for calculating the viterbi path 
+int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores);
 
 // C_H2MM_interface
 
-temps* burst_read(char *fname, size_t *n);
+temps* burst_read(char *fname, size_t *n); // read burst data from a .txt file
 
-h2mm_mod* h2mm_read(char *fname);
+h2mm_mod* h2mm_read(char *fname); // read h2mm model from .txt file

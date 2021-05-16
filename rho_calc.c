@@ -1,7 +1,8 @@
 // File: rho_calc.c
 // Author: Paul David Harris
 // Purpose: Calcualte the A and Rho matrices, no multithreading at this point
-// Date: 13 Feb 2021
+// Date created: 13 Feb 2021
+// Date modified: 30 March 2021
 
 #ifdef linux
 #include <unistd.h>
@@ -21,6 +22,7 @@
 
 void* rhoulate(void *vals)
 {
+	// initialize variables
 	pwrs *D = (pwrs*) vals;
 	size_t i, j, k, m, z;
 	size_t Ad, Av, Rhod, Rhov;
@@ -32,6 +34,7 @@ void* rhoulate(void *vals)
 	size_t sqa = D->sj * D->tq;
 	size_t si, sj, sk;
 	double normsum;
+	// calculate power of trans matrix
 	for ( k = 0; k < D->sk; k++)
 	{
 		sk = D->sk * k;
@@ -46,8 +49,9 @@ void* rhoulate(void *vals)
 			}
 			normsum += D->A[Ad];
 		}
-		for(m = 0 ; m < D->sk; m++) D->A[sda + sk + m] /= normsum;
+		for(m = 0 ; m < D->sk; m++) D->A[sda + sk + m] /= normsum; // this ensures matrices are row stochastic, correcting for floating point errors
 	}
+	// calculate power of Rho
 	for ( i = 0; i < D->sk; i++)
 	{
 		si = D->si * i;
