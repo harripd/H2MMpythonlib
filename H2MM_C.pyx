@@ -33,6 +33,9 @@ cdef extern from "C_H2MM.h":
         double *trans
         double *obs
         double loglik
+    ctypedef struct h2mm_minmax:
+        h2mm_mod *mins
+        h2mm_mod *maxs
     ctypedef struct ph_path:
         size_t nphot
         size_t nstate
@@ -41,8 +44,11 @@ cdef extern from "C_H2MM.h":
         double *scale
         double *omega
     void h2mm_normalize(h2mm_mod *model_params)
-    h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits) nogil
+    h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits) nogil
     int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
+    void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+    void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+
 
 cdef unsigned long long* get_ptr_ull(np.ndarray[unsigned long long, ndim=1] arr):
     cdef unsigned long long[::1] arr_view = arr
@@ -274,7 +280,7 @@ cdef class h2mm_model:
             b_det[i] = get_ptr_l(burst_colors[i])
             b_time[i] = get_ptr_ull(burst_times[i])
         # set up the in and out h2mm_mod variables
-        cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_time,b_det,&self.model,&limits)
+        cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_time,b_det,&self.model,&limits,NULL,NULL)
         if out_model is NULL:
             PyMem_Free(b_det)
             PyMem_Free(b_time)
@@ -306,9 +312,13 @@ cdef class h2mm_model:
         if self.model.trans is not NULL:
             PyMem_Free(self.model.trans)
         if self.model.obs is not NULL:
-            PyMem_Free(self.model.obs)
+            PyMem_Free(self.model.obs)        
 
-cpdef EM_H2MM_C(h2mm_model h_mod, list burst_colors, list burst_times, max_iter=3600, max_time=np.inf, converged_min=1e-14, num_cores= os.cpu_count()//2):
+
+
+cpdef EM_H2MM_C(h2mm_model h_mod, list burst_colors, list burst_times, max_iter=3600, 
+                bounds=None, bounds_func=None, max_time=np.inf, converged_min=1e-14, 
+                num_cores= os.cpu_count()//2):
     """
     Calculate the most likely state path through a set of data given a H2MM model
 
@@ -331,6 +341,15 @@ cpdef EM_H2MM_C(h2mm_model h_mod, list burst_colors, list burst_times, max_iter=
     
     Optional Keyword Parameters
     ___________________
+    bounds = None: void
+        The argument to be passed to the boinds_func function, currently dict
+        with fields 'min_prior', 'max_prior', 'min_trans', 'max_trans', 
+        'min_obs', and 'max_obs'
+    bounds_func = None: 
+        the function used to apply boundaries or other alterations to the H2MM
+        model, currently 'revert' and 'minmax' strings will cause values out of
+        the range specified in the bounds dict to be reverted to the previous
+        value, or set to the min/max respectively
     max_iter=3600 : int
         the maximum number of iterations to conduct before returning the current
         h2mm_model
@@ -368,6 +387,22 @@ cpdef EM_H2MM_C(h2mm_model h_mod, list burst_colors, list burst_times, max_iter=
         assert burst_colors[i].ndim == 1, f"burst_colors[{i}] must be a 1D array"
         assert burst_times[i].ndim == 1 , f"burst_times[{i}] must be a 1D array"
         assert burst_times[i].shape[0] == burst_colors[i].shape[0], f"Mismatch in lengths between burst_times[{i}] and burst_colors[{i}], cannot create burst"
+    if bounds_func == 'revert' or bounds_func =='minmax':
+        # assert statements to make sure the bounds dict has appropriate dimensions
+        assert bounds['min_prior'].ndim == 1
+        assert bounds['min_prior'].shape[0] == h_mod.model.nstate
+        assert bounds['max_prior'].ndim == 1
+        assert bounds['max_prior'].shape[0] == h_mod.model.nstate
+        assert bounds['min_trans'].ndim == 2
+        assert bounds['min_trans'].shape[0] == h_mod.model.nstate and bounds['min_trans'].shape[1] == h_mod.model.nstate
+        assert bounds['max_trans'].ndim == 2
+        assert bounds['max_trans'].shape[0] == h_mod.model.nstate and bounds['max_trans'].shape[1] == h_mod.model.nstate
+        assert bounds['min_obs'].ndim == 2
+        assert bounds['min_obs'].shape[0] == h_mod.model.nstate and bounds['min_obs'].shape[1] == h_mod.model.ndet
+        assert bounds['max_obs'].ndim == 2
+        assert bounds['max_obs'].shape[0] == h_mod.model.nstate and bounds['max_obs'].shape[1] == h_mod.model.ndet
+    elif bounds_func is not None:
+        raise Exception("bounds_func not recognized")
     # set up the limits function
     cdef lm limits
     limits.max_iter = <size_t> max_iter
@@ -393,8 +428,54 @@ cpdef EM_H2MM_C(h2mm_model h_mod, list burst_colors, list burst_times, max_iter=
     for i in range(num_burst):
         b_det[i] = get_ptr_l(burst_colors[i])
         b_time[i] = get_ptr_ull(burst_times[i])
+    # if the bounds_func is not None, then setup the bounds arrays
+    cdef void (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, void*)
+    cdef h2mm_minmax *minmaxlimits = <h2mm_minmax*> PyMem_Malloc(1*sizeof(h2mm_minmax))
+    if bounds_func is None:
+        bound_func = NULL
+    # in case a limits function is selected
+    elif bounds_func == 'revert' or bounds_func == 'minmax':
+        # allocate the arrays for the limits arrays to be transfered into
+        minmaxlimits.mins = <h2mm_mod*> PyMem_Malloc(1*sizeof(h2mm_mod))
+        minmaxlimits.mins.prior = <double*> PyMem_Malloc(h_mod.nstate * sizeof(double))
+        minmaxlimits.mins.trans = <double*> PyMem_Malloc(h_mod.nstate**2 * sizeof(double))
+        minmaxlimits.mins.obs = <double*> PyMem_Malloc(h_mod.nstate * h_mod.ndet * sizeof(double))
+        minmaxlimits.maxs = <h2mm_mod*> PyMem_Malloc(1*sizeof(h2mm_mod))
+        minmaxlimits.maxs.prior = <double*> PyMem_Malloc(h_mod.nstate * sizeof(double))
+        minmaxlimits.maxs.trans = <double*> PyMem_Malloc(h_mod.nstate**2 * sizeof(double))
+        minmaxlimits.maxs.obs = <double*> PyMem_Malloc(h_mod.nstate * h_mod.ndet * sizeof(double))
+        # ensure type fo bounds arrays is double
+        bounds['min_prior'] = bounds['min_prior'].astype('double')
+        bounds['max_prior'] = bounds['max_prior'].astype('double')
+        bounds['min_trans'] = bounds['min_trans'].astype('double')
+        bounds['max_trans'] = bounds['max_trans'].astype('double')
+        bounds['min_obs'] = bounds['min_obs'].astype('double')
+        bounds['max_obs'] = bounds['max_obs'].astype('double')
+        # transfer values into the appropriate arrays in the minmaxlimits structure
+        for i in range(h_mod.model.nstate):
+            minmaxlimits.mins.prior[i] = bounds['min_prior'][i]
+            minmaxlimits.maxs.prior[i] = bounds['max_prior'][i]
+            for j in range(h_mod.model.nstate):
+                minmaxlimits.mins.trans[i * h_mod.nstate + j] = bounds['min_trans'][i,j]
+                minmaxlimits.maxs.trans[i * h_mod.nstate + j] = bounds['max_trans'][i,j]
+            for j in range(h_mod.model.ndet):
+                minmaxlimits.mins.obs[j * h_mod.nstate + i] = bounds['min_obs'][i,j]
+                minmaxlimits.maxs.obs[j * h_mod.nstate + i] = bounds['max_obs'][i,j]
+        # now assing the correct function pointer
+        bound_func = &limit_revert if bounds_func == 'revert' else &limit_minmax
     # set up the in and out h2mm_mod variables
-    cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_time,b_det,&h_mod.model,&limits)
+    cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_time,b_det,&h_mod.model,&limits, bound_func, <void*> minmaxlimits)
+    # free the limts arrays
+    if bound_func is not NULL:
+        PyMem_Free(minmaxlimits.mins.prior)
+        PyMem_Free(minmaxlimits.maxs.prior)
+        PyMem_Free(minmaxlimits.mins.trans)
+        PyMem_Free(minmaxlimits.maxs.trans)
+        PyMem_Free(minmaxlimits.mins.obs)
+        PyMem_Free(minmaxlimits.maxs.obs)
+        PyMem_Free(minmaxlimits.mins)
+        PyMem_Free(minmaxlimits.maxs)
+        PyMem_Free(minmaxlimits)
     if out_model is NULL:
         PyMem_Free(b_det)
         PyMem_Free(b_time)

@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Central H2MM algorithms for calculating the logliklihood of data given the model, and creating an updated model
 // Date created : 13 Feb 2021
-// Data modified: 14 May 2021
+// Data modified: 8 June 2021
 
 #ifdef linux
 #include <unistd.h>
@@ -342,7 +342,9 @@ void h2mm_normalize(h2mm_mod *model_params)
 	}
 }
 
-h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits) 
+
+
+h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits) 
 {
 	if ( limits->num_cores > num_bursts )
 		limits->num_cores = num_bursts;
@@ -455,6 +457,9 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		{
 			niter++;
 			h2mm_normalize(new); // normalize the new, h2mm model
+			// if the model_limits_func function pointer is not NULL, run the function
+			if (model_limits_func != NULL)
+				model_limits_func(new, current, old, model_limits);
 			// update the old model to the current model, and current model to new model
 			mod_temp = old;
 			old = current;

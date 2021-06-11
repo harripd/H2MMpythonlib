@@ -9,7 +9,7 @@ A full C level implementation of H2MM and python wrappers for access in Jupyter 
 from distutils.core import setup, Extension
 import numpy as np
 
-ext = Extension("H2MM_C", sources=["H2MM_C.c","rho_calc.c","fwd_back_photonbyphoton_par.c","C_H2MM.c","viterbi.c"],define_macros=[("NPY_NO_DEPRECATED_APY","NPY_1_7_API_VERSION")])
+ext = Extension("H2MM_C", sources=["H2MM_C.c","rho_calc.c","fwd_back_photonbyphoton_par.c","model_limits_funcs.c","C_H2MM.c","viterbi.c"],define_macros=[("NPY_NO_DEPRECATED_APY","NPY_1_7_API_VERSION")])
 long_description = """
 H2MM_C
 ======

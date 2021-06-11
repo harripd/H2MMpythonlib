@@ -66,7 +66,7 @@ pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 	return powers;
 }
 
-h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits)
+h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits)
 {
 	size_t i, j; // basic iterator variables
 	// alocate variables
@@ -105,7 +105,7 @@ h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned 
 	powers->Rho = (double*) calloc(powers->sT * powers->max_pow,sizeof(double));
 	// run main routine
 	//~ printf("Entering main routine\n");
-	h2mm_mod *out_model = compute_ess_dhmm(num_burst, b, powers, in_model, limits);
+	h2mm_mod *out_model = compute_ess_dhmm(num_burst, b, powers, in_model, limits, model_limits_func, model_limits);
 	// free memory
 	for ( i = 0; i < num_bursts; i++){
 		free(b[i].delta);

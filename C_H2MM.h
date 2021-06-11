@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Header files for H2MM and H2MM Viterbi algorithm
 // Date Created: 13 Feb 2021
-// Data Modified: 13 May 2021
+// Data Modified: 8 June 2021
 
 #ifdef _WIN32
 #include <windows.h>
@@ -74,7 +74,12 @@ typedef struct
 	double min_conv; // minimum difference between loglik of iterations for algorithm to consider the model converged
 } lm;
 
-
+// limits for the h2mm_model parameters
+typedef struct
+{
+	h2mm_mod *mins; // minimum values for h2mm_mod parameters
+	h2mm_mod *maxs; // maximum values for h2mm_mod parameters
+} h2mm_minmax;
 // rho_calc.c structures 
 
 // structure for the Rho and A array
@@ -128,7 +133,7 @@ typedef struct
 // C_H2MM.c function signatures
 pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
 
-h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits); // The algorithm called by the wrappers/interface files
+h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits); // The algorithm called by the wrappers/interface files
 
 // fwd_back_photonbyphoton_par.c function signatures
 
@@ -141,13 +146,19 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst);
 
 void h2mm_normalize(h2mm_mod *model_params); // funciton to normalize new H2MM model calculated by fw_back_PhotonByPhoton threads
 
-h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits); // called to optimize H2MM model, 
+h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits); // called to optimize H2MM model, 
 
 // rho_calc.c function signatures
 
 void* rhoulate(void *vals); // calculates a power of Rho and A
 
 void* rho_all(size_t nstate, double* transmat, pwrs *powers); // calculated new Rho and A matrixes
+
+// model_limits_funcs.c functions signatures
+
+void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // reverts any values that are out of range to their previous values
+
+void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // replaces values that are out of range to the minimum or maximum value
 
 // viterbi.c function signatures 
 
@@ -159,6 +170,7 @@ DWORD WINAPI viterbi_burst(void* in_vals);
 #endif
 
 // main function for calculating the viterbi path 
+
 int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores);
 
 // C_H2MM_interface

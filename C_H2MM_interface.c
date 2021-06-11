@@ -20,13 +20,16 @@ int main(int argc, char **argv)
 	long *len_bursts;
 	size_t i, j;
 	size_t num_burst = 0;
+	long funid = 0; 
 	char *eptr;
 	temps *head;
 	//temps *next;                                                                                   // unreferenced??
 	temps *tmp;
 	phstream *b;
 	h2mm_mod *in_model;
+	void (*lim_func[]) (h2mm_mod*,h2mm_mod*,h2mm_mod*,void*) = {NULL, &limit_revert, &limit_minmax};
 	lm *limits = (lm*) calloc(1,sizeof(lm));
+	h2mm_minmax *minmaxlimit = (h2mm_minmax*) calloc(1,sizeof(h2mm_minmax));
 	limits->max_iter = 3600;
 	limits->max_time = INFINITY;
 	limits->min_conv = 1e-14;
@@ -34,14 +37,31 @@ int main(int argc, char **argv)
 	int n = 0;
 	if (argc > 2)
 	{
-		//~ printf("Read bursts\n");	
+		if (argc > 3 && argc < 5)
+		{
+			fprintf(stderr,"Need to specify all limits arguments");
+			exit(EXIT_FAILURE);
+		}
+		printf("Read bursts\n");
+		
 		head = burst_read(argv[1],&num_burst);
-		//~ printf("Read model\n");
+		printf("Read model\n");
 		in_model = h2mm_read(argv[2]);
-		if (argc > 3) limits->num_cores = (size_t) strtol(argv[3],&eptr,10);
-		if (argc > 4) limits->max_iter = (size_t) strtol(argv[4],&eptr,10);
-		if (argc > 5) limits->max_time = strtod(argv[4],&eptr);
-		if (argc > 6) limits->min_conv = strtod(argv[5],&eptr);
+		printf("Reading limits\n");
+		if (argc > 5)
+		{
+			printf("Read funid\n");
+			funid = strtol(argv[3],&eptr,10);
+			printf("Reading minimums\n");
+			minmaxlimit->mins = h2mm_read(argv[4]);
+			printf("Reading maximums\n");
+			minmaxlimit->maxs = h2mm_read(argv[5]);
+		}
+		printf("Reading optional arguments\n");
+		if (argc > 6) limits->num_cores = (size_t) strtol(argv[6],&eptr,10);
+		if (argc > 7) limits->max_iter = (size_t) strtol(argv[7],&eptr,10);
+		if (argc > 8) limits->max_time = strtod(argv[8],&eptr);
+		if (argc > 9) limits->min_conv = strtod(argv[9],&eptr);
 	}
 	else
 	{
@@ -69,7 +89,7 @@ int main(int argc, char **argv)
 	printf("main(): num_burst: %d\n", (int)num_burst);
 	printf("main(): in_model->ndet: %d\n", (int)in_model->ndet);
 	printf("Entering main algorithm\n");
-	h2mm_mod *out_model = C_H2MM(num_burst,len_bursts,times,detectors,in_model,limits);
+	h2mm_mod *out_model = C_H2MM(num_burst,len_bursts,times,detectors,in_model,limits,lim_func[funid],(void*)minmaxlimit);
 	if (out_model == NULL) printf("You have an out of order photon\n");
 	else if (out_model == in_model) printf("You have too many detectors in your data than allowed in your model\n");
 	else
