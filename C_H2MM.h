@@ -158,6 +158,8 @@ void* rho_all(size_t nstate, double* transmat, pwrs *powers); // calculated new 
 
 void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // reverts any values that are out of range to their previous values
 
+void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // reverts any values that are out of range to their values from the "old" model ie the model before the one whose loglik was just calculated 
+
 void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // replaces values that are out of range to the minimum or maximum value
 
 // viterbi.c function signatures 

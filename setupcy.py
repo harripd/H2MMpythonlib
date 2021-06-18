@@ -22,7 +22,7 @@ And zenodo ...
 """
 
 setup(name = "H2MM_C",
-      version = "0.6",
+      version = "0.7",
       author = "Paul David Harris",
       author_email = "harripd@gmail.com",
       maintainer = "Paul David Harris",

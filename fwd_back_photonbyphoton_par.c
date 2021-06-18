@@ -382,6 +382,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	new->ndet = old->ndet = current->ndet = in->ndet;
 	new->nphot = old->nphot = current->nphot = in->nphot;
 	new->conv = current->conv = old->conv = 0;
+	new->niter = current->niter = old->niter;
 	pop = old-> prior = (double*) malloc(in->nstate * sizeof(double));
 	pcp = current-> prior = (double*) malloc(in->nstate * sizeof(double));
 	for ( i = 0; i < in->nstate; i++) old->prior[i] = current->prior[i] = in->prior[i];
@@ -455,7 +456,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
 		if ( !isnan(current->loglik) && (current->loglik - old->loglik) > limits->min_conv) // if the model has improved, 
 		{
-			niter++;
+			new->niter = ++niter;
 			h2mm_normalize(new); // normalize the new, h2mm model
 			// if the model_limits_func function pointer is not NULL, run the function
 			if (model_limits_func != NULL)
@@ -481,21 +482,18 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		else if (!isnan(current->loglik) && (current->loglik - old->loglik) <= limits->min_conv) // model converged
 		{
 			cont = FALSE;
-			current->niter = niter;
 			current->conv = 1;
 		}
 		else // if the loglik is a nan
 		{
 			cont = FALSE;
 			current = old;
-			current->niter = niter;
 			current->conv = 4;
 		}
 		if ( (cont == TRUE) && (niter > limits->max_iter || t_total > limits->max_time)) // maximum iterations and no prior convergence criterions
 		{
 			cont = FALSE;
 			current = old;
-			current->niter = niter - 1;
 			if (niter > limits->max_iter)
 				current->conv = 2;
 			else

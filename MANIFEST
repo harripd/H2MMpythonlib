@@ -8,6 +8,7 @@ H2MM_C.pyx
 LICENSE.txt
 README.md
 fwd_back_photonbyphoton_par.c
+model_limits_funcs.c
 rho_calc.c
 setup.py
 viterbi.c

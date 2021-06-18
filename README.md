@@ -5,19 +5,21 @@ H2MM_C is a python extension module that implements the H<sup>2</sup>MM algorith
 
 H2MM_C is also designed from the ground up to handle multiparameter models.
 
+The API is intended to be user friendly, while still allowing for great flexibility. Suggestions are welcome for way to improve the code and interface.
  
 ## Core Features
 - H<sup>2</sup>MM model optimization: finding the ideal model given a set of data.
+	- limit functions to bound the values that a model can take
 - *Viterbi* analysis: finds the most likely state path through a set of data given a H<sup>2</sup>MM model
-- Reporting of model reliability statistics BIC and ICL
+- Reporting of model reliability statistics BIC and ICL 
 
 ## Installation
 Simply unzip the .zip file and run:
-'python setup.py install'
+'python setup.py install' if you want to access the 
 On windows, you may need to make sure that Visual Studios is installed- including vcvarsall.bat, which can be added ticking the correct option: [https://social.msdn.microsoft.com/Forums/en-US/1071be0e-2a46-4c30-9546-ea9d7c4755fa/where-is-vcvarsallbat-file?forum=visualstudiogeneral](https://social.msdn.microsoft.com/Forums/en-US/1071be0e-2a46-4c30-9546-ea9d7c4755fa/where-is-vcvarsallbat-file?forum=visualstudiogeneral)
 
 ## Core Items
-1. h2mm_model the core python extension type of the package: this contains the *H<sup>2</sup>MM* model, which has the core fields:
+1. h2mm_model: the core python extension type of the package: this contains the *H<sup>2</sup>MM* model, which has the core fields:
 	- nstate: the number of states in the model
 	- ndet: the number of photon streams in the model
  	- trans: the transition probability matrix
@@ -28,13 +30,20 @@ On windows, you may need to make sure that Visual Studios is installed- includin
 	- nphot: the number of photons in the dataset that the model is optimized against
 	- bic: the Baysian Information Criterion of the model
 	- converged: True if the model reached convergence criterion, False if the optimization stopped due to reaching the maximum number of iterations or if an error occured in the next iteration.
-2. EM_H2MM_C: the core function of the package, it takes an initial 'h2mm_model' object, and two lists of numpy arrays as input. The lists of numpy arrays are the data to be optimized. Each array references a burst, the first list is the index of the photon stream, the second is the arrival time. Arrays should be of an integer type, and will be converted to np.uint32 and np.uint64 types for the stream and time respectively.
-3. viterbi_path_PhotonByphoton takes the same inputs as EM_H2MM_C, but the 'h2mm_model' should be optimized through 'EM_H2MM_C' first, returns a tuple the:
+2. h2mm_limits: class for bounding the values a model can take, min/max values can be specified for all 3 core arrays (trans, obs, and prior) of an h2mm_model, either as single floats, or full arrays, values are specified as keyword arguments, not specifiying a value for a particular field will mean that field will be unbounded
+	- min_trans: the minimum values for the trans array (ie the slowest possible transition rate(s) allowed), values on the diagonal will be ignored
+	- max_trans: the maximum values for the trans array (ie the fastest possible transition rate(s) allowed), values on the diagonal will be ignored
+	- min_obs: the minimum values for the obs array
+	- max_obs: the maximum values for the obs array
+	- min_prior: the minimum value for the prior array
+	- max_prior
+3. EM_H2MM_C: the core function of the package, it takes an initial 'h2mm_model' object, and two lists of numpy arrays as input. The lists of numpy arrays are the data to be optimized. Each array references a burst, the first list is the index of the photon stream, the second is the arrival time. Arrays should be of an integer type, and will be converted to np.uint32 and np.uint64 types for the stream and time respectively.
+4. viterbi_path_PhotonByphoton takes the same inputs as EM_H2MM_C, but the 'h2mm_model' should be optimized through 'EM_H2MM_C' first, returns a tuple the:
 	- path: the most likely state path
 	- scale: the posterior probability of each photon
 	- ll: the loglikelihood of the path for each burst
 	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
-4. viterbi_sort the viterbi algorithm but with additional parameters included:
+5. viterbi_sort: the viterbi algorithm but with additional parameters included:
 	- icl: the Integrated Complete Likelihood (ICL) of teh state path given teh model and data, provides an extremum based criterion for selecting teh ideal number of states
 	- path: the most likely state path
 	- scale: the posterior probability of each photon
