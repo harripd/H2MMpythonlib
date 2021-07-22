@@ -343,8 +343,7 @@ void h2mm_normalize(h2mm_mod *model_params)
 }
 
 
-
-h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits) 
+h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*), void *print_call) 
 {
 	if ( limits->num_cores > num_bursts )
 		limits->num_cores = num_bursts;
@@ -374,15 +373,17 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	h2mm_mod *new = (h2mm_mod*) malloc(sizeof(h2mm_mod));
 	h2mm_mod *old = (h2mm_mod*) malloc(sizeof(h2mm_mod));
 	h2mm_mod *mod_temp;
-	// get pointers and allocatiosn ready
+	// get pointers and allocations ready
 	pcur = current;
 	pnew = new;
 	pold = old;
 	new->nstate = old->nstate = current->nstate = in->nstate;
 	new->ndet = old->ndet = current->ndet = in->ndet;
-	new->nphot = old->nphot = current->nphot = in->nphot;
+	current->nphot = 0;
+	for ( i = 0; i < num_bursts; i++) current->nphot += b[i].nphot; // calculate the total number of photons in the data
+	new->nphot = old->nphot = current->nphot; // assign total number of photons to all arrays
 	new->conv = current->conv = old->conv = 0;
-	new->niter = current->niter = old->niter;
+	new->niter = current->niter = old->niter = in->niter;
 	pop = old-> prior = (double*) malloc(in->nstate * sizeof(double));
 	pcp = current-> prior = (double*) malloc(in->nstate * sizeof(double));
 	for ( i = 0; i < in->nstate; i++) old->prior[i] = current->prior[i] = in->prior[i];
@@ -402,7 +403,9 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	for ( i = 0; i < num_bursts; i++)
 	{
 		if ( burst_submit[0].max_phot < b[i].nphot) 
+		{
 			burst_submit[0].max_phot = b[i].nphot;
+		}
 	}
 	for ( j = 0; j < limits->num_cores; j++)
 	{
@@ -429,7 +432,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	{
 		// calculate rho
 		rho_all(current->nstate, current->trans, powers);
-		// spinn up the threads, calculate forward and backward recurrsion variable, running in parallel for all bursts
+		// spin up the threads, calculate forward and backward recursion variable, running in parallel for all bursts
 #ifdef linux
 		for(i = 0; i < limits->num_cores; i++) pthread_create(&tid[i],NULL,fwd_back_PhotonByPhoton,(void*) &burst_submit[i]); // create a thread for each burst
 		for(i = 0; i < limits->num_cores; i++) pthread_join(tid[i],NULL); // wait for all bursts to finish
@@ -452,8 +455,9 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		t_new = clock();
 		t_iter = (double) (t_new - t_current) / CLOCKS_PER_SEC;
 		t_total =  (double) (t_new - t_start) / CLOCKS_PER_SEC;
-		//printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n",niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
-		printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
+		if (print_func != NULL)
+			print_func(niter, new, current, old, t_iter, t_total, print_call);
+		//printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
 		if ( !isnan(current->loglik) && (current->loglik - old->loglik) > limits->min_conv) // if the model has improved, 
 		{
 			new->niter = ++niter;
@@ -488,7 +492,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		{
 			cont = FALSE;
 			current = old;
-			current->conv = 4;
+			current->conv = 5;
 		}
 		if ( (cont == TRUE) && (niter > limits->max_iter || t_total > limits->max_time)) // maximum iterations and no prior convergence criterions
 		{
@@ -539,4 +543,222 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	free(pnew);
 	free(pold);
 	return out;
+}
+
+
+int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits) 
+{
+	size_t i, j;
+	size_t num_burst = (size_t) num_bursts;
+	if ( limits->num_cores > (size_t) num_bursts )
+		limits->num_cores = (size_t) num_bursts;
+	// initiate variables
+	phstream *b = (phstream*) calloc(num_bursts,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
+	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_times,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	if ( powers == NULL)
+	{
+		for (i = 0; i < num_burst; i++)
+		{
+			free(b[i].det);
+			free(b[i].delta);
+		}
+		free(b);
+		free(powers->pow_list);
+		free(powers);
+		return 1;
+	}
+	size_t nphot = 0;
+	size_t ndet = 0;
+	int multi_det = FALSE;
+	int multi_state = FALSE;
+	size_t *cur_burst = (size_t*) calloc(1,sizeof(size_t));
+	size_t prev_ndet = mod_array[0].ndet;
+	size_t prev_nstate = mod_array[0].nstate;
+	for ( i = 0; i < num_burst; i++)
+	{
+		nphot += burst_sizes[i]; // determine the total number of photons in entire dataset
+		for ( j = 0; j < burst_sizes[i]; j++) // determine the total number of detectors in the experiment
+		{
+			if ((size_t)burst_det[i][j] > ndet)
+				ndet = (size_t) burst_det[i][j];
+		}
+	}
+	for (i = 0; i < limits->max_iter; i++)
+	{
+		if (mod_array[i].ndet < ndet)
+		{
+			for (j = 0; j < num_burst; j++)
+			{
+				free(b[j].det);
+				free(b[j].delta);
+			}
+			free(b);
+			free(powers->pow_list);
+			free(powers);
+			return 2;
+		}
+		if (prev_ndet != mod_array[i].ndet)
+		{
+			prev_ndet = mod_array[i].ndet;
+			multi_det = TRUE;
+		}
+		if (prev_nstate != mod_array[i].nstate)
+		{
+			prev_nstate = mod_array[i].nstate;
+			multi_state = TRUE;
+		}
+	}
+	// initialize the thread id's and mutexes
+#ifdef linux
+	pthread_t *tid = (pthread_t*) malloc(limits->num_cores * sizeof(pthread_t));
+	pthread_mutex_t *h2mm_lock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(h2mm_lock,NULL);
+#elif _WIN32
+	HANDLE* tid = (HANDLE*)calloc(limits->num_cores, sizeof(HANDLE));
+	DWORD  windowsThreadId = 0;
+	h2mm_lock = CreateMutex(NULL, FALSE, NULL);
+#endif
+	// allocate h2mm_mod arrays
+	h2mm_mod *mod_temp = (h2mm_mod*) malloc(sizeof(h2mm_mod));
+	// set up inputs for threading
+	fback_vals *burst_submit = (fback_vals*) calloc(limits->num_cores,sizeof(fback_vals));
+	for ( i = 0; i < num_bursts; i++)
+	{
+		if ( burst_submit[0].max_phot < b[i].nphot) 
+			burst_submit[0].max_phot = b[i].nphot;
+	}
+	for ( j = 0; j < limits->num_cores; j++)
+	{
+		burst_submit[j].phot = b;
+		burst_submit[j].cur_burst = cur_burst;
+		burst_submit[j].num_burst = num_burst;
+		burst_submit[j].max_phot = burst_submit[0].max_phot;
+		burst_submit[j].new = mod_temp;
+#ifdef linux
+		burst_submit[j].h2mm_lock = h2mm_lock;
+#endif
+	}
+	if (!(multi_state || multi_det)) // if there is only one type of state/det combination, don't free and calloc over and over
+	{
+		mod_temp->ndet = mod_array[0].ndet;
+		mod_temp->nstate = mod_array[0].nstate;
+		mod_temp->prior = (double*) calloc(mod_temp->nstate,sizeof(double));
+		mod_temp->trans = (double*) calloc(mod_temp->nstate * mod_temp->nstate,sizeof(double));
+		mod_temp->obs = (double*) calloc(mod_temp->nstate * mod_temp->ndet,sizeof(double));
+		powers->sk = prev_nstate;
+		powers->sj = prev_nstate * prev_nstate;
+		powers->si = powers->sj * prev_nstate;
+		powers->sT = powers->si * prev_nstate;
+		powers->A = (double*) calloc(powers->max_pow * powers->sj, sizeof(double));
+		powers->Rho = (double*) calloc(powers->max_pow * powers->sT, sizeof(double));
+		for ( j = 0; j < limits->num_cores; j++)
+		{
+			burst_submit[j].sk = powers->sk;
+			burst_submit[j].sj = powers->sj;
+			burst_submit[j].si = powers->si;
+			burst_submit[j].sT = powers->sT;
+			burst_submit[j].A = powers->A;
+			burst_submit[j].Rho = powers->Rho;
+		}
+	}
+	//begin main computation
+	for(i = 0; i < limits->max_iter; i++) // loop over all the models in the array
+	{
+		mod_array[i].loglik = 0.0;
+		if (mod_array[i].nphot != nphot) // check if model was optimized against the same data (technically if it has the same number of photons)
+		{
+			mod_array[i].nphot = nphot;
+			mod_array[i].conv = 4;
+		}
+		if (multi_state || multi_det)
+		{
+			mod_temp->nstate = mod_array[i].nstate;
+			mod_temp->ndet = mod_array[i].ndet;
+			mod_temp->prior = calloc(mod_array[i].nstate,sizeof(double));
+			mod_temp->trans = calloc(mod_array[i].nstate * mod_array[i].nstate, sizeof(double));
+			mod_temp->obs = calloc(mod_array[i].nstate * mod_array[i].ndet, sizeof(double));
+			powers->sk = mod_array[i].nstate;
+			powers->sj = powers->sk * powers->sk;
+			powers->si = powers->sj * powers->sk;
+			powers->sT = powers->si * powers->sk;
+			powers->A = calloc(powers->sj * powers->max_pow, sizeof(double));
+			powers->Rho = calloc(powers->sT * powers->max_pow, sizeof(double));
+			for (j = 0; j < limits->num_cores; j++)
+			{
+				burst_submit[j].current = &mod_array[i];
+				burst_submit[j].sk = powers->sk;
+				burst_submit[j].sj = powers->sj;
+				burst_submit[j].si = powers->si;
+				burst_submit[j].sT = powers->sT;
+				burst_submit[j].A = powers->A;
+				burst_submit[j].Rho = powers->Rho;
+			}
+		}
+		else
+		{
+			for (j = 0; j < mod_temp->nstate; j++) mod_temp->prior[j] = 0.0;
+			for (j = 0; j < mod_temp->nstate * mod_temp->nstate; j++) mod_temp->trans[j] = 0.0;
+			for (j = 0; j < mod_temp->nstate * mod_temp->ndet; j++) mod_temp->obs[j] = 0.0;
+			for (j = 0; j < limits->num_cores; j++) burst_submit[j].current = &mod_array[i];
+		}
+		// calculate rho
+		rho_all(mod_array[i].nstate, mod_array[i].trans, powers);
+		// spin up the threads, calculate forward and backward recursion variable, running in parallel for all bursts
+#ifdef linux
+		for(j = 0; j < limits->num_cores; j++) pthread_create(&tid[j],NULL,fwd_back_PhotonByPhoton,(void*) &burst_submit[j]); // create a thread for each burst
+		for(j = 0; j < limits->num_cores; j++) pthread_join(tid[j],NULL); // wait for all bursts to finish
+#elif _WIN32
+		for (j = 0; j < limits->num_cores; j++)
+		{
+			tid[j] = CreateThread(NULL, 0, fwd_back_PhotonByPhoton, (LPVOID)&burst_submit[j], 0, (LPDWORD)&windowsThreadId);
+			//printf("compute_ess_dhmm(): i: %3d  threadId: %8x\n", (int)i, windowsThreadId);
+		}
+		WaitForMultipleObjects((DWORD)limits->num_cores, tid, TRUE, INFINITE); // Wait for all of the threads to finish
+		for (j = 0; j < limits->num_cores; j++)
+		{
+			if (tid[j] != 0)
+			{
+				CloseHandle(tid[j]);
+			}
+		}
+#endif
+		*cur_burst = 0;
+		if (multi_state || multi_det)
+		{
+			free(mod_temp->prior);
+			free(mod_temp->trans);
+			free(mod_temp->obs);
+			free(powers->A);
+			free(powers->Rho);
+		}
+	}
+	// destroy mutexes, thread ids and free allocated memory
+#ifdef linux
+	pthread_mutex_destroy(h2mm_lock);
+	if (h2mm_lock != NULL)
+		free(h2mm_lock);
+	free(tid);
+#elif _WIN32
+	free((void*)tid);
+	if( h2mm_lock ) CloseHandle(h2mm_lock);
+#endif
+	for ( i = 0; i < num_burst; i++)
+	{
+		free(b[i].delta);
+		free(b[i].det);
+	}
+	if (!(multi_state || multi_det))
+	{
+		free(mod_temp->prior);
+		free(mod_temp->trans);
+		free(mod_temp->obs);
+		free(powers->A);
+		free(powers->Rho);
+	}
+	free(b);
+	free(burst_submit);
+	free(mod_temp);
+	free(powers->pow_list);
+	free(powers);
+	return 0;
 }

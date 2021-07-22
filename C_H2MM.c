@@ -66,7 +66,12 @@ pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 	return powers;
 }
 
-h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits)
+void baseprint(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
+{
+	printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
+}
+
+h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	size_t i, j; // basic iterator variables
 	// alocate variables
@@ -76,8 +81,8 @@ h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned 
 	//~ printf("Getting deltas\n");
 	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_times,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	//~ printf("Got powers\n");
-	in_model->nphot = 0;
-	for ( i = 0; i < num_bursts; i++) in_model->nphot += burst_sizes[i]; // determine total number of photons in dataset, used when calculating BIC/ICL
+	//~ in_model->nphot = 0;
+	//~ for ( i = 0; i < num_bursts; i++) in_model->nphot += burst_sizes[i]; // determine total number of photons in dataset, used when calculating BIC/ICL
 	// check for errors
 	if (powers == NULL) // in case of an out of order photon, return null to indicate error
 	{
@@ -105,7 +110,7 @@ h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned 
 	powers->Rho = (double*) calloc(powers->sT * powers->max_pow,sizeof(double));
 	// run main routine
 	//~ printf("Entering main routine\n");
-	h2mm_mod *out_model = compute_ess_dhmm(num_burst, b, powers, in_model, limits, model_limits_func, model_limits);
+	h2mm_mod *out_model = compute_ess_dhmm(num_burst, b, powers, in_model, limits, model_limits_func, model_limits, print_func, print_call);
 	// free memory
 	for ( i = 0; i < num_bursts; i++){
 		free(b[i].delta);
