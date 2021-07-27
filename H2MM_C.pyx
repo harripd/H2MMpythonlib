@@ -69,7 +69,7 @@ cdef unsigned long* get_ptr_l(np.ndarray[unsigned long, ndim=1] arr):
 cdef class h2mm_model:
     cdef:
         h2mm_mod model
-    def __cinit__(self, prior, trans, obs, loglik=-np.inf, niter = 0, nphot = 0):
+    def __cinit__(self, prior, trans, obs, loglik=-np.inf, niter = 0, nphot = 0, is_conv=False):
         # if statements check to confirm first the correct dimensinality of input matrices, then that their shapes match
         cdef size_t i, j
         if prior.ndim != 1:
@@ -86,6 +86,22 @@ cdef class h2mm_model:
             raise ValueError("niter must be positive")
         if nphot< 0: 
             raise ValueError("nphot must be positive")
+        if type(is_conv) != bool:
+            raise TypeError("is_conv must be boolean")
+        if loglik > 0.0:
+            raise ValueError("loglik must be negative")
+        elif loglik != -np.inf:
+            if nphot == 0:
+                raise ValueError("Must specify number of photons if loglik is specified")
+        else: 
+            if is_conv == True:
+                raise ValueError("Converged Model cannot have -inf loglik")
+        if np.any(prior < 0.0):
+            raise ValueError("prior array can have no negative values")
+        if np.any(trans < 0.0):
+            raise ValueError("trans array can have no negative values")
+        if np.any(obs < 0.0):
+            raise ValueError("obs array can have no negative values")
         # coerce the matricies into c type double
         prior = prior.astype('double')
         trans = trans.astype('double')
@@ -93,8 +109,13 @@ cdef class h2mm_model:
         self.model.nstate = <size_t> obs.shape[0]
         self.model.ndet = <size_t> obs.shape[1]
         self.model.nphot = nphot
-        self.model.conv = 0
-        self.model.loglik = <double> loglik
+        if loglik == -np.inf:
+            self.model.conv = 0
+            self.model.loglik = <double> loglik
+        else:
+            self.model.conv = 3 if is_conv else 2
+            self.model.loglik = <double> loglik
+        # allocate and copy array values
         self.model.trans = <double*> PyMem_Malloc(self.model.nstate**2 * sizeof(double))
         for i in range(self.model.nstate):
             for j in range(self.model.nstate):
@@ -107,7 +128,7 @@ cdef class h2mm_model:
             for j in range(self.model.nstate):
                 self.model.obs[self.model.nstate * i + j] = obs[j,i]
         self.normalize()
-    # a number of propert defs so that the values are accesible from python
+    # a number of property defs so that the values are accesible from python
     @property
     def prior(self):
         return np.asarray(<double[:self.model.nstate]>self.model.prior).copy()
@@ -117,11 +138,12 @@ cdef class h2mm_model:
             raise ValueError("Prior must be 1D numpy floating point array")
         if prior.shape[0] != self.model.nstate:
             raise ValueError("Cannot change the number of states")
-        if prior.sum() != 1.0:
+        if (prior.sum() - 1.0) > 1e-14:
             warnings.warn("Input array not stochastic, new array will be normalized")
+        prior = prior.astype('double')
         self.model.loglik = -np.inf
         self.model.conv = 0
-        prior = prior.astype('double')
+        self.model.niter = 0
         for i in range(self.model.nstate):
             self.model.prior[i] = prior[i]
         self.normalize()
@@ -136,11 +158,12 @@ cdef class h2mm_model:
             raise ValueError("Trans must be a square array")
         if trans.shape[0] != self.model.nstate:
             raise ValueError("Cannot change the number of states in a model")
-        if np.any(trans.sum(axis=1) != 1.0):
+        if np.any((trans.sum(axis=1) - 1.0) > 1e-14):
             warnings.warn("Input matrix not row stochastic, new matrix will be normalized")
+        trans = trans.astype('double')
         self.model.loglik = -np.inf
         self.model.conv = 0
-        trans = trans.astype('double')
+        self.model.niter = 0
         for i in range(self.model.nstate):
             for j in range(self.model.nstate):
                 self.model.trans[self.model.nstate*i + j] = trans[i,j]
@@ -156,11 +179,12 @@ cdef class h2mm_model:
             raise ValueError("Cannot change the number of states in a model")
         if obs.shape[1] != self.model.ndet: 
             raise ValueError("Cannot change the number of streams in the model")
-        if np.any(obs.sum(axis=1) != 1.0):
+        if np.any((obs.sum(axis=1) -  1.0) > 1e-14):
             warnings.warn("Input matrix not row stochastic, new matrix will be normalized")
+        obs = obs.astype('double')
         self.model.loglik = -np.inf
         self.model.conv = 0
-        obs = obs.astype('double')
+        self.model.niter = 0
         for i in range(self.model.ndet):
             for j in range(self.model.nstate):
                 self.model.obs[self.model.nstate * i + j] = obs[j,i]
@@ -168,16 +192,21 @@ cdef class h2mm_model:
     @property
     def loglik(self):
         if self.model.nphot == 0:
-            warnings.warn("Model not optimized, loglik will be meaningless")
+            warnings.warn("loglik not calculated against data, will be meaningless -inf")
         return self.model.loglik
     @property
     def k(self):
         return self.model.nstate**2 + ((self.model.ndet - 1)*self.model.nstate) - 1
     @property
     def bic(self):
-        if self.model.nphot < 0:
-            raise Exception("Must run through H2MM_C first, BIC not known")
-        return -2*self.model.loglik + np.log(self.model.nphot)*(self.model.nstate**2 + ((self.model.ndet - 1)*self.model.nstate) - 1)
+        if self.model.nphot == 0:
+            raise Exception("Init model, no data linked, therefore BIC not known.")
+        if self.model.conv == 0:
+            warnings.warn("loglik not calculated against data, BIC meaningless -inf")
+        if self.model.conv == 1 and self.model.loglik == 0.0:
+            return 0.0
+        else:
+            return -2*self.model.loglik + np.log(self.model.nphot)*(self.model.nstate**2 + ((self.model.ndet - 1)*self.model.nstate) - 1)
     @property
     def nstate(self):
         return self.model.nstate
@@ -187,33 +216,48 @@ cdef class h2mm_model:
     @property
     def nphot(self):
         return self.model.nphot
-    @nphot.setter
-    def nphot(self,nphot):
-        if nphot <= 0:
-            raise ValueError("nphot must be greater than 0")
-        self.model.nphot = <size_t> nphot
     @property
-    def converged(self):
-        if self.model.conv == 1:
+    def is_conv(self):
+        if self.model.conv == 3:
             return True
         else:
             return False
     @property
+    def is_opt(self):
+        if self.model.conv >= 3:
+            return True
+        else:
+            return False
+    @property
+    def is_calc(self):
+        if np.isnan(self.model.loglik) or self.model.loglik == -np.inf or self.model.loglik == 0 or self.model.nphot == 0:
+            return False
+        else:
+            return True
+    @property
     def conv_code(self):
-        return self.model.conv
+        if self.model.conv == 1 and self.model.loglik == 0:
+            return -1
+        else:
+            return self.model.conv
     @property
     def conv_str(self):
         if self.model.conv == 0:
-            return "Model unoptimized"
-        elif self.model.conv ==1:
-            return f'Model converged after {self.model.niter} iterations'
+            return 'Model unoptimized'
+        elif self.model.conv == 1:
+            if self.model.loglik == 0.0:
+                return f'Non-calculated model in optimization, {self.model.niter} iterations'
+            else:
+                return f'Mid-optimization model, {self.model.niter} iterations'
         elif self.model.conv == 2:
-            return f'Maxiumum of {self.model.niter} iterations reached'
-        elif self.model.conv == 3:
-            return f'After {self.model.niter} iterations the optimization reached the time limit'
-        elif self.model.conv == 4:
             return 'Loglik of model calculated without optimization'
+        elif self.model.conv == 3:
+            return f'Model converged after {self.model.niter} iterations'
+        elif self.model.conv == 4:
+            return f'Maxiumum of {self.model.niter} iterations reached'
         elif self.model.conv == 5:
+            return f'After {self.model.niter} iterations the optimization reached the time limit'
+        elif self.model.conv == 6:
             return f'Optimization terminated because of reaching floating point NAN on iteration {self.model.niter}, returned the last viable model'
     @property
     def niter(self):
@@ -226,16 +270,20 @@ cdef class h2mm_model:
     def set_converged(self,converged):
         if not isinstance(converged,bool):
             raise ValueError("Input must be True or False")
+        if self.model.nphot == 0 or self.model.loglik == 0 or self.model.loglik == np.inf or np.isnan(self.model.loglik):
+            raise Exception("Model uninitialized with data, cannot set converged")
         if converged:
+            self.model.conv = 3
+        elif self.model.conv == 3:
             self.model.conv = 1
-        elif not converged:
-            self.model.niter = 0
     def normalize(self):
         h2mm_normalize(&self.model)
     def optimize(self, burst_colors, burst_times, max_iter=3600, 
               print_func='console', bounds=None, bounds_func=None, max_time=np.inf, 
-              converged_min=1e-14, num_cores= os.cpu_count()//2, reset_niter=True):
+              converged_min=1e-14, num_cores= os.cpu_count()//2, reset_niter=False):
         cdef size_t i
+        if self.model.conv == 4 and self.model.niter >= max_iter:
+            max_iter = self.model.niter + max_iter
         cdef h2mm_model out = EM_H2MM_C(self, burst_colors, burst_times, 
                         max_iter=max_iter, print_func=print_func, 
                         bounds=bounds, bounds_func=bounds_func, 
@@ -251,9 +299,8 @@ cdef class h2mm_model:
         self.model.niter = out.model.niter
         self.model.conv = out.model.conv
         self.model.nphot = out.model.nphot
-    def evaluate(self, burst_colors, burst_times):
-        cdef h2mm_model out = H2MM_arr(self, burst_colors, burst_times)
-        self.model = out.model
+    def evaluate(self, burst_colors, burst_times, num_cores = os.cpu_count()//2):
+        cdef h2mm_model out = H2MM_arr(self, burst_colors, burst_times,num_cores = num_cores)
         for i in range(self.model.nstate):
             self.model.prior[i] = out.model.prior[i]
         for i in range(self.model.nstate**2):
@@ -264,6 +311,8 @@ cdef class h2mm_model:
         self.model.niter = out.model.niter
         self.model.conv = out.model.conv
         self.model.nphot = out.model.nphot
+    def copy(self):
+        return model_copy_from_ptr(&self.model)
     def __repr__(self):
         cdef size_t i, j
         msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {self.model.conv}\n"
@@ -286,18 +335,25 @@ cdef class h2mm_model:
             msg = "Initial model, "
             ll = ', loglik unknown'
         elif self.model.conv == 1:
-            msg = f"Converged model, {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+            if self.model.loglik == 0.0:
+                msg = f"Non-calculated optimization model, {self.model.niter} iterations, "
+                ll = f'nphot={self.model.nphot}'
+            else:
+                msg = f"Mid-optimization, {self.model.niter} iterations, "
+                ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
         elif self.model.conv == 2:
-            msg = f"Max iterations {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 3:
-            msg = f"Max time {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 4:
             msg = "Non-optimzed model, "
             ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 3:
+            msg = f"Converged model, {self.model.niter} iterations, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 4:
+            msg = f"Max iterations {self.model.niter} iterations, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
         elif self.model.conv == 5:
+            msg = f"Max time {self.model.niter} iterations, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 6:
             msg = "Optimization stopped after error, "
             ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
         return msg + f'States={self.model.nstate}, Streams={self.model.ndet}, ' + ll
@@ -937,15 +993,19 @@ cdef void model_print_call(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_
 cdef void model_print_all(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
     cdef h2mm_model current_model = model_copy_from_ptr(current)
     print(current_model.__repr__())
-    print(f'Iteration time: {t_iter}, Total: {t_total}')
+    print(f'Iteration time:{t_iter}, Total:{t_total}')
 
 # function to hand to the print_func, prints the current loglik and the improvement
 cdef void model_print_diff(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
-    print(f'Iteration:{niter}, loglik: {current.loglik}, improvement: {current.loglik - old.loglik} iteration time: {t_iter}, total: {t_total}')
+    print(f'Iteration:{niter}, loglik:{current.loglik}, improvement:{current.loglik - old.loglik} iteration time:{t_iter}, total:{t_total}')
 
 # function to hand to the print_func, prints current and old loglik
 cdef void model_print_comp(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
-    print(f'Iteration:{niter}, loglik: {current.loglik}, previous loglik: {old.loglik} iteration time: {t_iter}, total: {t_total}')
+    print(f'Iteration:{niter}, loglik:{current.loglik}, previous loglik:{old.loglik} iteration time:{t_iter}, total:{t_total}')
+
+# function to hand to the print_func, prints current and old loglik
+cdef void model_print_iter(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+    print(f'Iteration:{niter}', end=' ')
 
 def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600, 
               print_func='console', bounds_func=None, bounds=None, max_time=np.inf, 
@@ -1115,28 +1175,45 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {ndet + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
     elif h_mod.model.ndet < ndet + 1:
         raise ValueError(f"Underdefined model: data has too many photon streams for model. Data contains {ndet + 1} streams, while model only has {h_mod.model.ndet}")
+    cdef h2mm_model h_test_new = h_mod.copy()
+    cdef h2mm_model h_test_current = h_mod.copy()
+    cdef h2mm_model h_test_old = h_mod.copy()
+    h_test_new.model.niter, h_test_current.model.niter, h_test_old.model.niter = 3, 2, 1
+    h_test_new.model.conv, h_test_current.model.conv, h_test_old.model.conv = 1, 1, 1
+    h_test_new.model.nphot, h_test_current.model.nphot, h_test_old.model.nphot = 1000, 1000, 1000
+    h_test_new.model.loglik, h_test_current.model.loglik, h_test_old.model.loglik = -0.0, -2e-4, -3e-4
+    cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
+    cdef tuple print_strings = (None,'console','all','diff','comp','iter')
     # check the bounds_func
-    if bounds_func not in [None,'minmax','revert', 'revert_old'] and not callable(bounds_func):
-        raise TypeError("Invalid bounds_func input, must be 'minmax', 'revert', 'revert_old', or function")
-    elif bounds_func in ['minmax','revert','revert_old'] and not isinstance(bounds,h2mm_limits):
-        raise ValueError("If bounds_func is 'minmax', 'revert' or 'revert_old', bounds must be a h2mm_limits object")
-    elif callable(bounds_func):
+    if callable(bounds_func):
         try:
             print("bounds_func validation", end = '...')
-            test_lim = bounds_func(h_mod,h_mod,h_mod, bounds)
+            test_lim = bounds_func(h_test_new,h_test_current,h_test_old, bounds)
             print("bounds_func validated")
-        except Exception as e:
+        except Exception as exep:
             print("Invalid bounds_func/bounds argument")
-            raise e
+            raise exep
         if not isinstance(test_lim,h2mm_model):
             raise ValueError("bounds_func must return h2mm_model, got {type(test_lim)}")
+    elif type(bounds) == h2mm_limits:
+        if bounds_func is None:
+            bounds_func = 'minmax'
+        elif bounds_func not in bounds_strings:
+            raise ValueError("Invalid bounds_func input, if bounds is h2mm_limits object, then bounds_func must be 'minmax', 'revert', or 'revert_old'")
+    elif bounds is None:
+        if bounds_func in bounds_strings:
+            raise ValueError(f"Must specify bounds with h2mm_limits object when bounds_func is specified as '{bounds_func}'")
+        elif bounds_func is not None:
+            raise TypeError("bounds_func must be None or callable when bounds is None")
+    else:
+        raise TypeError(f"bounds must be either None or h2mm_limits unless bounds_func is callable. got type({type(bounds)})")
     # chekc print_func
-    if print_func not in [None, 'console','all','diff','comp'] and not callable(print_func):
+    if print_func not in print_strings and not callable(print_func):
         raise ValueError("print_func must be None, 'console', 'all', 'diff', or 'comp' or callable")
     elif callable(print_func):
         try:
             print("print_func validation", end='...')
-            print_func(1,h_mod,h_mod,h_mod,0.1,0.2)
+            print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
             print("print_func validated")
         except Exception as e:
             print("print_func invalid function, must take (niter,new,current,old,t_iter,t_total)")
@@ -1151,6 +1228,8 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         ptr_print_func = model_print_diff
     elif print_func == 'comp':
         ptr_print_func = model_print_comp
+    elif print_func == 'iter':
+        ptr_print_func = model_print_iter
     elif callable(print_func):
         ptr_print_func = model_print_call
         ptr_print_call = <void*> print_func
@@ -1191,32 +1270,19 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         bound_func = NULL
         b_ptr = NULL
     elif bounds_func in ['minmax', 'revert', 'revert_old']:
-        if isinstance(bounds, h2mm_limits):
-            bound = bounds._make_model(h_mod)
-            b_ptr = <void*> &bound.limits
-            if bounds_func == 'minmax':
-                bound_func = limit_minmax
-            elif bounds_func == 'revert':
-                bound_func = limit_revert
-            elif bounds_func == 'revert_old':
-                bound_func = limit_revert_old
-        else:
-            PyMem_Free(b_struct)
-            PyMem_Free(b_det)
-            PyMem_Free(b_time)
-            PyMem_Free(burst_sizes)
-            raise ValueError("bounds keword argument is not of class h2mm_limits")
+        bound = bounds._make_model(h_mod)
+        b_ptr = <void*> &bound.limits
+        if bounds_func == 'minmax':
+            bound_func = limit_minmax
+        elif bounds_func == 'revert':
+            bound_func = limit_revert
+        elif bounds_func == 'revert_old':
+            bound_func = limit_revert_old
     elif callable(bounds_func):
         b_struct.func = <void*> bounds_func
         b_struct.limits = <void*> bounds
         b_ptr = b_struct
         bound_func = cy_limit
-    else:
-        PyMem_Free(b_struct)
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
-        raise ValueError("bounds_func must be 'minmax', 'revert', 'print' or a function")
     # set up the in and out h2mm_mod variables
     cdef size_t old_niter = h_mod.model.niter
     if reset_niter:
@@ -1229,7 +1295,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         PyMem_Free(b_det)
         PyMem_Free(b_time)
         PyMem_Free(burst_sizes)
-        raise Exception('Bursts photons are out of order, please check your data')
+        raise ValueError('Bursts photons are out of order, please check your data')
     elif out_model == &h_mod.model:
         PyMem_Free(b_struct)
         PyMem_Free(b_det)
@@ -1237,13 +1303,13 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         PyMem_Free(burst_sizes)
         raise ValueError('Too many photon streams in data for H2MM model')
     cdef h2mm_model out = model_from_ptr(out_model)
-    if out.model.conv == 1:
+    if out.model.conv == 3:
         print(f'The model converged after {out.model.niter} iterations')
-    elif out.model.conv == 2:
+    elif out.model.conv == 4:
         print('Optimization reached maximum number of iterations')
-    elif out.model.conv == 3:
-        print('Optimization reached maxiumum time')
     elif out.model.conv == 5:
+        print('Optimization reached maxiumum time')
+    elif out.model.conv == 6:
         print(f'An error occured on iteration {out.model.niter}, returning previous model')
     PyMem_Free(b_struct)
     PyMem_Free(b_det);

@@ -381,8 +381,10 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	new->ndet = old->ndet = current->ndet = in->ndet;
 	current->nphot = 0;
 	for ( i = 0; i < num_bursts; i++) current->nphot += b[i].nphot; // calculate the total number of photons in the data
+	if (current->nphot != in->nphot) // check if the model has been optimized before, and if it's on the same data or different data
+		in->niter = 0; // set niter to 0 if the model is optimized against different data
 	new->nphot = old->nphot = current->nphot; // assign total number of photons to all arrays
-	new->conv = current->conv = old->conv = 0;
+	new->conv = current->conv = old->conv = 1;
 	new->niter = current->niter = old->niter = in->niter;
 	pop = old-> prior = (double*) malloc(in->nstate * sizeof(double));
 	pcp = current-> prior = (double*) malloc(in->nstate * sizeof(double));
@@ -393,7 +395,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	poo = old->obs = (double*) malloc(in->nstate * current->ndet * sizeof(double));
 	pco = current->obs = (double*) malloc(in->nstate * current->ndet * sizeof(double));
 	for ( i = 0; i < in->nstate * in->ndet; i++) old->obs[i] = current->obs[i] = in->obs[i];
-	pnp = new-> prior = (double*) calloc(current->nstate,sizeof(double));
+	pnp = new->prior = (double*) calloc(current->nstate,sizeof(double));
 	pnt = new->trans = (double*) calloc(current->nstate * current->nstate,sizeof(double));
 	pno = new->obs = (double*) calloc(current->nstate * current->ndet, sizeof(double));
 	old->loglik = -INFINITY;
@@ -471,7 +473,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 			current = new;
 			new = mod_temp;
 			// 0 the arrays in the new model (equivalent to emptying it)
-			current->loglik = 0.0;
+			new->loglik = current->loglik = 0.0;
 			for ( i = 0; i < new->nstate; i ++) new->prior[i] = 0.0;
 			for ( i = 0; i < new->nstate * new->nstate; i++) new->trans[i] = 0.0;
 			for ( i = 0; i < new->nstate * new->ndet; i++) new->obs[i] = 0.0;
@@ -486,22 +488,22 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		else if (!isnan(current->loglik) && (current->loglik - old->loglik) <= limits->min_conv) // model converged
 		{
 			cont = FALSE;
-			current->conv = 1;
+			current->conv = 3;
 		}
 		else // if the loglik is a nan
 		{
 			cont = FALSE;
 			current = old;
-			current->conv = 5;
+			current->conv = 6;
 		}
 		if ( (cont == TRUE) && (niter > limits->max_iter || t_total > limits->max_time)) // maximum iterations and no prior convergence criterions
 		{
 			cont = FALSE;
 			current = old;
 			if (niter > limits->max_iter)
-				current->conv = 2;
+				current->conv = 4;
 			else
-				current->conv = 3;
+				current->conv = 5;
 		}
 		t_current = t_new;
 	}
@@ -668,7 +670,7 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 		if (mod_array[i].nphot != nphot) // check if model was optimized against the same data (technically if it has the same number of photons)
 		{
 			mod_array[i].nphot = nphot;
-			mod_array[i].conv = 4;
+			mod_array[i].conv = 2;
 		}
 		if (multi_state || multi_det)
 		{
