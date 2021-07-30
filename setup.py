@@ -5,8 +5,8 @@ Created on Tue Apr 6 14:01 2021
 A full C level implementation of H2MM and python wrappers for access in Jupyter Notebooks
 @author: Paul David Harris
 """
-
-from distutils.core import setup, Extension
+from setuptools import setup
+from distutils.core import Extension
 import numpy as np
 
 ext = Extension("H2MM_C", sources=["H2MM_C.c","rho_calc.c","fwd_back_photonbyphoton_par.c","model_limits_funcs.c","C_H2MM.c","viterbi.c"],define_macros=[("NPY_NO_DEPRECATED_APY","NPY_1_7_API_VERSION")])
@@ -28,6 +28,7 @@ setup(name = "H2MM_C",
       url = "https://github.com/harripd/H2MMpythonlib",
       download_url = "https://github.com/harripd/H2MMpythonlib",
       description = "C level implementation of H2MM algorithm by Pirchi. 2016",
+      install_requires = ['numpy'],
       long_description = long_description,
       headers = ["C_H2MM.h"],
       ext_modules = [ext],
