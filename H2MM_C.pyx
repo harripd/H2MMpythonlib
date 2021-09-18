@@ -53,6 +53,9 @@ cdef extern from "C_H2MM.h":
     void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
     void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
     void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+    int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed)
+    int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed)
+    int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed)
 
 ctypedef struct bound_struct:
     void *func
@@ -1727,3 +1730,155 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores = os.cpu_count()//2)
             dwell_beg[i][j] = np.array(dwell_beg[i][j]).astype('long') if len(dwell_beg[i][j]) > 0 else np.zeros((0,2)).astype('long')
             dwell_end[i][j] = np.array(dwell_end[i][j]).astype('long') if len(dwell_end[i][j]) > 0 else np.zeros((0,2)).astype('long')
     return icl, paths, scale, ll, burst_type, dwell_mid, dwell_beg, dwell_end, dwell_burst, ph_counts, ph_mid, ph_beg, ph_end, ph_burst
+
+# simulation functions
+def sim_statepath(h2mm_model hmod, int lenp, seed=None):
+    """
+    A function to generate a dense statepath (HMM as opposed to H2MM) of length lenp
+
+    Parameters
+    ----------
+    hmod : h2mm_model
+        An h2mm model to build the state path from
+    lenp : int
+        The length of the path you want to generate
+    seed : positive int, optional
+        The initial random seed, use if you want to be able to replicate results.
+        If None, then uses the current time as the seed.
+        The default is None.
+
+    Raises
+    ------
+    RuntimeError
+        A problem with the C code, this is for future proofing
+    issue
+        Should note be implemented
+
+    Returns
+    -------
+    path_ret : numpy ndarray, positive integer
+        The random dense state-path
+
+    """
+    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(lenp,dtype='L')
+    cdef unsigned int seedp = 0
+    if seed is not None:
+        seedp = <unsigned int> seed
+    cdef int exp = statepath(&hmod.model,lenp,get_ptr_l(path),seedp)
+    if exp != 0:
+        raise RuntimeError("Unknown error, raise issue on github")
+    return path
+
+def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
+    """
+    
+
+    Parameters
+    ----------
+    hmod : h2mm_model
+        An h2mm model to build the state path from
+    times : numpy ndarray 1D int
+        An unsigned integer of monotonically increasing times for the burst
+    seed : positive int, optional
+        The initial random seed, use if you want to be able to replicate results.
+        If None, then uses the current time as the seed.
+        The default is None.
+
+    Raises
+    ------
+    TypeError
+        Your array was not 1D
+    ValueError
+        Your time were not monotonically increasing
+    RuntimeError
+        Unknown error, please raise issue on github
+
+    Returns
+    -------
+    path : numpy ndarra 1D long int
+        A randomly generated statepath based on the input model and times
+
+    """
+    if times.ndim != 1:
+        raise TypeError("times array must be 1D")
+    times = times.astype('Q')
+    if not times.flags['C_CONTIGUOUS']:
+        times = np.ascontiguousarray(times)
+    cdef unsigned long* tms = get_ptr_l(times)
+    cdef size_t lenp = <size_t> times.size
+    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
+    cdef unsigned int seedp = 0
+    if seed is not None:
+        seedp = <unsigned int> seed
+    cdef int exp = sparsestatepath(&hmod.model, times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
+    if exp == 1:
+        raise ValueError("Out of order photon")
+    elif exp != 0:
+        raise RuntimeError("Unknown error, raise issue on github")
+    return path
+
+def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
+    """
+    Generate a photon trajectory from a h2mm model and state trajectory
+
+    Parameters
+    ----------
+    hmod : h2mm_model
+        An h2mm model to build the state path from
+    states : numpy ndarray 1D int
+        
+    seed : positive int, optional
+        The initial random seed, use if you want to be able to replicate results.
+        If None, then uses the current time as the seed.
+        The default is None.
+
+    Raises
+    ------
+    TypeError
+        The state array was not 1D
+    RuntimeError
+        Unknown error, please raise issue on github
+
+    Returns
+    -------
+    path : numpy ndarray 1D int
+        The random photon stream indexes based on model and statepath
+
+    """
+    if states.ndim != 1:
+        raise TypeError("Times must be 1D")
+    states = states.astype('L')
+    if not states.flags['C_CONTIGUOUS']:
+        states = np.ascontiguousarray(states)
+    cdef unsigned long lenp = states.shape[0]
+    cdef unsigned long* sts = get_ptr_l(states)
+    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(states.shape[0],dtype='L')
+    cdef unsigned int seedp = 0
+    if seed is not None:
+        seedp = <unsigned int> seed
+    cdef int exp = phpathgen(&hmod.model,states.shape[0],get_ptr_l(states),get_ptr_l(path),seedp)
+    if exp != 0:
+        raise RuntimeError("Unknown error, raise issue on github")
+    return path
+
+def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
+    if times.ndim != 1:
+        raise TypeError("times array must be 1D")
+    times = times.astype('Q')
+    if not times.flags['C_CONTIGUOUS']:
+        times = np.ascontiguousarray(times)
+    cdef unsigned int seedp = 0
+    if seed is not None:
+        seedp = <unsigned int> seed
+    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
+    cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
+    if exp == 1:
+        raise ValueError("Out of order photon")
+    elif exp != 0:
+        raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
+    cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
+    exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
+    if exp != 0:
+        raise RuntimeError("Unknown error in phtragen, raise issue on github")
+    return path , dets
+

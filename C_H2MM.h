@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Header files for H2MM and H2MM Viterbi algorithm
 // Date Created: 13 Feb 2021
-// Data Modified: 8 June 2021
+// Data Modified: 18 Sept 2021
 
 #ifdef _WIN32
 #include <windows.h>
@@ -98,6 +98,14 @@ typedef struct // pwrs is a structure that contains pointers to the A (transmat)
 	double *Rho; // the Rho array, as defined in H2MM
 } pwrs;
 
+typedef struct // pwrs is a structure that contains pointers to the A (transmat) and Rho arrays, plus information on dimensions and which values are to be calculated
+{
+	size_t max_pow; // maximum power, the maximum delta in the data set
+	size_t sj; // note that this is also the stride for the delta t in the A array
+	size_t sk; // note that this is also the number of states
+	double *A; // the A array, contains the powers of the tranistion probability matrix
+} trpow;
+
 // viterbi.c structures 
 
 // structure identifies a burst, and its viterbi values
@@ -184,3 +192,15 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 temps* burst_read(char *fname, size_t *n); // read burst data from a .txt file
 
 h2mm_mod* h2mm_read(char *fname); // read h2mm model from .txt file
+
+// simulation functions
+
+void cumsum(unsigned long len, double* arr, double* dest); // calculate the cumulative sum of an array
+
+unsigned long randchoice(unsigned long len, double* arr); // select a random set index within range len, based on array arr
+
+int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed); // generate random statepath based on model, with equally spaced times
+
+int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed); // generate random statepath of sparsely spaced times
+
+int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed); // generate random set of detectors based on given statepath

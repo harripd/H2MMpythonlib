@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Calcualte the A and Rho matrices, no multithreading at this point
 // Date created: 13 Feb 2021
-// Date modified: 30 March 2021
+// Date modified: 18 Sept 2021
 
 #ifdef linux
 #include <unistd.h>
@@ -19,6 +19,51 @@
 
 #define TRUE 1
 #define FALSE 0
+
+// calculates just the powers of the trans matrix up to maxdif
+trpow* transpow(h2mm_mod* model, size_t maxdif)
+{
+	// initialize variables
+	size_t i, j, k, t, istride, tstride, tstride_r, tistride, Ad;
+	double runsum;
+	trpow* power = (trpow*) calloc(1,sizeof(trpow));
+	power->max_pow = maxdif;
+	power->sk = model->nstate;
+	power->sj = model->nstate * model->nstate;
+	power->A = (double*) calloc(maxdif*model->nstate*model->nstate,sizeof(double));
+	for (i = 0; i < model->nstate; i++)
+	{
+		istride = i * model->nstate;
+		for ( j = 0; j < model->nstate; j++)
+			power->A[istride + j] =  model->trans[istride + j];
+	}
+	// loop over every power
+	for (t = 1; t < maxdif; t++)
+	{
+		tstride = power->sj * t;
+		tstride_r = tstride - power->sj;
+		// outer matrix multiplication loop
+		for (i = 0; i < model->nstate; i++)
+		{
+			istride = i * model->nstate;
+			tistride = istride + tstride;
+			runsum = 0.0;
+			// inner matrix multiplication loop
+			for (j = 0; j < model->nstate; j++)
+			{
+				power->A[tstride + istride + j] = 0.0;
+				Ad = tistride + j;
+				for (k = 0; k < model->nstate; k++)
+					power->A[Ad] += power->A[istride + k] * power->A[tstride_r + k * power->sk + j];
+				runsum += power->A[Ad];
+			}
+			// for normalization
+			for (j = 0; j < model->nstate; j++)
+				power->A[tistride + j] /= runsum;
+		}
+	}
+	return power;
+}
 
 void* rhoulate(void *vals)
 {

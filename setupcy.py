@@ -11,7 +11,7 @@ from Cython.Build import cythonize
 
 import numpy as np
 
-ext = Extension("H2MM_C", sources=["H2MM_C.pyx","rho_calc.c","fwd_back_photonbyphoton_par.c","model_limits_funcs.c","C_H2MM.c","viterbi.c"],define_macros=[("NPY_NO_DEPRECATED_APY","NPY_1_7_API_VERSION")])
+ext = Extension("H2MM_C", sources=["H2MM_C.pyx","rho_calc.c","fwd_back_photonbyphoton_par.c","model_limits_funcs.c","C_H2MM.c","viterbi.c","state_path.c"],define_macros=[("NPY_NO_DEPRECATED_APY","NPY_1_7_API_VERSION")])
 long_description = """
 H2MM_C
 ======
@@ -22,7 +22,7 @@ And zenodo ...
 """
 
 setup(name = "H2MM_C",
-      version = "0.7",
+      version = "0.8",
       author = "Paul David Harris",
       author_email = "harripd@gmail.com",
       maintainer = "Paul David Harris",
