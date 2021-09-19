@@ -35884,7 +35884,7 @@ static PyObject *__pyx_pf_6H2MM_C_12sim_sparsestatepath(CYTHON_UNUSED PyObject *
 
 /* Python wrapper */
 static PyObject *__pyx_pw_6H2MM_C_15sim_phtraj_from_state(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static char __pyx_doc_6H2MM_C_14sim_phtraj_from_state[] = "\n    Generate a photon trajectory from a h2mm model and state trajectory\n\n    Parameters\n    ----------\n    hmod : h2mm_model\n        An h2mm model to build the state path from\n    states : numpy ndarray 1D int\n        \n    seed : positive int, optional\n        The initial random seed, use if you want to be able to replicate results.\n        If None, then uses the current time as the seed.\n        The default is None.\n\n    Raises\n    ------\n    TypeError\n        The state array was not 1D\n    RuntimeError\n        Unknown error, please raise issue on github\n\n    Returns\n    -------\n    path : numpy ndarray 1D int\n        The random photon stream indexes based on model and statepath\n\n    ";
+static char __pyx_doc_6H2MM_C_14sim_phtraj_from_state[] = "\n    Generate a photon trajectory from a h2mm model and state trajectory\n\n    Parameters\n    ----------\n    hmod : h2mm_model\n        An h2mm model to build the stream trajectory from\n    states : numpy ndarray 1D int\n        \n    seed : positive int, optional\n        The initial random seed, use if you want to be able to replicate results.\n        If None, then uses the current time as the seed.\n        The default is None.\n\n    Raises\n    ------\n    TypeError\n        The state array was not 1D\n    RuntimeError\n        Unknown error, please raise issue on github\n\n    Returns\n    -------\n    path : numpy ndarray 1D int\n        The random photon stream indexes based on model and statepath\n\n    ";
 static PyMethodDef __pyx_mdef_6H2MM_C_15sim_phtraj_from_state = {"sim_phtraj_from_state", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_6H2MM_C_15sim_phtraj_from_state, METH_VARARGS|METH_KEYWORDS, __pyx_doc_6H2MM_C_14sim_phtraj_from_state};
 static PyObject *__pyx_pw_6H2MM_C_15sim_phtraj_from_state(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   struct __pyx_obj_6H2MM_C_h2mm_model *__pyx_v_hmod = 0;
@@ -36302,13 +36302,14 @@ static PyObject *__pyx_pf_6H2MM_C_14sim_phtraj_from_state(CYTHON_UNUSED PyObject
  *     return path
  * 
  * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):             # <<<<<<<<<<<<<<
- *     if times.ndim != 1:
- *         raise TypeError("times array must be 1D")
+ *     """
+ *     Generate a state path and photon trajectory for a given set of times
  */
 
 /* Python wrapper */
 static PyObject *__pyx_pw_6H2MM_C_17sim_phtraj_from_times(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static PyMethodDef __pyx_mdef_6H2MM_C_17sim_phtraj_from_times = {"sim_phtraj_from_times", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_6H2MM_C_17sim_phtraj_from_times, METH_VARARGS|METH_KEYWORDS, 0};
+static char __pyx_doc_6H2MM_C_16sim_phtraj_from_times[] = "\n    Generate a state path and photon trajectory for a given set of times\n\n    Parameters\n    ----------\n    hmod : h2mm_model\n        An h2mm model to build the path and stream trajectories from\n    imes : numpy ndarray 1D int\n        An unsigned integer of monotonically increasing times for the burst\n    seed : positive int, optional\n        The initial random seed, use if you want to be able to replicate results.\n        If None, then uses the current time as the seed.\n        The default is None.\n\n    Raises\n    ------\n    TypeError\n        tiems array must be 1D\n    ValueError\n        times were not monotonically increasing\n    RuntimeError\n        Unknown error, raise issue on github\n    \n    Returns\n    -------\n    path : numpy ndarra 1D int\n        State trajectory generated for the input times\n    dets : numpy ndarra 1D int\n        stream trajectory generate for the input times, derived from path\n\n    ";
+static PyMethodDef __pyx_mdef_6H2MM_C_17sim_phtraj_from_times = {"sim_phtraj_from_times", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_6H2MM_C_17sim_phtraj_from_times, METH_VARARGS|METH_KEYWORDS, __pyx_doc_6H2MM_C_16sim_phtraj_from_times};
 static PyObject *__pyx_pw_6H2MM_C_17sim_phtraj_from_times(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   struct __pyx_obj_6H2MM_C_h2mm_model *__pyx_v_hmod = 0;
   PyArrayObject *__pyx_v_times = 0;
@@ -36426,9 +36427,9 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_pybuffernd_dets.data = NULL;
   __pyx_pybuffernd_dets.rcbuffer = &__pyx_pybuffer_dets;
 
-  /* "H2MM_C.pyx":1865
+  /* "H2MM_C.pyx":1896
  * 
- * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
+ *     """
  *     if times.ndim != 1:             # <<<<<<<<<<<<<<
  *         raise TypeError("times array must be 1D")
  *     times = times.astype('Q')
@@ -36436,36 +36437,36 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_t_1 = ((__pyx_v_times->nd != 1) != 0);
   if (unlikely(__pyx_t_1)) {
 
-    /* "H2MM_C.pyx":1866
- * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
+    /* "H2MM_C.pyx":1897
+ *     """
  *     if times.ndim != 1:
  *         raise TypeError("times array must be 1D")             # <<<<<<<<<<<<<<
  *     times = times.astype('Q')
  *     if not times.flags['C_CONTIGUOUS']:
  */
-    __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_TypeError, __pyx_tuple__102, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1866, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_TypeError, __pyx_tuple__102, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1897, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __Pyx_Raise(__pyx_t_2, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __PYX_ERR(0, 1866, __pyx_L1_error)
+    __PYX_ERR(0, 1897, __pyx_L1_error)
 
-    /* "H2MM_C.pyx":1865
+    /* "H2MM_C.pyx":1896
  * 
- * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
+ *     """
  *     if times.ndim != 1:             # <<<<<<<<<<<<<<
  *         raise TypeError("times array must be 1D")
  *     times = times.astype('Q')
  */
   }
 
-  /* "H2MM_C.pyx":1867
+  /* "H2MM_C.pyx":1898
  *     if times.ndim != 1:
  *         raise TypeError("times array must be 1D")
  *     times = times.astype('Q')             # <<<<<<<<<<<<<<
  *     if not times.flags['C_CONTIGUOUS']:
  *         times = np.ascontiguousarray(times)
  */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_times), __pyx_n_s_astype); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1867, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_times), __pyx_n_s_astype); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1898, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_4 = NULL;
   if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_3))) {
@@ -36479,40 +36480,40 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   }
   __pyx_t_2 = (__pyx_t_4) ? __Pyx_PyObject_Call2Args(__pyx_t_3, __pyx_t_4, __pyx_n_u_Q) : __Pyx_PyObject_CallOneArg(__pyx_t_3, __pyx_n_u_Q);
   __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-  if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1867, __pyx_L1_error)
+  if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1898, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  if (!(likely(((__pyx_t_2) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_2, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1867, __pyx_L1_error)
+  if (!(likely(((__pyx_t_2) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_2, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1898, __pyx_L1_error)
   __Pyx_DECREF_SET(__pyx_v_times, ((PyArrayObject *)__pyx_t_2));
   __pyx_t_2 = 0;
 
-  /* "H2MM_C.pyx":1868
+  /* "H2MM_C.pyx":1899
  *         raise TypeError("times array must be 1D")
  *     times = times.astype('Q')
  *     if not times.flags['C_CONTIGUOUS']:             # <<<<<<<<<<<<<<
  *         times = np.ascontiguousarray(times)
  *     cdef unsigned int seedp = 0
  */
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_times), __pyx_n_s_flags); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1868, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_times), __pyx_n_s_flags); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1899, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_Dict_GetItem(__pyx_t_2, __pyx_n_u_C_CONTIGUOUS); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1868, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_Dict_GetItem(__pyx_t_2, __pyx_n_u_C_CONTIGUOUS); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1899, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 1868, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_t_3); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 1899, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_5 = ((!__pyx_t_1) != 0);
   if (__pyx_t_5) {
 
-    /* "H2MM_C.pyx":1869
+    /* "H2MM_C.pyx":1900
  *     times = times.astype('Q')
  *     if not times.flags['C_CONTIGUOUS']:
  *         times = np.ascontiguousarray(times)             # <<<<<<<<<<<<<<
  *     cdef unsigned int seedp = 0
  *     if seed is not None:
  */
-    __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_np); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1869, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_np); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1900, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_ascontiguousarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1869, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_ascontiguousarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1900, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
     __pyx_t_2 = NULL;
@@ -36527,14 +36528,14 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
     }
     __pyx_t_3 = (__pyx_t_2) ? __Pyx_PyObject_Call2Args(__pyx_t_4, __pyx_t_2, ((PyObject *)__pyx_v_times)) : __Pyx_PyObject_CallOneArg(__pyx_t_4, ((PyObject *)__pyx_v_times));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1869, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1900, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1869, __pyx_L1_error)
+    if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1900, __pyx_L1_error)
     __Pyx_DECREF_SET(__pyx_v_times, ((PyArrayObject *)__pyx_t_3));
     __pyx_t_3 = 0;
 
-    /* "H2MM_C.pyx":1868
+    /* "H2MM_C.pyx":1899
  *         raise TypeError("times array must be 1D")
  *     times = times.astype('Q')
  *     if not times.flags['C_CONTIGUOUS']:             # <<<<<<<<<<<<<<
@@ -36543,7 +36544,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   }
 
-  /* "H2MM_C.pyx":1870
+  /* "H2MM_C.pyx":1901
  *     if not times.flags['C_CONTIGUOUS']:
  *         times = np.ascontiguousarray(times)
  *     cdef unsigned int seedp = 0             # <<<<<<<<<<<<<<
@@ -36552,7 +36553,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   __pyx_v_seedp = 0;
 
-  /* "H2MM_C.pyx":1871
+  /* "H2MM_C.pyx":1902
  *         times = np.ascontiguousarray(times)
  *     cdef unsigned int seedp = 0
  *     if seed is not None:             # <<<<<<<<<<<<<<
@@ -36563,17 +36564,17 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_t_1 = (__pyx_t_5 != 0);
   if (__pyx_t_1) {
 
-    /* "H2MM_C.pyx":1872
+    /* "H2MM_C.pyx":1903
  *     cdef unsigned int seedp = 0
  *     if seed is not None:
  *         seedp = <unsigned int> seed             # <<<<<<<<<<<<<<
  *     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
  *     cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
  */
-    __pyx_t_6 = __Pyx_PyInt_As_unsigned_int(__pyx_v_seed); if (unlikely((__pyx_t_6 == (unsigned int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1872, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyInt_As_unsigned_int(__pyx_v_seed); if (unlikely((__pyx_t_6 == (unsigned int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1903, __pyx_L1_error)
     __pyx_v_seedp = ((unsigned int)__pyx_t_6);
 
-    /* "H2MM_C.pyx":1871
+    /* "H2MM_C.pyx":1902
  *         times = np.ascontiguousarray(times)
  *     cdef unsigned int seedp = 0
  *     if seed is not None:             # <<<<<<<<<<<<<<
@@ -36582,40 +36583,40 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   }
 
-  /* "H2MM_C.pyx":1873
+  /* "H2MM_C.pyx":1904
  *     if seed is not None:
  *         seedp = <unsigned int> seed
  *     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')             # <<<<<<<<<<<<<<
  *     cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
  *     if exp == 1:
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1873, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1904, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_empty); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1873, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_empty); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1904, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PyInt_From_Py_intptr_t((__pyx_v_times->dimensions[0])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1873, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_From_Py_intptr_t((__pyx_v_times->dimensions[0])); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1904, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1873, __pyx_L1_error)
+  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1904, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_GIVEREF(__pyx_t_3);
   PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_t_3);
   __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1873, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1904, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_dtype, __pyx_n_u_L) < 0) __PYX_ERR(0, 1873, __pyx_L1_error)
-  __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1873, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_dtype, __pyx_n_u_L) < 0) __PYX_ERR(0, 1904, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1904, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1873, __pyx_L1_error)
+  if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1904, __pyx_L1_error)
   __pyx_t_8 = ((PyArrayObject *)__pyx_t_7);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
     if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_path.rcbuffer->pybuffer, (PyObject*)__pyx_t_8, &__Pyx_TypeInfo_unsigned_long, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) {
       __pyx_v_path = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_path.rcbuffer->pybuffer.buf = NULL;
-      __PYX_ERR(0, 1873, __pyx_L1_error)
+      __PYX_ERR(0, 1904, __pyx_L1_error)
     } else {__pyx_pybuffernd_path.diminfo[0].strides = __pyx_pybuffernd_path.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_path.diminfo[0].shape = __pyx_pybuffernd_path.rcbuffer->pybuffer.shape[0];
     }
   }
@@ -36623,7 +36624,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_v_path = ((PyArrayObject *)__pyx_t_7);
   __pyx_t_7 = 0;
 
-  /* "H2MM_C.pyx":1874
+  /* "H2MM_C.pyx":1905
  *         seedp = <unsigned int> seed
  *     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
  *     cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)             # <<<<<<<<<<<<<<
@@ -36632,7 +36633,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   __pyx_v_exp = sparsestatepath((&__pyx_v_hmod->model), (__pyx_v_times->dimensions[0]), __pyx_f_6H2MM_C_get_ptr_ull(((PyArrayObject *)__pyx_v_times)), __pyx_f_6H2MM_C_get_ptr_l(((PyArrayObject *)__pyx_v_path)), __pyx_v_seedp);
 
-  /* "H2MM_C.pyx":1875
+  /* "H2MM_C.pyx":1906
  *     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
  *     cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
  *     if exp == 1:             # <<<<<<<<<<<<<<
@@ -36642,20 +36643,20 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_t_1 = ((__pyx_v_exp == 1) != 0);
   if (unlikely(__pyx_t_1)) {
 
-    /* "H2MM_C.pyx":1876
+    /* "H2MM_C.pyx":1907
  *     cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
  *     if exp == 1:
  *         raise ValueError("Out of order photon")             # <<<<<<<<<<<<<<
  *     elif exp != 0:
  *         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
  */
-    __pyx_t_7 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__103, NULL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1876, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__103, NULL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1907, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_Raise(__pyx_t_7, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    __PYX_ERR(0, 1876, __pyx_L1_error)
+    __PYX_ERR(0, 1907, __pyx_L1_error)
 
-    /* "H2MM_C.pyx":1875
+    /* "H2MM_C.pyx":1906
  *     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
  *     cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
  *     if exp == 1:             # <<<<<<<<<<<<<<
@@ -36664,7 +36665,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   }
 
-  /* "H2MM_C.pyx":1877
+  /* "H2MM_C.pyx":1908
  *     if exp == 1:
  *         raise ValueError("Out of order photon")
  *     elif exp != 0:             # <<<<<<<<<<<<<<
@@ -36674,20 +36675,20 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_t_1 = ((__pyx_v_exp != 0) != 0);
   if (unlikely(__pyx_t_1)) {
 
-    /* "H2MM_C.pyx":1878
+    /* "H2MM_C.pyx":1909
  *         raise ValueError("Out of order photon")
  *     elif exp != 0:
  *         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")             # <<<<<<<<<<<<<<
  *     cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  */
-    __pyx_t_7 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__105, NULL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1878, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__105, NULL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1909, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_Raise(__pyx_t_7, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    __PYX_ERR(0, 1878, __pyx_L1_error)
+    __PYX_ERR(0, 1909, __pyx_L1_error)
 
-    /* "H2MM_C.pyx":1877
+    /* "H2MM_C.pyx":1908
  *     if exp == 1:
  *         raise ValueError("Out of order photon")
  *     elif exp != 0:             # <<<<<<<<<<<<<<
@@ -36696,40 +36697,40 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   }
 
-  /* "H2MM_C.pyx":1879
+  /* "H2MM_C.pyx":1910
  *     elif exp != 0:
  *         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
  *     cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')             # <<<<<<<<<<<<<<
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  *     if exp != 0:
  */
-  __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1879, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_empty); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1879, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_empty); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-  __pyx_t_7 = __Pyx_PyInt_From_Py_intptr_t((__pyx_v_times->dimensions[0])); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1879, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyInt_From_Py_intptr_t((__pyx_v_times->dimensions[0])); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1879, __pyx_L1_error)
+  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_GIVEREF(__pyx_t_7);
   PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_t_7);
   __pyx_t_7 = 0;
-  __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1879, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 1910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_dtype, __pyx_n_u_L) < 0) __PYX_ERR(0, 1879, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_2, __pyx_t_7); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1879, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_dtype, __pyx_n_u_L) < 0) __PYX_ERR(0, 1910, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_2, __pyx_t_7); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1910, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1879, __pyx_L1_error)
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 1910, __pyx_L1_error)
   __pyx_t_9 = ((PyArrayObject *)__pyx_t_4);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
     if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_dets.rcbuffer->pybuffer, (PyObject*)__pyx_t_9, &__Pyx_TypeInfo_unsigned_long, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) {
       __pyx_v_dets = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_dets.rcbuffer->pybuffer.buf = NULL;
-      __PYX_ERR(0, 1879, __pyx_L1_error)
+      __PYX_ERR(0, 1910, __pyx_L1_error)
     } else {__pyx_pybuffernd_dets.diminfo[0].strides = __pyx_pybuffernd_dets.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_dets.diminfo[0].shape = __pyx_pybuffernd_dets.rcbuffer->pybuffer.shape[0];
     }
   }
@@ -36737,7 +36738,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_v_dets = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "H2MM_C.pyx":1880
+  /* "H2MM_C.pyx":1911
  *         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
  *     cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)             # <<<<<<<<<<<<<<
@@ -36746,7 +36747,7 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   __pyx_v_exp = phpathgen((&__pyx_v_hmod->model), (__pyx_v_times->dimensions[0]), __pyx_f_6H2MM_C_get_ptr_l(((PyArrayObject *)__pyx_v_path)), __pyx_f_6H2MM_C_get_ptr_l(((PyArrayObject *)__pyx_v_dets)), __pyx_v_seedp);
 
-  /* "H2MM_C.pyx":1881
+  /* "H2MM_C.pyx":1912
  *     cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  *     if exp != 0:             # <<<<<<<<<<<<<<
@@ -36756,20 +36757,20 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
   __pyx_t_1 = ((__pyx_v_exp != 0) != 0);
   if (unlikely(__pyx_t_1)) {
 
-    /* "H2MM_C.pyx":1882
+    /* "H2MM_C.pyx":1913
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  *     if exp != 0:
  *         raise RuntimeError("Unknown error in phtragen, raise issue on github")             # <<<<<<<<<<<<<<
  *     return path , dets
  * 
  */
-    __pyx_t_4 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__106, NULL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1882, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__106, NULL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1913, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_Raise(__pyx_t_4, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __PYX_ERR(0, 1882, __pyx_L1_error)
+    __PYX_ERR(0, 1913, __pyx_L1_error)
 
-    /* "H2MM_C.pyx":1881
+    /* "H2MM_C.pyx":1912
  *     cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  *     if exp != 0:             # <<<<<<<<<<<<<<
@@ -36778,14 +36779,14 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  */
   }
 
-  /* "H2MM_C.pyx":1883
+  /* "H2MM_C.pyx":1914
  *     if exp != 0:
  *         raise RuntimeError("Unknown error in phtragen, raise issue on github")
  *     return path , dets             # <<<<<<<<<<<<<<
  * 
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1883, __pyx_L1_error)
+  __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 1914, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_INCREF(((PyObject *)__pyx_v_path));
   __Pyx_GIVEREF(((PyObject *)__pyx_v_path));
@@ -36801,8 +36802,8 @@ static PyObject *__pyx_pf_6H2MM_C_16sim_phtraj_from_times(CYTHON_UNUSED PyObject
  *     return path
  * 
  * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):             # <<<<<<<<<<<<<<
- *     if times.ndim != 1:
- *         raise TypeError("times array must be 1D")
+ *     """
+ *     Generate a state path and photon trajectory for a given set of times
  */
 
   /* function exit code */
@@ -53802,25 +53803,25 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__104);
   __Pyx_GIVEREF(__pyx_tuple__104);
 
-  /* "H2MM_C.pyx":1878
+  /* "H2MM_C.pyx":1909
  *         raise ValueError("Out of order photon")
  *     elif exp != 0:
  *         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")             # <<<<<<<<<<<<<<
  *     cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  */
-  __pyx_tuple__105 = PyTuple_Pack(1, __pyx_kp_u_Unknown_error_in_sparsestatepath); if (unlikely(!__pyx_tuple__105)) __PYX_ERR(0, 1878, __pyx_L1_error)
+  __pyx_tuple__105 = PyTuple_Pack(1, __pyx_kp_u_Unknown_error_in_sparsestatepath); if (unlikely(!__pyx_tuple__105)) __PYX_ERR(0, 1909, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__105);
   __Pyx_GIVEREF(__pyx_tuple__105);
 
-  /* "H2MM_C.pyx":1882
+  /* "H2MM_C.pyx":1913
  *     exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
  *     if exp != 0:
  *         raise RuntimeError("Unknown error in phtragen, raise issue on github")             # <<<<<<<<<<<<<<
  *     return path , dets
  * 
  */
-  __pyx_tuple__106 = PyTuple_Pack(1, __pyx_kp_u_Unknown_error_in_phtragen_raise); if (unlikely(!__pyx_tuple__106)) __PYX_ERR(0, 1882, __pyx_L1_error)
+  __pyx_tuple__106 = PyTuple_Pack(1, __pyx_kp_u_Unknown_error_in_phtragen_raise); if (unlikely(!__pyx_tuple__106)) __PYX_ERR(0, 1913, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__106);
   __Pyx_GIVEREF(__pyx_tuple__106);
 
@@ -54169,8 +54170,8 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
  *     return path
  * 
  * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):             # <<<<<<<<<<<<<<
- *     if times.ndim != 1:
- *         raise TypeError("times array must be 1D")
+ *     """
+ *     Generate a state path and photon trajectory for a given set of times
  */
   __pyx_tuple__155 = PyTuple_Pack(7, __pyx_n_s_hmod, __pyx_n_s_times, __pyx_n_s_seed, __pyx_n_s_seedp, __pyx_n_s_path, __pyx_n_s_exp, __pyx_n_s_dets); if (unlikely(!__pyx_tuple__155)) __PYX_ERR(0, 1864, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__155);
@@ -55026,8 +55027,8 @@ if (!__Pyx_RefNanny) {
  *     return path
  * 
  * def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):             # <<<<<<<<<<<<<<
- *     if times.ndim != 1:
- *         raise TypeError("times array must be 1D")
+ *     """
+ *     Generate a state path and photon trajectory for a given set of times
  */
   __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_6H2MM_C_17sim_phtraj_from_times, NULL, __pyx_n_s_H2MM_C); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1864, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);

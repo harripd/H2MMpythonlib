@@ -1824,7 +1824,7 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
     Parameters
     ----------
     hmod : h2mm_model
-        An h2mm model to build the state path from
+        An h2mm model to build the stream trajectory from
     states : numpy ndarray 1D int
         
     seed : positive int, optional
@@ -1862,6 +1862,37 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
     return path
 
 def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
+    """
+    Generate a state path and photon trajectory for a given set of times
+
+    Parameters
+    ----------
+    hmod : h2mm_model
+        An h2mm model to build the path and stream trajectories from
+    imes : numpy ndarray 1D int
+        An unsigned integer of monotonically increasing times for the burst
+    seed : positive int, optional
+        The initial random seed, use if you want to be able to replicate results.
+        If None, then uses the current time as the seed.
+        The default is None.
+
+    Raises
+    ------
+    TypeError
+        tiems array must be 1D
+    ValueError
+        times were not monotonically increasing
+    RuntimeError
+        Unknown error, raise issue on github
+    
+    Returns
+    -------
+    path : numpy ndarra 1D int
+        State trajectory generated for the input times
+    dets : numpy ndarra 1D int
+        stream trajectory generate for the input times, derived from path
+
+    """
     if times.ndim != 1:
         raise TypeError("times array must be 1D")
     times = times.astype('Q')

@@ -162,6 +162,8 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 
 // rho_calc.c function signatures
 
+trpow* transpow(h2mm_mod* model, size_t maxdif); // calculate the power of trans matrix
+
 void* rhoulate(void *vals); // calculates a power of Rho and A
 
 void* rho_all(size_t nstate, double* transmat, pwrs *powers); // calculated new Rho and A matrixes

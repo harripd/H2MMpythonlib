@@ -9,6 +9,11 @@
 #include <time.h>
 #include "C_H2MM.h"
 
+#define TRUE 1
+#define FALSE 0
+
+time_t tm = 0;
+unsigned int randcalled = 0;
 
 // function generates the cumulative sum of an array along dimenstion 1
 void cumsum(unsigned long len, double* arr, double* dest)
@@ -31,11 +36,17 @@ unsigned long randchoice(unsigned long len, double* arr)
 // generates dense (even time distribution) statepath of length len based on H2MM model
 int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed)
 {
-	time_t tt;
-	if (seed == 0)
-		srand((unsigned) time(&tt));
-	else
+	if ((seed != 0) & (randcalled != seed))
+	{
 		srand(seed);
+		randcalled = seed;
+	}
+	else if (!randcalled)
+	{
+		tm = time(NULL);
+		srand((unsigned) tm);
+		randcalled = (unsigned int) tm;
+	}
 	size_t i;
 	double* priorsum = (double*) malloc(model->nstate*sizeof(double));
 	cumsum(model->nstate,model->prior,priorsum);
@@ -56,11 +67,17 @@ int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 // generate a set of states based on a set of arrival times, sparsely distributed
 int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed)
 {
-	time_t tt;
-	if (seed == 0)
-		srand((unsigned) time(&tt));
-	else
+	if ((seed != 0) & (randcalled != seed))
+	{
 		srand(seed);
+		randcalled = seed;
+	}
+	else if (!randcalled)
+	{
+		tm = time(NULL);
+		srand((unsigned) tm);
+		randcalled = (unsigned int) tm;
+	}
 	size_t t, i, tstride, tistride;
 	unsigned long* dif = (unsigned long*) malloc(lent * sizeof(unsigned long));
 	double* priorsum = (double*) malloc(model->nstate * sizeof(double));
@@ -117,11 +134,17 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 // take a set of states, and assign detectors to them
 int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed)
 {
-	time_t tt;
-	if (seed == 0)
-		srand((unsigned) time(&tt));
-	else
+	if ((seed != 0) & (randcalled != seed))
+	{
 		srand(seed);
+		randcalled = seed;
+	}
+	else if (!randcalled)
+	{
+		tm = time(NULL);
+		srand((unsigned) tm);
+		randcalled = (unsigned int) tm;
+	}
 	size_t i, j;
 	double* obssum = (double*) malloc(model->nstate*model->ndet*sizeof(double));
 	for( i = 0; i < model->nstate; i++)
