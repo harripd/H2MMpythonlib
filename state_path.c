@@ -36,16 +36,16 @@ unsigned long randchoice(unsigned long len, double* arr)
 // generates dense (even time distribution) statepath of length len based on H2MM model
 int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed)
 {
-	if ((seed != 0) & (randcalled != seed))
+	if ((seed != 0))
 	{
 		srand(seed);
-		randcalled = seed;
+		randcalled = TRUE;
 	}
 	else if (!randcalled)
 	{
 		tm = time(NULL);
 		srand((unsigned) tm);
-		randcalled = (unsigned int) tm;
+		randcalled = TRUE;
 	}
 	size_t i;
 	double* priorsum = (double*) malloc(model->nstate*sizeof(double));
@@ -67,16 +67,16 @@ int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 // generate a set of states based on a set of arrival times, sparsely distributed
 int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed)
 {
-	if ((seed != 0) & (randcalled != seed))
+	if ((seed != 0))
 	{
 		srand(seed);
-		randcalled = seed;
+		randcalled = TRUE;
 	}
 	else if (!randcalled)
 	{
 		tm = time(NULL);
 		srand((unsigned) tm);
-		randcalled = (unsigned int) tm;
+		randcalled = TRUE;
 	}
 	size_t t, i, tstride, tistride;
 	unsigned long* dif = (unsigned long*) malloc(lent * sizeof(unsigned long));
@@ -98,15 +98,15 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 		}
 		if( diftemp > maxdif )
 			maxdif = diftemp;
-		if( diftemp > 0 )
+		if( diftemp == 0 )
 			dif[i] = 0;
 		else
 			dif[i] = diftemp - 1;
 	}
 	// build the powers of trans matrix, and built the cumulative sum
 	trpow* powers = transpow(model,maxdif);
-	double* transsum = (double*) malloc(lent*powers->sj*sizeof(double));
-	for ( t = 0; t < lent; t++)
+	double* transsum = (double*) malloc(maxdif*powers->sj*sizeof(double));
+	for ( t = 0; t < maxdif; t++)
 	{
 		tstride = t * powers->sj;
 		for ( i = 0; i < model->nstate; i++)
@@ -134,16 +134,16 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 // take a set of states, and assign detectors to them
 int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed)
 {
-	if ((seed != 0) & (randcalled != seed))
+	if ((seed != 0))
 	{
 		srand(seed);
-		randcalled = seed;
+		randcalled = TRUE;
 	}
 	else if (!randcalled)
 	{
 		tm = time(NULL);
 		srand((unsigned) tm);
-		randcalled = (unsigned int) tm;
+		randcalled = TRUE;
 	}
 	size_t i, j;
 	double* obssum = (double*) malloc(model->nstate*model->ndet*sizeof(double));

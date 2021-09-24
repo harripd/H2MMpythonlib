@@ -1760,6 +1760,8 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
         The random dense state-path
 
     """
+    if lenp < 2:
+        raise ValueError("Length must be at least 3")
     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(lenp,dtype='L')
     cdef unsigned int seedp = 0
     if seed is not None:
@@ -1801,6 +1803,8 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
     """
     if times.ndim != 1:
         raise TypeError("times array must be 1D")
+    if times.shape[0] < 3:
+        raise ValueError("Must have at least 3 times")
     times = times.astype('Q')
     if not times.flags['C_CONTIGUOUS']:
         times = np.ascontiguousarray(times)
@@ -1847,6 +1851,8 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
     """
     if states.ndim != 1:
         raise TypeError("Times must be 1D")
+    if states.shape[0] < 3:
+        raise ValueError("Must have at least 3 time points")
     states = states.astype('L')
     if not states.flags['C_CONTIGUOUS']:
         states = np.ascontiguousarray(states)
@@ -1895,6 +1901,8 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
     """
     if times.ndim != 1:
         raise TypeError("times array must be 1D")
+    if times.shape[0] < 2:
+        raise ValueError("Must have at least 3 times")
     times = times.astype('Q')
     if not times.flags['C_CONTIGUOUS']:
         times = np.ascontiguousarray(times)
