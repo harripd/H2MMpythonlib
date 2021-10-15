@@ -6,18 +6,16 @@ A full C level implementation of H2MM and python wrappers for access in Jupyter 
 @author: Paul David Harris
 """
 from setuptools import setup
-from distutils.core import Extension
+from setuptools import Extension
+from Cython.Distutils import build_ext
+
 import numpy as np
 
-ext = Extension("H2MM_C", sources=["H2MM_C.c","rho_calc.c","fwd_back_photonbyphoton_par.c","model_limits_funcs.c","C_H2MM.c","viterbi.c","state_path.c"],define_macros=[("NPY_NO_DEPRECATED_APY","NPY_1_7_API_VERSION")])
-long_description = """
-H2MM_C
-======
-***H2MM_C*** is a software package enabling rapid optimization of H2MM models, 
-and calculation of ***Viterbi*** path. Including multi-parameter models.
-Please cite Pirchi. et. al. J.Phys.Chem. B 2016, 120, 13065, DOI:10.1020/acs.jpcb.6b10726
-And zenodo ...
-"""
+ext = [Extension("H2MM_C", sources=["H2MM_C/H2MM_C.pyx","H2MM_C/rho_calc.c","H2MM_C/fwd_back_photonbyphoton_par.c","H2MM_C/model_limits_funcs.c","H2MM_C/C_H2MM.c","H2MM_C/viterbi.c","H2MM_C/state_path.c"],
+                 depends=["H2MM_C/C_H2MM.h"],
+                 include_dirs = [np.get_include(),"H2MM_C/"])]
+with open("README.md",'r') as f:
+    long_description = f.read()
 
 setup(name = "H2MM_C",
       version = "0.8",
@@ -27,11 +25,19 @@ setup(name = "H2MM_C",
       maintainer_email = "harripd@gmail.com",
       url = "https://github.com/harripd/H2MMpythonlib",
       download_url = "https://github.com/harripd/H2MMpythonlib",
+      install_requires = ['cython','numpy'],
       description = "C level implementation of H2MM algorithm by Pirchi. 2016",
-      install_requires = ['numpy'],
       long_description = long_description,
-      headers = ["C_H2MM.h"],
-      ext_modules = [ext],
+      long_description_content_type = 'text/markdown',
+      ext_modules = ext,
       license = "MIT",
       keywords = "single-molecule FRET",
-      include_dirs=[np.get_include()])
+      classifiers=['Intended Audience :: Science/Research',
+                   'Operating System :: OS Independent',
+                   'License :: OSI Approved :: MIT License',
+                   'Programming Language :: Cython',
+                   'Programming Language :: C',
+                   'Topic :: Scientific/Engineering',
+                   ],
+      cmdclass = {'build_ext': build_ext}
+      )

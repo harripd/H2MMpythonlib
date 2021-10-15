@@ -11,63 +11,49 @@ The API is intended to be user friendly, while still allowing for great flexibil
 - H<sup>2</sup>MM model optimization: finding the ideal model given a set of data.
 	- limit functions to bound the values that a model can take
 - *Viterbi* analysis: finds the most likely state path through a set of data given a H<sup>2</sup>MM model
-	- Reporting of model reliability statistics BIC and ICL 
+	- Reporting of model reliability statistics BIC and ICL
+- Simulation functions: Monte Carlo type simulations based on a hidden Markov model
+	- Useful for verifying results
 
 ## Installation
-Simply unzip the .zip file and run:
-'python setup.py build_ext --inplace' to install the package in the local directory, or 'python setup.py install' if you want to install H2MM_C to the system directory, allowing access to H2MM_C from anywhere.
-### System Peculiarities
-#### Windows
-On windows, you may need to make sure that Visual Studios is installed- including vcvarsall.bat, which can be added ticking the correct option: [https://social.msdn.microsoft.com/Forums/en-US/1071be0e-2a46-4c30-9546-ea9d7c4755fa/where-is-vcvarsallbat-file?forum=visualstudiogeneral](https://social.msdn.microsoft.com/Forums/en-US/1071be0e-2a46-4c30-9546-ea9d7c4755fa/where-is-vcvarsallbat-file?forum=visualstudiogeneral)
-So far H2MM_C has not been tested using the MinGW compiler, but this may be an option for those who do not want to install VisualStudios.
-#### Linux
-Different Linux distributions may have slightly different synatax, make the proper adjustments, for instance, in Mint, the command 'python3' is used instead of 'python', and you often the install also requires running with 'sudo' so the proper commands are 'sudo python3 setup.py build_ext --inplace' and 'sudo python3 setup.py install'.
-Therefore the correct 
-## Core Items
-1. h2mm_model: the core python extension type of the package: this contains the *H<sup>2</sup>MM* model, which has the core fields:
-	- nstate: the number of states in the model
-	- ndet: the number of photon streams in the model
- 	- trans: the transition probability matrix
-	- obs: the emmision probability matrix, shape nstate x ndet
-	- prior: the prior probability, shape nstate
-	- k: the number of free parameters in the model
-	- loglik: the loglikelihood of the model
-	- nphot: the number of photons in the dataset that the model is optimized against
-	- bic: the Baysian Information Criterion of the model
-	- converged: True if the model reached convergence criterion, False if the optimization stopped due to reaching the maximum number of iterations or if an error occured in the next iteration.
-2. h2mm_limits: class for bounding the values a model can take, min/max values can be specified for all 3 core arrays (trans, obs, and prior) of an h2mm_model, either as single floats, or full arrays, values are specified as keyword arguments, not specifiying a value for a particular field will mean that field will be unbounded
-	- min_trans: the minimum values for the trans array (ie the slowest possible transition rate(s) allowed), values on the diagonal will be ignored
-	- max_trans: the maximum values for the trans array (ie the fastest possible transition rate(s) allowed), values on the diagonal will be ignored
-	- min_obs: the minimum values for the obs array
-	- max_obs: the maximum values for the obs array
-	- min_prior: the minimum value for the prior array
-	- max_prior: the maximum value for the prior array
-3. EM_H2MM_C: the core function of the package, it takes an initial 'h2mm_model' object, and two lists of numpy arrays as input. The lists of numpy arrays are the data to be optimized. Each array references a burst, the first list is the index of the photon stream, the second is the arrival time. Arrays should be of an integer type, and will be converted to np.uint32 and np.uint64 types for the stream and time respectively. Returns:
-	- h2mm_model: the model optimized for the given input data.
-4. H2MM_arr: calculate the loglik of a bunch of h2mm_model objects at once, but with no optimization. The first agruments can be an h2mm_model, of a list, tuple, or numpy array of h2mm_model objects. The second and third arguments are the same as in EM_H2MM_C
-5. viterbi_path: takes the same inputs as EM_H2MM_C, but the 'h2mm_model' should be optimized through 'EM_H2MM_C' first, returns a tuple the:
-	- path: the most likely state path
-	- scale: the posterior probability of each photon
-	- ll: the loglikelihood of the path for each burst
-	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
-6. viterbi_sort: the viterbi algorithm but with additional parameters included:
-	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
-	- path: the most likely state path
-	- scale: the posterior probability of each photon
-	- ll: the loglikelihood of the path for each burst
-	- burst_type: a binary classification of which states are in each burst
-	- dwell_mid: returns the lengths of dwells in each state, for dwells with full residence time in the burst
-	- dwell_beg: same as dwell_mid, except for dwells that begin each burst
-	- dwell_end: same as dwell_beg, but for ending dwells
-	- ph_counts: gives counts of photons per stream per dwell
-	- ph_mid: same as ph_counts, but further sorted as in dwell_mid
-	- ph_beg: same as ph_counts, but futher sorted as in dwell_beg
-	- ph_end: same as ph_counts, but futher sorted as in dwell_end
-	- ph_burst: same as ph_counts, but futher soreted as in dwell_burst
+There are several methods for installation.
+We recomend to install via `pip` (`pip3` on some systems):
+
+```bash
+$ pip install H2MM_C
+```
+
+### Alternative Installation Methods
+
+If we have uploaded a wheel for your OS/python version combination, this should be fast and require no compilation on your part. On the other hand, if a wheel is not available, you will need cython and a C compiler.
+On linux systems this should not be a problem, as `gcc` is most likely already installed.
+Windows systems are more particular, Visual Studios is the most common source of a C compiler, and the only one we have been able to make work (so far all of our attempts at using MinGW have failed).
+
+To install directly from GitHub, you can also use:
+
+```bash
+$ pip install git+https://github.com/harripd/H2MMpythonlib
+```
+
+Or, if you download the repository, and have the files stored locally, from the top directory of the project (where the `setup.py` file is):
+
+```bash
+$ python setup.py install
+```
+
+or if you only want to have it accessible from the current directory, use:
+
+```bash
+$ python setup.py build_ext --inplace
+```
+
+*Note in some systems the commands are `pip3` and `python3` instead of `pip` and `python` respectively.
 
 ## Tutorial Code
-First the import statements
+For a full tutorial on H2MM_C, please see the zenodo repository:
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5566886.svg)](https://doi.org/10.5281/zenodo.5566886)
 
+Below is a small sample of tutorial code.
 ~~~
 	# H2MM_C accepts numpy arrays, so we mush import numpy
 	import numpy as np
@@ -131,6 +117,56 @@ First the import statements
 	# the state path is in index 1
 	print(fitting[1])
 ~~~
+
+
+## Classes
+1. `h2mm_model`: the core python extension type of the package: this contains the *H<sup>2</sup>MM* model, which has the core fields:
+	- nstate: the number of states in the model
+	- ndet: the number of photon streams in the model
+ 	- trans: the transition probability matrix
+	- obs: the emmision probability matrix, shape nstate x ndet
+	- prior: the prior probability, shape nstate
+	- k: the number of free parameters in the model
+	- loglik: the loglikelihood of the model
+	- nphot: the number of photons in the dataset that the model is optimized against
+	- bic: the Baysian Information Criterion of the model
+	- converged: True if the model reached convergence criterion, False if the optimization stopped due to reaching the maximum number of iterations or if an error occured in the next iteration.
+2. `h2mm_limits`: class for bounding the values a model can take, min/max values can be specified for all 3 core arrays (trans, obs, and prior) of an h2mm_model, either as single floats, or full arrays, values are specified as keyword arguments, not specifiying a value for a particular field will mean that field will be unbounded
+	- min_trans: the minimum values for the trans array (ie the slowest possible transition rate(s) allowed), values on the diagonal will be ignored
+	- max_trans: the maximum values for the trans array (ie the fastest possible transition rate(s) allowed), values on the diagonal will be ignored
+	- min_obs: the minimum values for the obs array
+	- max_obs: the maximum values for the obs array
+	- min_prior: the minimum value for the prior array
+	- max_prior: the maximum value for the prior array
+
+## Functions
+
+1. `EM_H2MM_C`: the core function of the package, it takes an initial 'h2mm_model' object, and two lists of numpy arrays as input. The lists of numpy arrays are the data to be optimized. Each array references a burst, the first list is the index of the photon stream, the second is the arrival time. Arrays should be of an integer type, and will be converted to np.uint32 and np.uint64 types for the stream and time respectively. Returns:
+	- h2mm_model: the model optimized for the given input data.
+2. `H2MM_arr`: calculate the loglik of a bunch of h2mm_model objects at once, but with no optimization. The first agruments can be an h2mm_model, of a list, tuple, or numpy array of h2mm_model objects. The second and third arguments are the same as in EM_H2MM_C
+3. `viterbi_path`: takes the same inputs as EM_H2MM_C, but the 'h2mm_model' should be optimized through 'EM_H2MM_C' first, returns a tuple the:
+	- path: the most likely state path
+	- scale: the posterior probability of each photon
+	- ll: the loglikelihood of the path for each burst
+	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
+4. `viterbi_sort`: the viterbi algorithm but with additional parameters included:
+	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
+	- path: the most likely state path
+	- scale: the posterior probability of each photon
+	- ll: the loglikelihood of the path for each burst
+	- burst_type: a binary classification of which states are in each burst
+	- dwell_mid: returns the lengths of dwells in each state, for dwells with full residence time in the burst
+	- dwell_beg: same as dwell_mid, except for dwells that begin each burst
+	- dwell_end: same as dwell_beg, but for ending dwells
+	- ph_counts: gives counts of photons per stream per dwell
+	- ph_mid: same as ph_counts, but further sorted as in dwell_mid
+	- ph_beg: same as ph_counts, but futher sorted as in dwell_beg
+	- ph_end: same as ph_counts, but futher sorted as in dwell_end
+	- ph_burst: same as ph_counts, but futher soreted as in dwell_burst
+5. `sim_statepath`: from an model, generate a random state path of equally spaced time points
+6. `sim_sparsestatepath`: from a model and a set of sparse times, generate a random state path
+7. `sim_phtraj_from_state`: randomly select photons given a set of states and a model
+8. `sim_phtraj_from_times`: from a model and a set of sparse times, generate a random photon trajectory
 
 ## Acknowledgements
 Significant advice and help in understanding C code was provided by William Harris, who was also responsible for porting the code to Windows
