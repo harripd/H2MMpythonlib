@@ -20,20 +20,11 @@ There are several methods for installation.
 We recomend to install via `pip` (`pip3` on some systems):
 
 ```bash
-$ pip install H2MM_C
+$ pip install git+https://github.com/harripd/H2MMpythonlib
 ```
 
 ### Alternative Installation Methods
 
-If we have uploaded a wheel for your OS/python version combination, this should be fast and require no compilation on your part. On the other hand, if a wheel is not available, you will need cython and a C compiler.
-On linux systems this should not be a problem, as `gcc` is most likely already installed.
-Windows systems are more particular, Visual Studios is the most common source of a C compiler, and the only one we have been able to make work (so far all of our attempts at using MinGW have failed).
-
-To install directly from GitHub, you can also use:
-
-```bash
-$ pip install git+https://github.com/harripd/H2MMpythonlib
-```
 
 Or, if you download the repository, and have the files stored locally, from the top directory of the project (where the `setup.py` file is):
 
