@@ -9,6 +9,7 @@ Created on Sat Feb 20 14:49:24 2021
 import os
 import numpy as np
 cimport numpy as np
+from IPython.core.display import DisplayHandle, Pretty
 import warnings
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject
@@ -61,6 +62,17 @@ ctypedef struct bound_struct:
     void *func
     void *limits
 
+ctypedef struct print_struct:
+    void *func
+    void *args
+
+ctypedef struct print_args_struct:
+    void *txt
+    void *handle
+    size_t disp_freq
+    size_t keep
+    size_t max_iter
+    
 cdef unsigned long long* get_ptr_ull(np.ndarray[unsigned long long, ndim=1] arr):
     cdef unsigned long long[::1] arr_view = arr
     return &arr_view[0]
@@ -986,33 +998,93 @@ cdef void cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims):
 
 # The wrapper for the user supplied print function
 cdef void model_print_call(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
-    cdef object print_func = <object> func
+    cdef print_struct *print_in = <print_struct*> func
+    cdef object print_func = <object> print_in.func
+    cdef object args = <object> print_in.args
     cdef h2mm_model new_model = model_copy_from_ptr(new)
     cdef h2mm_model current_model = model_copy_from_ptr(current)
     cdef h2mm_model old_model = model_copy_from_ptr(old)
-    print_func(niter, new_model, current_model, old_model, t_iter, t_total)
+    if args is None:
+        print_func(niter, new_model, current_model, old_model, t_iter, t_total)
+    else:
+        print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args)
 
 # function to hand to the print_func, prints the entire h2mm_model
 cdef void model_print_all(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+    cdef print_args_struct *print_args = <print_args_struct*> func
     cdef h2mm_model current_model = model_copy_from_ptr(current)
-    print(current_model.__repr__())
-    print(f'Iteration time:{t_iter}, Total:{t_total}')
+    cdef object disp_txt = <object> print_args.txt
+    cdef object disp_handle = <object> print_args.handle
+    if niter % print_args.disp_freq == 0:
+        if print_args.keep == 1:
+            disp_txt.data += current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
+        else:
+            disp_txt.data = current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
+        disp_handle.update(disp_txt)
 
 # function to hand to the print_func, prints the current loglik and the improvement
 cdef void model_print_diff(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
-    print(f'Iteration:{niter}, loglik:{current.loglik}, improvement:{current.loglik - old.loglik} iteration time:{t_iter}, total:{t_total}')
+    cdef print_args_struct *print_args = <print_args_struct*> func
+    cdef object disp_txt = <object> print_args.txt
+    cdef object disp_handle = <object> print_args.handle
+    if niter % print_args.disp_freq == 0:
+        if print_args.keep == 1:
+            disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
+        else:
+            disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
+        disp_handle.update(disp_txt)
+
+cdef void model_print_diff_time(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+    cdef print_args_struct *print_args = <print_args_struct*> func
+    cdef object disp_txt = <object> print_args.txt
+    cdef object disp_handle = <object> print_args.handle
+    if niter % print_args.disp_freq == 0:
+        if print_args.keep == 1:
+            disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
+        else:
+            disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
+        disp_handle.update(disp_txt)
 
 # function to hand to the print_func, prints current and old loglik
 cdef void model_print_comp(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
-    print(f'Iteration:{niter}, loglik:{current.loglik}, previous loglik:{old.loglik} iteration time:{t_iter}, total:{t_total}')
+    cdef print_args_struct *print_args = <print_args_struct*> func
+    cdef object disp_txt = <object> print_args.txt
+    cdef object disp_handle = <object> print_args.handle
+    if niter % print_args.disp_freq == 0:
+        if print_args.keep == 1:
+            disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
+        else:
+            disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
+        disp_handle.update(disp_txt)
+
+cdef void model_print_comp_time(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+    cdef print_args_struct *print_args = <print_args_struct*> func
+    cdef object disp_txt = <object> print_args.txt
+    cdef object disp_handle = <object> print_args.handle
+    if niter % print_args.disp_freq == 0:
+        if print_args.keep == 1:
+            disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
+        else:
+            disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
+        disp_handle.update(disp_txt)
+
 
 # function to hand to the print_func, prints current and old loglik
 cdef void model_print_iter(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
-    print(f'Iteration:{niter}', end=' ')
+    cdef print_args_struct *print_args = <print_args_struct*> func
+    cdef object disp_txt = <object> print_args.txt
+    cdef object disp_handle = <object> print_args.handle
+    if niter % print_args.disp_freq == 0:
+        if print_args.keep == 1:
+            disp_txt.data += f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
+        else:
+            disp_txt.data = f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
+        disp_handle.update(disp_txt)
 
 def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600, 
-              print_func='console', bounds_func=None, bounds=None, max_time=np.inf, 
-              converged_min=1e-14, num_cores= os.cpu_count()//2, reset_niter=True):
+              print_func='iter', print_args=None, bounds_func=None, 
+              bounds=None, max_time=np.inf, converged_min=1e-14, 
+              num_cores= os.cpu_count()//2, reset_niter=True):
     """
     Calculate the most likely state path through a set of data given a H2MM model
 
@@ -1043,7 +1115,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         -----------------
             None:
                 causes no printout anywhere of the results of each iteration
-            Str: 'console', 'all', 'diff', 'comp'
+            Str: 'console', 'all', 'diff', 'comp', 'iter'
                 'console': the results will be printed to the terminal/console 
                     window this is useful to still be able to see the results, 
                     but not clutter up the output of your Jupyter Notebook, this 
@@ -1056,10 +1128,11 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
                     that the 'console' option used, the difference is whether the
                     print function used is the C printf, or Cython print, which 
                     changes the destination from the console to the Jupyter notebook
+                'diff_time': same as 'diff' but adds the time of the last iteration
+                    and the total optimization time
                 'comp': prints out the current and old loglik
-                Note: these also print out the time of the iteration, and total
-                    evaluation time, but this uses the C-clock, which is often
-                    inaccurate
+                comp_time': same as 'comp'  but with times, like in 'diff_time'
+                'iter': prints out only the current iteration
             Callable: user defined function
                 A python function for printing out a custom ouput, the function must
                 accept the input of (int,h2mm_model,h2mm_model,h2mm_modl,float,float)
@@ -1068,6 +1141,14 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
                 of the iteration and total time respectively, in seconds, based
                 on the C level clock function, which is noteably inaccurate,
                 often reporting larger than actual values.
+    print_args = None: 2-tuple/list int or bool
+        Arguments to further customize the printing options. The format is
+        (int bool) where int is how many iterations before updating the display
+        and the bool is True if the printout will concatenate, and False if the
+        display will be kept to one line, The default is None, which is changed
+        into (1, False). If only an int or a bool is specified, then the default
+        value for the other will be used. If a custom printing function is given
+        then this argument will be passed to the function as *args
     bounds_func = None: str or callable
         function to be evaluated after every iteration of the H2MM algorithm
         its primary function is to place bounds on h2mm_model
@@ -1186,15 +1267,21 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
     h_test_new.model.nphot, h_test_current.model.nphot, h_test_old.model.nphot = 1000, 1000, 1000
     h_test_new.model.loglik, h_test_current.model.loglik, h_test_old.model.loglik = -0.0, -2e-4, -3e-4
     cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
-    cdef tuple print_strings = (None,'console','all','diff','comp','iter')
+    cdef tuple print_strings = (None,'console','all','diff','diff_time','comp','comp_time','iter')
     # check the bounds_func
+    disp_txt = Pretty("Preparing Data")
+    disp_handle = DisplayHandle()
+    disp_handle.display(disp_txt)
     if callable(bounds_func):
         try:
-            print("bounds_func validation", end = '...')
+            disp_txt.data = "bounds_func validation"
+            disp_handle.update(disp_txt)
             test_lim = bounds_func(h_test_new,h_test_current,h_test_old, bounds)
-            print("bounds_func validated")
+            disp_txt.data += "\nbounds_func validated"
+            disp_handle.update(disp_txt)
         except Exception as exep:
-            print("Invalid bounds_func/bounds argument")
+            disp_txt.data += "Invalid bounds_func/bounds argument"
+            disp_handle.update(disp_txt)
             raise exep
         if not isinstance(test_lim,h2mm_model):
             raise ValueError("bounds_func must return h2mm_model, got {type(test_lim)}")
@@ -1213,39 +1300,79 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
     # chekc print_func
     if print_func not in print_strings and not callable(print_func):
         raise ValueError("print_func must be None, 'console', 'all', 'diff', or 'comp' or callable")
+    if print_func in print_strings:
+        if not type(print_args) in [int, bool, tuple,list] and print_args is not None:
+            raise TypeError(f"print_args must be None, int, bool, or a 2-tuple or 2-list, got {type(print_args)}")
+        elif (isinstance(print_args,tuple) or isinstance(print_args,list)) and len(print_args) != 2:
+            raise TypeError(f"If print args is a tuple or list, it must have length 2, got {len(print_args)}")
+        elif type(print_args) in (tuple,list) and (not isinstance(print_args[0],int) or not isinstance(print_args[1],bool)):
+            raise ValueError("For print_args as 2-tuple or 2-list, but be composed of (int, bool) types, got ({type(print_args[0])}, {type(print_args[0])})")
+        elif isinstance(print_args,int) and not isinstance(print_args,bool) and print_args <= 0:
+            raise ValueError("print_args int values must be positive")
+        if print_args is None:
+            print_args = (1, False)
+        elif isinstance(print_args,int) and not isinstance(print_args,bool):
+            print_args = (print_args, False)
+        elif isinstance(print_args,bool):
+            print_args = (1,print_args)
     elif callable(print_func):
         try:
-            print("print_func validation", end='...')
-            print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
-            print("print_func validated")
+            disp_txt.data += "print_func validation"
+            disp_handle.update(disp_txt)
+            if print_args is None:
+                print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
+            else:
+                print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2,*print_args)
+            disp_txt.data += "print_func validated"
+            disp_handle.update(disp_txt)
         except Exception as e:
-            print("print_func invalid function, must take (niter,new,current,old,t_iter,t_total)")
+            disp_txt.data += "print_func invalid function, must take (niter,new,current,old,t_iter,t_total)"
+            disp_handle.update(disp_txt)
             raise e
-    cdef void (*ptr_print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*)
-    cdef void *ptr_print_call = NULL
-    if print_func == 'console':
-        ptr_print_func = baseprint
-    elif print_func == 'all':
-        ptr_print_func = model_print_all
-    elif print_func == 'diff':
-        ptr_print_func = model_print_diff
-    elif print_func == 'comp':
-        ptr_print_func = model_print_comp
-    elif print_func == 'iter':
-        ptr_print_func = model_print_iter
-    elif callable(print_func):
-        ptr_print_func = model_print_call
-        ptr_print_call = <void*> print_func
-    elif print_func is None:
-        ptr_print_func = NULL
-    else:
-        raise ValueError("print_func must be None, 'console', 'all', 'diff', or 'comp'")
     # set up the limits function
     cdef lm limits
     limits.max_iter = <size_t> max_iter
     limits.num_cores = <size_t> num_cores if num_cores > 0 else 1
     limits.max_time = <double> max_time
     limits.min_conv = <double> converged_min
+    # setup the printing function
+    cdef void (*ptr_print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*)
+    cdef void *ptr_print_call = NULL
+    cdef print_args_struct *ptr_print_args = <print_args_struct*> PyMem_Malloc(sizeof(print_args_struct))
+    cdef print_struct *ptr_print_struct = <print_struct*> PyMem_Malloc(sizeof(print_struct*))
+    ptr_print_args.keep = 1
+    ptr_print_args.max_iter = <size_t> max_iter
+    disp_txt.data = ""
+    if print_func in print_strings:
+        ptr_print_args.txt = <void*> disp_txt
+        ptr_print_args.handle = <void*> disp_handle
+        ptr_print_args.keep = 1 if print_args[1] else 0
+        ptr_print_args.disp_freq = <size_t> print_args[0]
+        ptr_print_call = <void*> ptr_print_args
+        if print_func == 'console':
+            ptr_print_func = baseprint
+            ptr_print_args.keep = 0
+        elif print_func == 'all':
+            ptr_print_func = model_print_all
+        elif print_func == 'diff':
+            ptr_print_func = model_print_diff
+        elif print_func == 'diff_time':
+            ptr_print_func = model_print_diff_time
+        elif print_func == 'comp':
+            ptr_print_func = model_print_comp
+        elif print_func == 'comp_time':
+            ptr_print_func = model_print_comp_time
+        elif print_func == 'iter':
+            ptr_print_func = model_print_iter
+    elif callable(print_func):
+        ptr_print_func = model_print_call
+        ptr_print_struct.func = <void*> print_func
+        ptr_print_struct.args = <void*> print_args
+        ptr_print_call = <void*> ptr_print_struct
+    elif print_func is None:
+        ptr_print_func = NULL
+        ptr_print_args.keep = 0
+
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long *burst_sizes = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
     cdef unsigned long long **b_time = <unsigned long long**> PyMem_Malloc(num_burst * sizeof(unsigned long long*))
@@ -1290,34 +1417,34 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
     cdef size_t old_niter = h_mod.model.niter
     if reset_niter:
         h_mod.model.niter = 0
+    disp_handle.update(disp_txt)
     cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_time,b_det,&h_mod.model,&limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
-    h_mod.model.niter = old_niter
-    # free the limts arrays
-    if out_model is NULL:
-        PyMem_Free(b_struct)
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
-        raise ValueError('Bursts photons are out of order, please check your data')
-    elif out_model == &h_mod.model:
-        PyMem_Free(b_struct)
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
-        raise ValueError('Too many photon streams in data for H2MM model')
-    cdef h2mm_model out = model_from_ptr(out_model)
-    if out.model.conv == 3:
-        print(f'The model converged after {out.model.niter} iterations')
-    elif out.model.conv == 4:
-        print('Optimization reached maximum number of iterations')
-    elif out.model.conv == 5:
-        print('Optimization reached maxiumum time')
-    elif out.model.conv == 6:
-        print(f'An error occured on iteration {out.model.niter}, returning previous model')
+    cdef size_t keep = ptr_print_args.keep
     PyMem_Free(b_struct)
     PyMem_Free(b_det);
     PyMem_Free(b_time);
     PyMem_Free(burst_sizes)
+    PyMem_Free(ptr_print_args)
+    h_mod.model.niter = old_niter
+    # free the limts arrays
+    if out_model is NULL:
+        raise ValueError('Bursts photons are out of order, please check your data')
+    elif out_model == &h_mod.model:
+        raise ValueError('Too many photon streams in data for H2MM model')
+    cdef h2mm_model out = model_from_ptr(out_model)
+    if out.model.conv == 3:
+        out_text = f'The model converged after {out.model.niter} iterations'
+    elif out.model.conv == 4:
+        out_text = 'Optimization reached maximum number of iterations'
+    elif out.model.conv == 5:
+        out_text = 'Optimization reached maxiumum time'
+    elif out.model.conv == 6:
+        out_text = f'An error occured on iteration {out.model.niter}, returning previous model'
+    if keep == 1:
+        disp_txt.data += out_text
+    else:
+        disp_txt.data = out_text
+    disp_handle.update(disp_txt)
     return out
 
 def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
