@@ -17,7 +17,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.2.2
         # to supply options, put them in 'env', like:
         env:
-          CIBW_SKIP: cp36-musllinux_*, cp37-musllinux_*, cp38-musllinux_*, cp39-musllinux_*, cp310-musllinux_*
+          CIBW_SKIP: cp36-musllinux_x86_64, cp37-musllinux_x86_64, cp38-musllinux_x86_64, cp39-musllinux_x86_64, cp310-musllinux_x86_64, cp36-musllinux_xi686, cp37-musllinux_xxi686, cp38-musllinux_xi686, cp39-musllinux_xi686, cp310-musllinux_xi686
 
       - uses: actions/upload-artifact@v2
         with:
