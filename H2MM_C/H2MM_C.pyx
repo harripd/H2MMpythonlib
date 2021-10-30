@@ -294,16 +294,18 @@ cdef class h2mm_model:
     def normalize(self):
         h2mm_normalize(&self.model)
     def optimize(self, burst_colors, burst_times, max_iter=3600, 
-              print_func='console', bounds=None, bounds_func=None, max_time=np.inf, 
-              converged_min=1e-14, num_cores= os.cpu_count()//2, reset_niter=False):
+              print_func='console', print_args = None, bounds=None, 
+              bounds_func=None, max_time=np.inf, converged_min=1e-14, 
+              num_cores= os.cpu_count()//2, reset_niter=False):
         cdef size_t i
         if self.model.conv == 4 and self.model.niter >= max_iter:
             max_iter = self.model.niter + max_iter
         cdef h2mm_model out = EM_H2MM_C(self, burst_colors, burst_times, 
                         max_iter=max_iter, print_func=print_func, 
-                        bounds=bounds, bounds_func=bounds_func, 
-                        max_time=max_time, converged_min=converged_min,
-                        num_cores=num_cores,reset_niter=reset_niter)
+                        print_args = None, bounds=bounds, 
+                        bounds_func=bounds_func,  max_time=max_time, 
+                        converged_min=converged_min, num_cores=num_cores,
+                        reset_niter=reset_niter)
         for i in range(self.model.nstate):
             self.model.prior[i] = out.model.prior[i]
         for i in range(self.model.nstate**2):
