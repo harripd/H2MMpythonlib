@@ -1,13 +1,12 @@
 [project]
 requires-python = ">=3.6"
-requires = "numpy>=1.20.0"
 
 [build-system]
 requires = [
     "setuptools>=42",
     "wheel",
     "cython",
-    "numpy>=1.20.0"
+    "numpy"
 ]
 build-backend = "setuptools.build_meta"
 
