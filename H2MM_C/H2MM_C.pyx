@@ -294,7 +294,7 @@ cdef class h2mm_model:
     def normalize(self):
         h2mm_normalize(&self.model)
     def optimize(self, burst_colors, burst_times, max_iter=3600, 
-              print_func='console', print_args = None, bounds=None, 
+              print_func='iter', print_args = None, bounds=None, 
               bounds_func=None, max_time=np.inf, converged_min=1e-14, 
               num_cores= os.cpu_count()//2, reset_niter=False):
         cdef size_t i

@@ -8890,7 +8890,7 @@ static PyObject *__pyx_pf_6H2MM_C_10h2mm_model_4normalize(struct __pyx_obj_6H2MM
  *     def normalize(self):
  *         h2mm_normalize(&self.model)             # <<<<<<<<<<<<<<
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  */
   h2mm_normalize((&__pyx_v_self->model));
 
@@ -8913,7 +8913,7 @@ static PyObject *__pyx_pf_6H2MM_C_10h2mm_model_4normalize(struct __pyx_obj_6H2MM
  *     def normalize(self):
  *         h2mm_normalize(&self.model)
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,             # <<<<<<<<<<<<<<
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,
  */
 
@@ -8941,12 +8941,12 @@ static PyObject *__pyx_pw_6H2MM_C_10h2mm_model_7optimize(PyObject *__pyx_v_self,
     static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_burst_colors,&__pyx_n_s_burst_times,&__pyx_n_s_max_iter,&__pyx_n_s_print_func,&__pyx_n_s_print_args,&__pyx_n_s_bounds,&__pyx_n_s_bounds_func,&__pyx_n_s_max_time,&__pyx_n_s_converged_min,&__pyx_n_s_num_cores,&__pyx_n_s_reset_niter,0};
     PyObject* values[11] = {0,0,0,0,0,0,0,0,0,0,0};
     values[2] = ((PyObject *)__pyx_int_3600);
-    values[3] = ((PyObject *)__pyx_n_u_console);
+    values[3] = ((PyObject *)__pyx_n_u_iter);
 
     /* "H2MM_C.pyx":297
  *         h2mm_normalize(&self.model)
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,
- *               print_func='console', print_args = None, bounds=None,             # <<<<<<<<<<<<<<
+ *               print_func='iter', print_args = None, bounds=None,             # <<<<<<<<<<<<<<
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,
  *               num_cores= os.cpu_count()//2, reset_niter=False):
  */
@@ -8955,7 +8955,7 @@ static PyObject *__pyx_pw_6H2MM_C_10h2mm_model_7optimize(PyObject *__pyx_v_self,
 
     /* "H2MM_C.pyx":298
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,             # <<<<<<<<<<<<<<
  *               num_cores= os.cpu_count()//2, reset_niter=False):
  *         cdef size_t i
@@ -8966,7 +8966,7 @@ static PyObject *__pyx_pw_6H2MM_C_10h2mm_model_7optimize(PyObject *__pyx_v_self,
     values[9] = __pyx_k__28;
 
     /* "H2MM_C.pyx":299
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,
  *               num_cores= os.cpu_count()//2, reset_niter=False):             # <<<<<<<<<<<<<<
  *         cdef size_t i
@@ -9123,7 +9123,7 @@ static PyObject *__pyx_pw_6H2MM_C_10h2mm_model_7optimize(PyObject *__pyx_v_self,
  *     def normalize(self):
  *         h2mm_normalize(&self.model)
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,             # <<<<<<<<<<<<<<
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,
  */
 
@@ -9398,7 +9398,7 @@ static PyObject *__pyx_pf_6H2MM_C_10h2mm_model_6optimize(struct __pyx_obj_6H2MM_
  *     def normalize(self):
  *         h2mm_normalize(&self.model)
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,             # <<<<<<<<<<<<<<
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,
  */
 
@@ -57387,7 +57387,7 @@ if (!__Pyx_RefNanny) {
 
   /* "H2MM_C.pyx":298
  *     def optimize(self, burst_colors, burst_times, max_iter=3600,
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,             # <<<<<<<<<<<<<<
  *               num_cores= os.cpu_count()//2, reset_niter=False):
  *         cdef size_t i
@@ -57402,7 +57402,7 @@ if (!__Pyx_RefNanny) {
   __pyx_t_1 = 0;
 
   /* "H2MM_C.pyx":299
- *               print_func='console', print_args = None, bounds=None,
+ *               print_func='iter', print_args = None, bounds=None,
  *               bounds_func=None, max_time=np.inf, converged_min=1e-14,
  *               num_cores= os.cpu_count()//2, reset_niter=False):             # <<<<<<<<<<<<<<
  *         cdef size_t i
