@@ -20,11 +20,16 @@ There are several methods for installation.
 We recomend to install via `pip` (`pip3` on some systems):
 
 ```bash
-$ pip install git+https://github.com/harripd/H2MMpythonlib
+$ pip install H2MM_C
 ```
 
 ### Alternative Installation Methods
 
+If for some reason installing from PyPi doesn't work, you can try installing directly from github:
+
+```bash
+$ pip install git+https://github.com/harripd/H2MMpythonlib
+```
 
 Or, if you download the repository, and have the files stored locally, from the top directory of the project (where the `setup.py` file is):
 
@@ -38,7 +43,31 @@ or if you only want to have it accessible from the current directory, use:
 $ python setup.py build_ext --inplace
 ```
 
-*Note in some systems the commands are `pip3` and `python3` instead of `pip` and `python` respectively.
+*Note on some systems the commands are `pip3` and `python3` instead of `pip` and `python` respectively.
+
+### Compatibility
+
+We are trying to provide the broadest degree of compatibility as possible, but there are limitations, and assistance is welcome to expand compatibility as much as possible. 
+Currently we are using github actions and `cibuildwheel` to generate wheels that are uploaded to PyPi, as well as the sdist archive (`.tar.gz` file), however we are having trouble building certain wheels.
+
+Working wheels:
+
+- Windows wheels
+- manylinux wheels
+
+Currently we do not have wheels for:
+
+- musllinux
+- MacOS
+
+For systems we do not have wheels for, it may still be possible to compile from the sdist archive (`.tar.gz` file). 
+`cibuildwheel` uses the most recent version of numpy. This means that these wheels will generally not work if you have a version of numpy before 1.20.0, and therefore this is given as a minimum version requirement. 
+However, we have been able to compile working versions with lesser versions of numpy. 
+Therefore, if you wish to keep your version of numpy, we suggest downloading the github repository, editing the `setup.py` file to support your version of numpy, and compiling with the following commands (run from the base directory where you have your local copy).
+```bash
+$ python setup.py bdist_wheel sdist
+$ pip install *path to wheel file*
+```
 
 ## Tutorial Code
 For a full tutorial on H2MM_C, please see the zenodo repository:

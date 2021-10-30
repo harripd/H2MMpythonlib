@@ -1,16 +1,17 @@
 [project]
 requires-python = ">=3.6"
-requires = "numpy>=1.20.1"
+requires = "numpy>=1.20.0"
 
 [build-system]
 requires = [
     "setuptools>=42",
     "wheel",
     "cython",
-    "numpy"
+    "numpy>=1.20.0"
 ]
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
 build = "*"
 skip = "*musllinux*"
+test-command = "pytest {package}/tests"

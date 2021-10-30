@@ -297,12 +297,140 @@ cdef class h2mm_model:
               print_func='iter', print_args = None, bounds=None, 
               bounds_func=None, max_time=np.inf, converged_min=1e-14, 
               num_cores= os.cpu_count()//2, reset_niter=False):
+        """
+        Optimize the H2MM model for the given set of data.
+        NOTE: this method calls the EM_H2MM_C function.
+    
+        Parameters
+        ----------
+        indexes : list of NUMPY 1D int arrays
+            A list of the arrival indexes for each photon in each burst.
+            Each element of the list (a numpy array) cooresponds to a burst, and
+            each element of the array is a singular photon.
+            The indexes list must maintain  1to1 coorespondence to the times list
+        times : list of NUMPY 1D int arrays
+            A list of the arrival times for each photon in each burst
+            Each element of the list (a numpy array) cooresponds to a burst, and
+            each element of the array is a singular photon.
+            The times list must maintain  1to1 coorespondence to the indexes list
+        
+        Optional Keyword Parameters
+        ---------------------------
+        print_func = 'console': None, str or callable
+            Specifies how the results of each iteration will be displayed, several 
+            strings specify built-in functions.
+            -----------------
+            Acceptable inputs
+            -----------------
+                None:
+                    causes no printout anywhere of the results of each iteration
+                Str: 'console', 'all', 'diff', 'comp', 'iter'
+                    'console': the results will be printed to the terminal/console 
+                        window this is useful to still be able to see the results, 
+                        but not clutter up the output of your Jupyter Notebook, this 
+                        is the default
+                    'all': prints out the full h2mm_model just evaluated, this is very
+                        verbose, and not genearlly recomended unless you really want
+                        to know every step of the optimization
+                    'diff': prints the loglik of the iteration, and the difference 
+                        between the current and old loglik, this is the same format
+                        that the 'console' option used, the difference is whether the
+                        print function used is the C printf, or Cython print, which 
+                        changes the destination from the console to the Jupyter notebook
+                    'diff_time': same as 'diff' but adds the time of the last iteration
+                        and the total optimization time
+                    'comp': prints out the current and old loglik
+                    comp_time': same as 'comp'  but with times, like in 'diff_time'
+                    'iter': prints out only the current iteration
+                Callable: user defined function
+                    A python function for printing out a custom ouput, the function must
+                    accept the input of (int,h2mm_model,h2mm_model,h2mm_modl,float,float)
+                    as the function will be handed (niter, new, current, old, t_iter, t_total)
+                    from a special Cython wrapper. t_iter and t_total are the times
+                    of the iteration and total time respectively, in seconds, based
+                    on the C level clock function, which is noteably inaccurate,
+                    often reporting larger than actual values.
+        print_args = None: 2-tuple/list int or bool
+            Arguments to further customize the printing options. The format is
+            (int bool) where int is how many iterations before updating the display
+            and the bool is True if the printout will concatenate, and False if the
+            display will be kept to one line, The default is None, which is changed
+            into (1, False). If only an int or a bool is specified, then the default
+            value for the other will be used. If a custom printing function is given
+            then this argument will be passed to the function as *args
+        bounds_func = None: str or callable
+            function to be evaluated after every iteration of the H2MM algorithm
+            its primary function is to place bounds on h2mm_model
+            Note: bounding the h2mm_model causes the guarantee of improvement on each
+            iteration until convergence to no longer apply, therefore the results are
+            no longer guaranteed to be the optimal model within bounds
+            -----------------
+            Acceptable inputs
+            -----------------
+                C level limits: 'minmax' 'revert' 'revert_old'
+                    prevents the model from having values outside of those defined
+                    by h2mm_limits class given to bounds, if an iteration produces
+                    a new model for loglik calculation in the next iteration with 
+                    values that are out of those bounds, the 3 function differ in
+                    how they correct the model when a new model has a value out of
+                    bounds, they are as follows:
+                    'minmax': sets the out of bounds value to the min or max value
+                        closer to the original value
+                    'revert': sets the out of bounds value to the value from the last
+                        model for which the loglik was calculated
+                    'revert_old': similar to revert, but instead reverts to the value
+                        from the model one before the last calculated model
+                Callable: python function that takes 4 inputs and returns h2mm_model object
+                    WARNING: the user takes full responsibility for errors in the 
+                        results
+                    must be a python function that takes 4 arguments, the first 3 are
+                    the h2mm_model objects, in this order: new, current, old, 
+                    the fourth is the argument supplied to the bounds keyword argument,
+                    the function must return a single h2mm_limits object, the prior, 
+                    trans and obs fields of which will be optimized next, other values 
+                    are ignored.
+        bounds = None: h2mm_limits, str, or 4th input to callable
+            The argument to be passed to the bounds_func function. If bounds_func is
+            None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
+            or 'revert_old' (calling C-level bouding functions), then bounds must be
+            a h2mm_limits object, if bounds_func is a callable, bounds must be an
+            acceptable input as the fourth argument to the function passed to bounds_func
+        max_iter=3600 : int
+            the maximum number of iterations to conduct before returning the current
+            h2mm_model
+        max_time=np.inf : float
+            The maximum time (in seconds) before retunring current model
+            NOTE: this uses the C clock, which has issues, often the time assesed by
+            C, which is usually longer than the actual time
+        converged_min=1e-14 : float
+            The difference between new and current h2mm_models to consider the model
+            converged, the default setting is close to floating point error, it is
+            recomended to only increase the size
+        num_cores = os.cpu_count()//2 : int
+            the number of C threads (which ignore the gil, thus functioning more
+            like python processes), to use when calculating iterations. The default
+            is to take half of what python reports as the cpu count, because most
+            cpus have multithreading enabled, so the os.cpu_count() will return
+            twice the number of physical cores. Consider setting this parameter
+            manually if either you want to optimize the speed of the computation,
+            or if you want to reduce the number of cores used so your computer has
+            more cpu time to spend on other tasks
+        reset_niter = True: bool
+            Tells the algorithm whether or not to reset the iteration counter of the
+            model, True means that even if the model was previously optimized, the 
+            iteration counter will start at 0, so calling EM_H2MM_C on a model that
+            reached its maximum iteration number will proceed another max_iter 
+            iterations. On the other hand, if set to False, then the new iterations
+            will be added to the old. If set to False, you likely will have to increase
+            max_iter, as the optimization will count the previous iterations towards
+            the max_iter threshold.
+        """
         cdef size_t i
         if self.model.conv == 4 and self.model.niter >= max_iter:
             max_iter = self.model.niter + max_iter
         cdef h2mm_model out = EM_H2MM_C(self, burst_colors, burst_times, 
                         max_iter=max_iter, print_func=print_func, 
-                        print_args = None, bounds=bounds, 
+                        print_args = print_args, bounds=bounds, 
                         bounds_func=bounds_func,  max_time=max_time, 
                         converged_min=converged_min, num_cores=num_cores,
                         reset_niter=reset_niter)
@@ -317,6 +445,39 @@ cdef class h2mm_model:
         self.model.conv = out.model.conv
         self.model.nphot = out.model.nphot
     def evaluate(self, burst_colors, burst_times, num_cores = os.cpu_count()//2):
+        """
+        Calculate the loglikelihood of the model given a set of data. The 
+        loglikelihood is stored with the model.
+        NOTE: this method calls the H2MM_arr function, and has essentially the 
+        same syntax
+    
+        Parameters
+        ----------
+        h_model : list, tuple, or numpy.ndarray of h2mm_model objects
+            All of the h2mm_model object for which the loglik will be calculated
+        indexes : list or tuple of NUMPY 1D int arrays
+            A list of the arrival indexes for each photon in each burst.
+            Each element of the list (a numpy array) cooresponds to a burst, and
+            each element of the array is a singular photon.
+            The indexes list must maintain  1to1 coorespondence to the times list
+        times : list or tuple of NUMPY 1D int arrays
+            A list of the arrival times for each photon in each burst
+            Each element of the list (a numpy array) cooresponds to a burst, and
+            each element of the array is a singular photon.
+            The times list must maintain  1to1 coorespondence to the indexes list
+        
+        Optional Keyword Parameters
+        ---------------------------
+        num_cores = os.cpu_count()//2 : int
+            the number of C threads (which ignore the gil, thus functioning more
+            like python processes), to use when calculating iterations. The default
+            is to take half of what python reports as the cpu count, because most
+            cpus have multithreading enabled, so the os.cpu_count() will return
+            twice the number of physical cores. Consider setting this parameter
+            manually if either you want to optimize the speed of the computation,
+            or if you want to reduce the number of cores used so your computer has
+            more cpu time to spend on other tasks    
+        """
         cdef h2mm_model out = H2MM_arr(self, burst_colors, burst_times,num_cores = num_cores)
         for i in range(self.model.nstate):
             self.model.prior[i] = out.model.prior[i]
@@ -1088,7 +1249,8 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
               bounds=None, max_time=np.inf, converged_min=1e-14, 
               num_cores= os.cpu_count()//2, reset_niter=True):
     """
-    Calculate the most likely state path through a set of data given a H2MM model
+    Calcualate the most likely model that explains the given set of data. The 
+    input model is used as the start of the optimization.
 
     Parameters
     ----------
