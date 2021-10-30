@@ -1,3 +1,7 @@
+[project]
+requires-python = ">=3.6"
+requires = "numpy>=1.20.1"
+
 [build-system]
 requires = [
     "setuptools>=42",
