@@ -22,8 +22,5 @@ jobs:
         env:
          CIBW_SKIP: '*musllinux*'         
       - uses: actions/upload-artifact@v2
-        env: 
-          CIBW_TEST_REQUIRES: pytest
-          CIBW_TEST_COMMAND: "pytest {project}/tests"
         with:
           path: ./wheelhouse/*.whl
