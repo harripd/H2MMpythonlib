@@ -1500,6 +1500,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         elif isinstance(print_args,bool):
             print_args = (1,print_args)
     elif callable(print_func):
+        print_args = tuple(print_args) if isinstance(print_args,list) else print_args
         try:
             disp_txt.data += "print_func validation\n"
             disp_handle.update(disp_txt)
@@ -1509,7 +1510,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
             elif isinstance(print_args,int):
                 print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
                 print_args = (disp_handle,disp_txt,1, print_args) if isinstance(print_args,bool) else (disp_handle,disp_txt,print_args, False)
-            elif  type(print_args) in (tuple,list) and len(print_args) >= 2 and isinstance(print_args[0],int) and isinstance(print_args[1],bool):
+            elif  type(print_args) == tuple and len(print_args) >= 2 and isinstance(print_args[0],int) and isinstance(print_args[1],bool):
                 if len(print_args) == 2:
                     print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
                 else:
