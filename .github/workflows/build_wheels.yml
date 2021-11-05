@@ -20,11 +20,10 @@ jobs:
         uses: pypa/cibuildwheel@v2.2.2
         # to supply options, put them in 'env', like:
         env:
-         CIBW_SKIP: '*musllinux*'         
-      - uses: actions/upload-artifact@v2
-        env: 
+         CIBW_SKIP: '*musllinux*'
          CIBW_BEFORE_TEST: pip install numpy==1.20.3
-         CIBW_TEST_REQUIRES: pytest
+         CIBW_TEST_REQURES: pytest
          CIBW_TEST_COMMAND: pytest {package}/tests
+      - uses: actions/upload-artifact@v2
         with:
           path: ./wheelhouse/*.whl
