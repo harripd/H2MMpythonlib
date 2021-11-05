@@ -13,3 +13,6 @@ build-backend = "setuptools.build_meta"
 [tool.cibuildwheel]
 build = "*"
 skip = "*musllinux*"
+before-test = "pip install numpy==1.20.3"
+test-requies = "pytest"
+test-command = "pytest {package}/tests"
