@@ -2136,7 +2136,6 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
     times = times.astype('Q')
     if not times.flags['C_CONTIGUOUS']:
         times = np.ascontiguousarray(times)
-    cdef unsigned long* tms = get_ptr_l(times)
     cdef size_t lenp = <size_t> times.size
     cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
     cdef unsigned int seedp = 0
