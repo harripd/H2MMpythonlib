@@ -9,7 +9,7 @@ Created on Sat Feb 20 14:49:24 2021
 import os
 import numpy as np
 cimport numpy as np
-from IPython.core.display import DisplayHandle, Pretty
+from IPython.display import DisplayHandle, Pretty
 import warnings
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject
@@ -80,6 +80,54 @@ cdef unsigned long long* get_ptr_ull(np.ndarray[unsigned long long, ndim=1] arr)
 cdef unsigned long* get_ptr_l(np.ndarray[unsigned long, ndim=1] arr):
     cdef unsigned long[::1] arr_view = arr
     return &arr_view[0]
+
+
+def verify_input(indexes, times, ndet):
+    index_t, times_t = type(indexes), type(times)
+    if index_t == times_t:
+        if index_t == np.ndarray:
+            if indexes.ndim != 1 or times.ndim != 1:
+                return NotImplementedError(f"H2MM_C does not support mutli-dimensinoal burst arrays")
+            elif indexes.shape[0] != times.shape[0]:
+                return ValueError(f"Mismatched bursts: burst_colors and burst_times must have same number of bursts, got {indexes.shape[0]} and {times.shape[0]}")
+        elif index_t in (list, tuple):
+            if len(indexes) != len(times):
+                return ValueError(f"Mismatched bursts: burst_colors and burst_times must be same size, got {len(indexes)} and {len(times)}")
+        else:
+            return TypeError(f"Unusable type: burst_colors and burst_times must be of list, tuple or numpy array of numpy arrays, got {index_t}")
+    else:
+        return TypeError(f"Mismatched types: burst colors and burst_times must be same type")
+    cdef str burst_errors = str()
+    cdef unsigned long max_ind = 0
+    cdef unsigned long max_temp
+    cdef n = indexes.size if index_t == np.ndarray else len(indexes)
+    for i in range(n):
+        if type(indexes[i]) == type(times[i]) == np.ndarray:
+            if indexes[i].ndim == times[i].ndim == 1:
+                if indexes[i].shape[0] != times[i].shape[0]:
+                    burst_errors += f"{i}: Mismatched burst size: burst_colors has {indexes[i].shape[0]} photons while burst_times has {times[i].shape[0]} photons\n"
+                elif indexes[i].shape[0] < 3:
+                    burst_errors += f"{i}: Insufficient photons: bursts must be at least 3 photons\n"
+                else:
+                    max_temp = <unsigned long> np.max(indexes[i])
+                    if max_ind >= ndet:
+                        burst_errors += f"{i}: Underdefined model: burst_colors has too many indexes for given h2mm_model"
+                    elif max_ind < max_temp:
+                        max_ind = max_temp
+            else:
+                burst_errors += f"{i}: Multidimensional burst array: bursts must be 1D\n"
+            if not np.issubdtype(indexes[i].dtype, np.integer):
+                burst_errors += f"{i}: TypeError: burst_colors must integer arrays, got {indexes[i].dtype}"
+            elif np.any(indexes[i] < 0):
+                burst_errors += f"{i}: ValueError: burst_colors contains negative values, indexes must be non-negative"
+        else:
+            burst_errors += f"{i}: TypeError: bursts must be 1D numpy arrays, got {type(indexes[i])} and {type(times[i])}\n"
+    if burst_errors != str():
+        return ValueError("Incorect type for bursts:\n" + burst_errors)
+    else:
+        return max_ind
+    
+
 
 cdef class h2mm_model:
     cdef:
@@ -1407,42 +1455,15 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         maximum iterations reached, maximum time has passed, or an error has occured
         (usually the result of a nan from a floating point precision error)
     """
-    if type(burst_colors) not in [tuple, list]:
-        raise TypeError("burst_colors must be list or tuple")
-    elif type(burst_colors) == tuple:
+    burst_check = verify_input(burst_colors, burst_times, h_mod.model.ndet)
+    if isinstance(burst_check, Exception):
+        raise burst_check
+    if h_mod.model.ndet > burst_check + 1:
+        warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {burst_check + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
+    if type(burst_colors) == tuple:
         burst_colors = list(burst_colors)
-    if type(burst_times) not in [tuple, list]:
-        raise TypeError("burst_times must be list or tuple")
-    elif type(burst_times) == tuple:
         burst_times = list(burst_times)
-    # if statements verify that the data is valid, ie matched lengths and dimensions for burst_times and burst_colors in all bursts
-    if len(burst_colors) != len(burst_times):
-        raise ValueError("Mismatch in burst_colors and burst_times lengths, burst_colors and burst_times must be of the same length")
-    if type(reset_niter) != bool:
-        raise TypeError("reset_niter must be boolean True or False, got {type(reset_niter)}")
-    cdef size_t i
-    cdef size_t ndet = 0
     cdef size_t num_burst = len(burst_colors)
-    # Loop to check that the type and size of all elements in data are correct
-    for i in range(num_burst):
-        if type(burst_colors[i]) != np.ndarray:
-            raise TypeError(f"burst_colors[{i}] must be a 1D numpy array")
-        if burst_colors[i].ndim != 1:
-            raise ValueError(f"burst_colors[{i}] must be a 1D array")
-        if np.max(burst_colors[i]) > ndet:
-            ndet = np.max(burst_colors[i])
-        if type(burst_times[i]) != np.ndarray: 
-            raise TypeError(f"burst_times[{i}] must be a 1D numpy array")
-        if burst_times[i].ndim != 1: 
-            raise ValueError(f"burst_times[{i}] must be a 1D array")
-        if burst_times[i].shape[0] != burst_colors[i].shape[0]:
-            raise ValueError(f"Mismatch in lengths between burst_times[{i}] and burst_colors[{i}], cannot create burst")
-        if burst_times[i].shape[0] < 3:
-            raise ValueError(f'Bursts must have at least 3 photons, burst {i} has only {burst_times[i].shape[0]} photons')
-    if h_mod.model.ndet > ndet + 1:
-        warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {ndet + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
-    elif h_mod.model.ndet < ndet + 1:
-        raise ValueError(f"Underdefined model: data has too many photon streams for model. Data contains {ndet + 1} streams, while model only has {h_mod.model.ndet}")
     cdef h2mm_model h_test_new = h_mod.copy()
     cdef h2mm_model h_test_current = h_mod.copy()
     cdef h2mm_model h_test_old = h_mod.copy()
@@ -1688,34 +1709,10 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
         in accordance with the number of photons in the data set.
         The datatype returned is the same as the datatype of h_model
     """
-    # if statements verify that the data is valid, ie matched lengths and dimensions for burst_times and burst_colors in all bursts
-    if type(burst_colors) == tuple:
-        burst_colors = list(burst_colors)
-    elif type(burst_colors) != list:
-        raise TypeError(f"burst_colors must be list of tuple, got {type(burst_colors)}")
-    if type(burst_times) == tuple:
-        burst_times = list(burst_times)
-    elif type(burst_times) != list:
-        raise TypeError(f"burst_colors must be list of tuple, got {type(burst_times)}")
-    if len(burst_colors) != len(burst_times):
-        raise ValueError("Mismatch in burst_colors and burst_times lengths, burst_colors and burst_times must be of the same length")
     cdef size_t i
-    cdef size_t num_burst = len(burst_colors)
-    for i in range(num_burst):
-        if type(burst_colors[i]) != np.ndarray:
-            raise TypeError(f'burst_colors[{i}] must be 1D numpy array')
-        if burst_colors[i].ndim != 1:
-            raise ValueError(f"burst_colors[{i}] must be a 1D array")
-        if type(burst_times[i]) != np.ndarray:
-            raise TypeError(f'burst_times[{i}] must be 1D numpy array')
-        if burst_times[i].ndim != 1: 
-            raise ValueError(f"burst_times[{i}] must be a 1D array")
-        if burst_times[i].shape[0] != burst_colors[i].shape[0]:
-            raise ValueError(f"Mismatch in lengths between burst_times[{i}] and burst_colors[{i}], cannot create burst")
-        if burst_times[i].shape[0] < 3:
-            raise ValueError(f'Bursts must be at least 3 photons, burst {i} is only {burst_times.shape[0]} photons')
+    cdef size_t num_burst = burst_colors.size if type(burst_colors) == np.ndarray else len(burst_colors)
     cdef type tp = type(h_mod)
-    cdef size_t mod_size
+    cdef size_t mod_size, ndet
     if tp in (h2mm_model, np.ndarray, list, tuple):
         if tp in (list, tuple):
             mod_shape = len(h_mod)
@@ -1723,17 +1720,36 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
             for i, h in enumerate(h_mod):
                 if type(h) != h2mm_model:
                     raise TypeError(f'All elements of first argument must of type h2mm_model, element {i} is not')
+                elif i == 0:
+                    ndet = h.ndet
+                elif h.ndet != ndet:
+                    raise ValueError("All models must have same number of photon streams")
         elif tp == np.ndarray:
             mod_shape = h_mod.shape
             mod_size = h_mod.size
-            for h in h_mod.reshape(mod_size):
+            for i, h in enumerate(np.nditer(h_mod)):
                 if type(h) != h2mm_model:
                     raise TypeError('All elemenets of first argument must be fo type h2mm_model')
+                elif i == 0:
+                    ndet = h.ndet
+                elif h.ndet != ndet:
+                    raise ValueError("All models must have same number of photon streams")
         else:
             mod_shape = 1
             mod_size = 1
+            ndet = h_mod.ndet
     else:
         raise TypeError('First argument must be list or numpy array of h2mm_model objects')
+    # if statements verify that the data is valid, ie matched lengths and dimensions for burst_times and burst_colors in all bursts
+    burst_check = verify_input(burst_colors, burst_times, ndet)
+    if isinstance(burst_check, Exception):
+        raise burst_check
+    if burst_check != ndet - 1:
+        warnings.warn(f"Overdefined models: models have {ndet} photons streams, while data only suggests you have {burst_check + 1} photon streams")
+    if type(burst_colors) == tuple:
+        burst_colors = list(burst_colors)
+    if type(burst_colors) == tuple:
+        burst_times = list(burst_times)
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long *burst_sizes = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
     cdef unsigned long long **b_time = <unsigned long long**> PyMem_Malloc(num_burst * sizeof(unsigned long long*))
@@ -1835,30 +1851,16 @@ def viterbi_path(h2mm_model h_mod, burst_colors, burst_times, num_cores = os.cpu
         Integrated complete likelihood, essentially the BIC for the viterbi path
     """
     # assert statements to verify that the data is valid, ie matched lengths and dimensions for burst_times and burst_colors in all bursts
+    burst_check = verify_input(burst_colors, burst_times, h_mod.model.ndet)
+    if isinstance(burst_check, Exception):
+        raise burst_check
     if type(burst_colors) == tuple:
         burst_colors = list(burst_colors)
-    elif type(burst_colors) != list:
-        raise TypeError("burst_colors must be a list or tuple, got {type(burst_colors)}")
-    if type(burst_times) == tuple:
+    if type(burst_colors) == tuple:
         burst_times = list(burst_times)
-    elif type(burst_times) != list:
-        raise TypeError("burst_times must be a list or tuple, got {type(burst_times)}")
-    if len(burst_colors) != len(burst_times):
-        raise ValueError("Mismatch in burst_colors and burst_times lengths, burst_colors and burst_times must be of the same length")
     cdef size_t i
     cdef size_t nphot = 0
-    cdef size_t num_burst = len(burst_colors)
-    for i in range(num_burst):
-        if type(burst_colors[i]) != np.ndarray:
-            raise TypeError(f"All elements of burst_colors must be 1D numpy integer array, got {type(burst_colors[i])} at index {i}")
-        if burst_colors[i].ndim != 1:
-            raise ValueError(f"burst_colors[{i}] must be a 1D array, got {burst_colors[i].ndim}D array")
-        if type(burst_times[i]) != np.ndarray:
-            raise TypeError(f"All elements of burst_times must be 1D numpy integer array, got {type(burst_times[i])} at index {i}")
-        if burst_times[i].ndim != 1:
-            raise ValueError(f"burst_times[{i}] must be a 1D array, got {burst_times[i].ndim}D array")
-        if burst_times[i].shape[0] != burst_colors[i].shape[0]:
-            raise ValueError(f"Mismatch in lengths between burst_times[{i}] and burst_colors[{i}], cannot create burst")
+    cdef size_t num_burst = burst_colors.size if type(burst_colors) == np.ndarray else len(burst_colors)
     # set up the limits function
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long *burst_sizes = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))

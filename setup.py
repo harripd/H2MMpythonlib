@@ -18,14 +18,14 @@ with open("README.md",'r') as f:
     long_description = f.read()
 
 setup(name = "H2MM_C",
-      version = "0.8.1",
+      version = "0.8.2",
       author = "Paul David Harris",
       author_email = "harripd@gmail.com",
       maintainer = "Paul David Harris",
       maintainer_email = "harripd@gmail.com",
       url = "https://github.com/harripd/H2MMpythonlib",
       download_url = "https://github.com/harripd/H2MMpythonlib",
-      install_requires = ['numpy>=1.20.0'],
+      install_requires = ['numpy>=1.20.1','IPython'],
       description = "C level implementation of H2MM algorithm by Pirchi. 2016",
       long_description = long_description,
       long_description_content_type = 'text/markdown',
