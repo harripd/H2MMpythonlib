@@ -1727,7 +1727,7 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
         elif tp == np.ndarray:
             mod_shape = h_mod.shape
             mod_size = h_mod.size
-            for i, h in enumerate(np.nditer(h_mod)):
+            for i, h in enumerate(h_mod.ravel()):
                 if type(h) != h2mm_model:
                     raise TypeError('All elemenets of first argument must be fo type h2mm_model')
                 elif i == 0:
