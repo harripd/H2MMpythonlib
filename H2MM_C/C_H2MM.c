@@ -1,10 +1,10 @@
 // File: C_H2MM.c
 // Author: Paul David Harris
 // Purpose: main wrapping functions to take burst data and submit to central H2MM algorithm
-// Date Created: 13 Feb 2021
-// Date Modified: 03 March, 2021
+// Date created: 13 Feb 2021
+// Date modified: 27 April 2022
 
-#ifdef linux
+#if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
 #elif _WIN32
 #include <windows.h>

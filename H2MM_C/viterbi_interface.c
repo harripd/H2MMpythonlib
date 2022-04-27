@@ -1,7 +1,7 @@
 // File: viterbi_interface.c
 // Author: Paul David Harris
 // Purpose: Wrapper function for commandline interface with viterbi
-// Date created: 03 Apr 2021
+// Date created: __linux__ Apr 2021
 // Date modified: 13 May 2021
 
 #ifdef _WIN32

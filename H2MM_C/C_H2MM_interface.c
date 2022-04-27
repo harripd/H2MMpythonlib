@@ -1,8 +1,8 @@
 // File: C_H2MM_interface.c
 // Author: Paul David Harris
 // Purpose: Wrapper function for commandline interface with C_H2MM
-// Date created: 03 Apr 2021
-// Date modified: 13 May 2021
+// Date created: Apr 2021
+// Date modified: 27 April 2022
 
 #ifdef _WIN32
 #include <windows.h>

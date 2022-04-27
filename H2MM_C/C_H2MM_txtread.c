@@ -1,7 +1,8 @@
 // File: C_H2MM_txtread.c
 // Author: Paul David Harris
 // Purpose: provide the file parsers for the command line C based H2MM functions
-// Date: 03 Apr 2021
+// Date created: April 2021
+// Date modified: 27 April 2022
 
 #ifdef _WIN32
 #include <windows.h>
@@ -30,7 +31,7 @@ temps* burst_read(char *fname, size_t *n)
 	size_t len_burst = 0;
 	long num_t, num_d;
 	//
-#ifdef linux
+#if defined(__linux__) || defined(__APPLE__)
 	ssize_t len_t, len_d;
 #elif _WIN32
 	int len_t, len_d;
@@ -58,7 +59,7 @@ temps* burst_read(char *fname, size_t *n)
 		perror("fopen");
 		exit(EXIT_FAILURE);
 	}
-#ifdef linux
+#if defined(__linux__) || defined(__APPLE__)
 	while ((len_t = getline(&lptr_t, &n_t, fid)) != -1)
 	{
 		len_d = getline(&lptr_d, &n_d, fid);
@@ -123,7 +124,7 @@ temps* burst_read(char *fname, size_t *n)
 			fprintf(stderr,"Odd number of lines in file, you are missing either a line of detector indeces or arrival times");
 			exit(EXIT_FAILURE);
 		}
-#ifdef linux
+#if defined(__linux__) || defined(__APPLE__)
 		free(lptr_t);
 		lptr_t = NULL;
 		free(lptr_d);
@@ -141,7 +142,7 @@ temps* burst_read(char *fname, size_t *n)
 	return head;
 }
 
-#ifdef linux
+#if defined(__linux__) || defined(__APPLE__)
 h2mm_mod* h2mm_read(char *fname)
 {
 	FILE *fid;
