@@ -4,7 +4,7 @@
 // Date created: 13 Feb 2021
 // Date modified: 27 April 2022
 
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 #include <unistd.h>
 #elif _WIN32
 #include <windows.h>

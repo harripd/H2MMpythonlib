@@ -58,7 +58,7 @@ typedef struct
 	double *A; // contains powers of transition matrix, a sT x sk x sK array
 	h2mm_mod *current; // the h2mm_mod from last iteration
 	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_mutex_t *h2mm_lock; // mutex for checking on cur_burst
 #endif
 } fback_vals;
@@ -130,7 +130,7 @@ typedef struct
 	phstream *phot; // pointer to burst array, part of input
 	ph_path *path; // pointer to viterbi path found by viterbi algorithm
 	h2mm_mod *model; // h2mm model used in calculating the path
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_mutex_t *vit_lock; // mutex for updating cur_burst
 #endif
 } vit_vals;
@@ -148,7 +148,7 @@ h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned 
 // fwd_back_photonbyphoton_par.c function signatures
 
 // function called by each thread in H2MM, each thread calculates succesive bursts
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 void* fwd_back_PhotonByPhoton(void* burst);
 #elif _WIN32
 DWORD WINAPI fwd_back_PhotonByPhoton(void* burst);
@@ -179,7 +179,7 @@ void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); 
 // viterbi.c function signatures 
 
 // function called by each thread in viterbi, each thread calculates succesive bursts
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 void* viterbi_burst(void* in_vals);
 #elif _WIN32
 DWORD WINAPI viterbi_burst(void* in_vals);

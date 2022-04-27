@@ -4,7 +4,7 @@
 // Date created : 13 Feb 2021
 // Date modified: 27 April 2022
 
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 #include <unistd.h>
 #include <pthread.h>
 #elif _WIN32
@@ -19,7 +19,7 @@
 #define TRUE 1
 #define FALSE 0
 
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 void* fwd_back_PhotonByPhoton(void* burst)
 #elif _WIN32
 HANDLE h2mm_lock = 0;
@@ -51,7 +51,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 	double *xi_summed = (double*) calloc(D->sj,sizeof(double));
 	double *obs_temp = (double*) calloc(D->current->nstate * D->current->ndet,sizeof(double));
 	// find the burst to calculate must be done with mutex locked so multiple thread don't work on same burst
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_mutex_lock(D->h2mm_lock);
 	if ( D->cur_burst[0] < D->num_burst)
 	{
@@ -225,7 +225,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 		for (i = 0; i < D->sk; i++) prior[i] += gamma[i];
 		//printf("fwd_back_PhotonByPhoton(): (B) cur_burst: %4u  threadId: %8x, xi_temp[1] = %f, xi_temp[2] = %f\n", (unsigned int)cur_burst, GetCurrentThreadId(),(double)xi_temp[1],(double)xi_temp[2]);
 		// find the next burst to be calculated
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 		pthread_mutex_lock(D->h2mm_lock);
 		if (D->cur_burst[0] < D->num_burst)
 		{
@@ -252,7 +252,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 		//printf("fwd_back_PhotonByPhoton(): (C) cur_burst: %4u  threadId: %8x\n", (unsigned int)cur_burst, GetCurrentThreadId());
 	}
 	// update the h2mm_model
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_mutex_lock(D->h2mm_lock);
 	if (!llerror && !isnan(D->new->loglik))
 		D->current->loglik += loglik;
@@ -309,7 +309,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 	free(xi_temp);
 	free(xi_summed);
 	free(obs_temp);
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_exit(0);
 #elif _WIN32
 	//printf("fwd_back_PhotonByPhoton(): BOTTOM: threadId: %8x  nthreads: %d\n", GetCurrentThreadId(),nt);
@@ -359,7 +359,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	double *pcp, *pct, *pco, *pnp, *pnt, *pno, *pop, *pot, *poo; // pointers used for freeing- stores copies of other pointers that get swapped around, these do not
 	h2mm_mod *pcur, *pnew, *pold;
 	// initialize the thread id's and mutexes
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_t *tid = (pthread_t*) malloc(limits->num_cores * sizeof(pthread_t));
 	pthread_mutex_t *h2mm_lock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(h2mm_lock,NULL);
@@ -423,7 +423,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		burst_submit[j].current = current;
 		burst_submit[j].new = new;
 		burst_submit[j].max_phot = burst_submit[0].max_phot;
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 		burst_submit[j].h2mm_lock = h2mm_lock;
 #endif
 	}
@@ -435,7 +435,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 		// calculate rho
 		rho_all(current->nstate, current->trans, powers);
 		// spin up the threads, calculate forward and backward recursion variable, running in parallel for all bursts
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 		for(i = 0; i < limits->num_cores; i++) pthread_create(&tid[i],NULL,fwd_back_PhotonByPhoton,(void*) &burst_submit[i]); // create a thread for each burst
 		for(i = 0; i < limits->num_cores; i++) pthread_join(tid[i],NULL); // wait for all bursts to finish
 #elif _WIN32
@@ -522,7 +522,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 	out->obs = (double*) malloc(in->nstate * in->ndet * sizeof(double));
 	for ( i = 0; i < in->nstate * in->ndet; i++) out->obs[i] = current->obs[i];
 	// destroy mutexes, thread ids and free allocated memory
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_mutex_destroy(h2mm_lock);
 	if (h2mm_lock != NULL)
 		free(h2mm_lock);
@@ -611,7 +611,7 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 		}
 	}
 	// initialize the thread id's and mutexes
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_t *tid = (pthread_t*) malloc(limits->num_cores * sizeof(pthread_t));
 	pthread_mutex_t *h2mm_lock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(h2mm_lock,NULL);
@@ -636,7 +636,7 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 		burst_submit[j].num_burst = num_burst;
 		burst_submit[j].max_phot = burst_submit[0].max_phot;
 		burst_submit[j].new = mod_temp;
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 		burst_submit[j].h2mm_lock = h2mm_lock;
 #endif
 	}
@@ -706,7 +706,7 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 		// calculate rho
 		rho_all(mod_array[i].nstate, mod_array[i].trans, powers);
 		// spin up the threads, calculate forward and backward recursion variable, running in parallel for all bursts
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 		for(j = 0; j < limits->num_cores; j++) pthread_create(&tid[j],NULL,fwd_back_PhotonByPhoton,(void*) &burst_submit[j]); // create a thread for each burst
 		for(j = 0; j < limits->num_cores; j++) pthread_join(tid[j],NULL); // wait for all bursts to finish
 #elif _WIN32
@@ -735,7 +735,7 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 		}
 	}
 	// destroy mutexes, thread ids and free allocated memory
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 	pthread_mutex_destroy(h2mm_lock);
 	if (h2mm_lock != NULL)
 		free(h2mm_lock);
