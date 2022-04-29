@@ -2,9 +2,9 @@
 // Author: Paul David Harris
 // Purpose: Calcualte the A and Rho matrices, no multithreading at this point
 // Date created: 13 Feb 2021
-// Date modified: 27 April 2022
+// Date modified: 29 April 2022
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
 //#include <pthread.h>
 #elif _WIN32

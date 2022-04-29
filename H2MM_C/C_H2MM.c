@@ -2,9 +2,9 @@
 // Author: Paul David Harris
 // Purpose: main wrapping functions to take burst data and submit to central H2MM algorithm
 // Date created: 13 Feb 2021
-// Date modified: 27 April 2022
+// Date modified: 29 April 2022
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
 #elif _WIN32
 #include <windows.h>

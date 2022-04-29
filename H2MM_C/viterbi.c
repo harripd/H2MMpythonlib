@@ -2,9 +2,9 @@
 // Purpose: Computer viterbi path and loglik of that path from posterior probability
 // Author: Paul David Harris
 // Date created: 1 April 2021
-// Date modified: 27 April 2022
+// Date modified: 29 April 2022
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
 #include <pthread.h>
 #elif _WIN32
@@ -21,7 +21,7 @@
 #define FALSE 0
 
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 void* viterbi_burst(void* in_vals)
 #elif _WIN32
 HANDLE vit_lock = 0;
@@ -39,7 +39,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 	double runsum = 0.0;
 	double *omega = (double*) calloc(D->si*D->max_phot,sizeof(double));
 	double omegamax;
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	pthread_mutex_lock(D->vit_lock);
 	if ( D->cur_burst[0] < D->num_burst ) 
 	{
@@ -130,7 +130,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 			t--;
 			D->path[cur_burst].path[t] = psi[D->si * (t + 1) + D->path[cur_burst].path[t+1]];
 		} while(t != 0);
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		pthread_mutex_lock(D->vit_lock);
 		if ( D->cur_burst[0] < D->num_burst ) 
 		{
@@ -166,7 +166,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 		free(omega);
 	if ( psi != NULL)
 		free(psi);
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	pthread_exit(0);
 #elif _WIN32
 	ExitThread(0);
@@ -178,7 +178,7 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 	size_t i, j;
 	if ( num_cores > num_bursts ) 
 		num_cores = num_bursts;
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	pthread_t *tid = calloc(num_cores,sizeof(pthread_t));
 	pthread_mutex_t *vit_lock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(vit_lock,NULL);
@@ -235,13 +235,13 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 		vit_submit[i].phot = b;
 		vit_submit[i].path = path_array;
 		vit_submit[i].model = model;
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 		vit_submit[i].vit_lock = vit_lock;
 #endif
 	}
 	//printf("Spinning up the threads\n"); // Spin up the threads
 	
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	for ( i = 0; i < num_cores; i++)
 		pthread_create(&tid[i],NULL,viterbi_burst,(void*) &vit_submit[i]);
 	// wait for all threads to finish
@@ -267,7 +267,7 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 		free(b[i].delta);
 		free(b[i].det);
 	}
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	pthread_mutex_destroy(vit_lock);
 	if (vit_lock != NULL)
 		free(vit_lock);
