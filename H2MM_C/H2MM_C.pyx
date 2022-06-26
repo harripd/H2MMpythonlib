@@ -47,9 +47,9 @@ cdef extern from "C_H2MM.h":
         double *scale
         double *omega
     void h2mm_normalize(h2mm_mod *model_params)
-    h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits) nogil
-    int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
+    h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits) nogil
+    int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
     void baseprint(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
     void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
     void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
@@ -81,8 +81,68 @@ cdef unsigned long* get_ptr_l(np.ndarray[unsigned long, ndim=1] arr):
     cdef unsigned long[::1] arr_view = arr
     return &arr_view[0]
 
+# copy data from a numpy array into an unsigned long array, and return the pointer
+cdef unsigned long* np_copy_ul(np.ndarray arr):
+    cdef unsigned long* out = <unsigned long*> PyMem_Malloc(arr.shape[0]*sizeof(unsigned long))
+    for i in range(arr.shape[0]):
+        out[i] = <unsigned long> arr[i]
+    return out
+
+# copy data from a numpy array into an unsigned long long array, and return the pointer
+cdef unsigned long long* np_copy_ull(np.ndarray arr):
+    cdef unsigned long long* out = <unsigned long long*> PyMem_Malloc(arr.shape[0]*sizeof(unsigned long long))
+    for i in range(arr.shape[0]):
+        out[i] = <unsigned long long> arr[i]
+    return out
+
+# make the times differences array for h2mm from times array
+cdef unsigned long* time_diff(np.ndarray time):
+    cdef unsigned long* delta = <unsigned long*> PyMem_Malloc(time.shape[0] * sizeof(unsigned long))
+    cdef size_t i
+    cdef unsigned long df
+    delta[0] = 0
+    for i in range(1,time.shape[0]):
+        if time[i-1] > time[i]:
+            raise ValueError("Photons out of order")
+        df = <unsigned long> (time[i] - time[i-1])
+        if df == 0:
+            delta[i] = 0
+        else:
+            delta[i] = df - 1
+    return delta
+
+# make burst differences and burst times c arrays from lists
+cdef unsigned long* burst_convert(size_t num_burst, color, times, unsigned long** b_det, unsigned long** b_delta):
+    cdef size_t i
+    cdef unsigned long* b_size = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
+    for i in range(num_burst):
+        b_size[i] = color[i].shape[0]
+        b_det[i] = np_copy_ul(color[i])
+        b_delta[i] = time_diff(times[i])
+    return b_size
+            
 
 def verify_input(indexes, times, ndet):
+    """
+    Check if indexes and times contain any issues making them incompatible for 
+    processing with H2MM
+
+    Parameters
+    ----------
+    indexes : list of numpy arrays
+        The indeces of photons in bursts, 1 array per burst
+    times : list of numpy arrays
+        The tims of photons in bursts, 1 array per burst
+    ndet : int
+        Number of photon streams in the data
+
+    Returns
+    -------
+    int or Exception
+        The maximum index in the data, unless an issue exists, in which case an
+        appropriate exception is returned
+
+    """
     index_t, times_t = type(indexes), type(times)
     if index_t == times_t:
         if index_t == np.ndarray:
@@ -1129,8 +1189,9 @@ def factory_h2mm_model(nstate, ndet, bounds=None, trans_scale=1e-5,
     model = h2mm_model(prior,trans,obs)
     return model
 
-# c function for copying an entire Cython h2mm_model into a C level h2mm_mod
+
 cdef void model_full_ptr_copy(h2mm_model in_model, h2mm_mod* mod_ptr):
+    # c function for copying an entire Cython h2mm_model into a C level h2mm_mod
     cdef size_t i
     mod_ptr.ndet = in_model.model.ndet
     mod_ptr.nstate = in_model.model.nstate
@@ -1596,25 +1657,15 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
         ptr_print_args.keep = 0
 
     # allocate the memory for the pointer arrays to be submitted to the C function
-    cdef unsigned long *burst_sizes = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
-    cdef unsigned long long **b_time = <unsigned long long**> PyMem_Malloc(num_burst * sizeof(unsigned long long*))
+    # print("Allocating C bursts data")
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    # for loop casts the values to the right datat type, then makes sure the data is contiguous, but don't copy the pointers just yet, that is in a separate for loop to make sure no numpy shenanigans 
-    for i in range(num_burst):
-        burst_sizes[i] = burst_colors[i].shape[0]
-        burst_colors[i] = burst_colors[i].astype('L')
-        burst_times[i] = burst_times[i].astype('Q')
-        if not burst_colors[i].flags['C_CONTIGUOUS']:
-            burst_colors[i] = np.ascontiguousarray(burst_colors[i])
-        if not burst_times[i].flags['C_CONTIGUOUS']:
-            burst_times[i] = np.ascontiguousarray(burst_times[i])
-    # now make the list of pointers
-    for i in range(num_burst):
-        b_det[i] = get_ptr_l(burst_colors[i])
-        b_time[i] = get_ptr_ull(burst_times[i])
+    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, burst_colors, burst_times, b_det, b_delta)
+    # print("Done Allocating C bursts data")
     # if the bounds_func is not None, then setup the bounds arrays
     cdef void (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, void*)
     cdef void *b_ptr
+    
     # cdef h2mm_minmax *bound = <h2mm_minmax*> PyMem_Malloc(sizeof(h2mm_minmax))
     cdef _h2mm_lims bound
     cdef bound_struct *b_struct = <bound_struct*> PyMem_Malloc(sizeof(bound_struct))
@@ -1640,11 +1691,14 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=3600,
     if reset_niter:
         h_mod.model.niter = 0
     disp_handle.update(disp_txt)
-    cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_time,b_det,&h_mod.model,&limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
+    cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_delta,b_det,&h_mod.model,&limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
     cdef size_t keep = ptr_print_args.keep
     PyMem_Free(b_struct)
-    PyMem_Free(b_det);
-    PyMem_Free(b_time);
+    for i in range(num_burst):
+        PyMem_Free(b_det[i])
+        PyMem_Free(b_delta[i])
+    PyMem_Free(b_det)
+    PyMem_Free(b_delta)
     PyMem_Free(burst_sizes)
     PyMem_Free(ptr_print_args)
     h_mod.model.niter = old_niter
@@ -1751,25 +1805,13 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
     if type(burst_colors) == tuple:
         burst_times = list(burst_times)
     # allocate the memory for the pointer arrays to be submitted to the C function
-    cdef unsigned long *burst_sizes = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
-    cdef unsigned long long **b_time = <unsigned long long**> PyMem_Malloc(num_burst * sizeof(unsigned long long*))
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, burst_colors, burst_times, b_det, b_delta)
     cdef lm limits
     limits.num_cores = <size_t> num_cores if num_cores > 0 else 1
     limits.max_iter = mod_size
     # for loop casts the values to the right datat type, then makes sure the data is contiguous, but don't copy the pointers just yet, that is in a separate for loop to make sure no numpy shenanigans 
-    for i in range(num_burst):
-        burst_sizes[i] = burst_colors[i].shape[0]
-        burst_colors[i] = burst_colors[i].astype('L')
-        burst_times[i] = burst_times[i].astype('Q')
-        if not burst_colors[i].flags['C_CONTIGUOUS']:
-            burst_colors[i] = np.ascontiguousarray(burst_colors[i])
-        if not burst_times[i].flags['C_CONTIGUOUS']:
-            burst_times[i] = np.ascontiguousarray(burst_times[i])
-    # now make the list of pointers
-    for i in range(num_burst):
-        b_det[i] = get_ptr_l(burst_colors[i])
-        b_time[i] = get_ptr_ull(burst_times[i])
     cdef h2mm_mod *mod_array = <h2mm_mod*> PyMem_Malloc(mod_size * sizeof(h2mm_mod))
     if tp in (list, tuple):
         for i, h in enumerate(h_mod):
@@ -1780,17 +1822,17 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
     else:
         model_full_ptr_copy(h_mod,mod_array)
     # set up the in and out h2mm_mod variables
-    cdef int e_val = compute_multi(num_burst,burst_sizes,b_time,b_det,mod_array,&limits)
+    cdef int e_val = compute_multi(num_burst,burst_sizes,b_delta,b_det,mod_array,&limits)
     # free the limts arrays
+    for i in range(num_burst):
+        PyMem_Free(b_det[i])
+        PyMem_Free(b_delta[i])
+    PyMem_Free(b_det)
+    PyMem_Free(b_delta)
+    PyMem_Free(burst_sizes)
     if e_val == 1:
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
         raise ValueError('Bursts photons are out of order, please check your data')
     elif e_val == 2:
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
         raise ValueError('Too many photon streams in data for one or more H2MM models')
     if tp == list:
         out = [model_from_ptr(&mod_array[i]) for i in range(limits.max_iter)]
@@ -1801,9 +1843,6 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores= os.cpu_count()//2):
         out = np.array([model_from_ptr(&mod_array[i]) for i in range(limits.max_iter)]).reshape(mod_shape)
     else:
         out = model_from_ptr(mod_array)
-    PyMem_Free(b_det);
-    PyMem_Free(b_time);
-    PyMem_Free(burst_sizes)
     return out
 
 
@@ -1863,38 +1902,23 @@ def viterbi_path(h2mm_model h_mod, burst_colors, burst_times, num_cores = os.cpu
     cdef size_t num_burst = burst_colors.size if type(burst_colors) == np.ndarray else len(burst_colors)
     # set up the limits function
     # allocate the memory for the pointer arrays to be submitted to the C function
-    cdef unsigned long *burst_sizes = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
-    cdef unsigned long long **b_time = <unsigned long long**> PyMem_Malloc(num_burst * sizeof(unsigned long long*))
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, burst_colors, burst_times, b_det, b_delta)
     cdef ph_path *path_ret = <ph_path*> PyMem_Malloc(num_burst * sizeof(ph_path))
     cdef n_core = <unsigned long> num_cores if num_cores > 0 else 1
     # for loop casts the values to the right datat type, then makes sure the data is contiguous, but don't copy the pointers just yet, that is in a separate for loop to make sure no numpy shenanigans 
-    for i in range(num_burst):
-        burst_sizes[i] = burst_colors[i].shape[0]
-        nphot += burst_sizes[i]
-        if burst_sizes[i] < 3:
-            raise Exception(f'Bursts must have at least 3 photons, burst {i} has only {burst_sizes[i]}')
-        burst_colors[i] = burst_colors[i].astype('L')
-        burst_times[i] = burst_times[i].astype('Q')
-        if not burst_colors[i].flags['C_CONTIGUOUS']:
-            burst_colors[i] = np.ascontiguousarray(burst_colors[i])
-        if not burst_times[i].flags['C_CONTIGUOUS']:
-            burst_times[i] = np.ascontiguousarray(burst_times[i])
-    # now make the list of pointers
-    for i in range(num_burst):
-        b_det[i] = get_ptr_l(burst_colors[i])
-        b_time[i] = get_ptr_ull(burst_times[i])
     # set up the in and out h2mm_mod variables
-    cdef int e_val = viterbi(num_burst,burst_sizes,b_time,b_det,&h_mod.model,path_ret,n_core)
+    cdef int e_val = viterbi(num_burst,burst_sizes,b_delta,b_det,&h_mod.model,path_ret,n_core)
+    for i in range(num_burst):
+        PyMem_Free(b_det[i])
+        PyMem_Free(b_delta[i])
+    PyMem_Free(b_det)
+    PyMem_Free(b_delta)
+    PyMem_Free(burst_sizes)
     if e_val == 1:
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
         raise Exception('Bursts photons are out of order, please check your data')
     elif e_val == 2:
-        PyMem_Free(b_det)
-        PyMem_Free(b_time)
-        PyMem_Free(burst_sizes)
         raise Exception('Too many photon streams in data for H2MM model')
     cdef list path = []
     cdef list scale = []
@@ -1909,9 +1933,6 @@ def viterbi_path(h2mm_model h_mod, burst_colors, burst_times, num_cores = os.cpu
         PyMem_Free(path_ret[i].scale)
     cdef double icl = ((h_mod.nstate**2 + ((h_mod.ndet - 1) * h_mod.nstate) - 1) * np.log(nphot)) - 2 * loglik
     PyMem_Free(path_ret)
-    PyMem_Free(b_det)
-    PyMem_Free(b_time)
-    PyMem_Free(burst_sizes)
     return path, scale, ll, icl
 
 

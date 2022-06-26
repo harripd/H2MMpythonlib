@@ -548,7 +548,7 @@ h2mm_mod* compute_ess_dhmm(size_t num_bursts, phstream *b, pwrs *powers, h2mm_mo
 }
 
 
-int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits) 
+int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits) 
 {
 	size_t i, j;
 	size_t num_burst = (size_t) num_bursts;
@@ -556,14 +556,9 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 		limits->num_cores = (size_t) num_bursts;
 	// initiate variables
 	phstream *b = (phstream*) calloc(num_bursts,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
-	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_times,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	if ( powers == NULL)
 	{
-		for (i = 0; i < num_burst; i++)
-		{
-			free(b[i].det);
-			free(b[i].delta);
-		}
 		free(b);
 		free(powers->pow_list);
 		free(powers);
@@ -589,11 +584,6 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 	{
 		if (mod_array[i].ndet < ndet)
 		{
-			for (j = 0; j < num_burst; j++)
-			{
-				free(b[j].det);
-				free(b[j].delta);
-			}
 			free(b);
 			free(powers->pow_list);
 			free(powers);
@@ -744,11 +734,6 @@ int compute_multi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned
 	free((void*)tid);
 	if( h2mm_lock ) CloseHandle(h2mm_lock);
 #endif
-	for ( i = 0; i < num_burst; i++)
-	{
-		free(b[i].delta);
-		free(b[i].det);
-	}
 	if (!(multi_state || multi_det))
 	{
 		free(mod_temp->prior);

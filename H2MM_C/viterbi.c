@@ -173,7 +173,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 #endif
 }
 
-int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long long **burst_times, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores)
+int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores)
 {
 	size_t i, j;
 	if ( num_cores > num_bursts ) 
@@ -193,7 +193,7 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 	size_t num_burst = (size_t) num_bursts;
 	size_t *cur_burst = (size_t*) calloc(1,sizeof(size_t));
 	//~ printf("Getting deltas\n");
-	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_times,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	//~ printf("Got powers\n");
 	if (powers == NULL)
 	{
@@ -262,11 +262,6 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 	}
 #endif
 	// free allocated memory
-	for ( i = 0; i < num_bursts; i++)
-	{
-		free(b[i].delta);
-		free(b[i].det);
-	}
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_mutex_destroy(vit_lock);
 	if (vit_lock != NULL)
