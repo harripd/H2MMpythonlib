@@ -29,6 +29,7 @@ unsigned long randchoice(unsigned long len, double* arr)
 {
 	size_t i = 0;
 	double r = (double)rand() / (double)RAND_MAX;
+	len = len - 1;
 	while( (r >= arr[i]) & (i < len)) i ++;
 	return i;
 }
