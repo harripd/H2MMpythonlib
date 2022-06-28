@@ -15,9 +15,9 @@
 void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
 {
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
-	size_t i, j; // basic iterator variables
-	size_t ind; // for storing the pre-calculated index
-	size_t out_count = 0; // counts the number of values that are out of the range
+	unsigned long i, j; // basic iterator variables
+	unsigned long ind; // for storing the pre-calculated index
+	unsigned long out_count = 0; // counts the number of values that are out of the range
 	int var_correct = FALSE; // boolean for whether a 
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range
@@ -115,9 +115,9 @@ void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
 void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
 {
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
-	size_t i, j; // basic iterator variables
-	size_t ind; // for storing the pre-calculated index
-	size_t out_count = 0; // counts the number of values that are out of the range
+	unsigned long i, j; // basic iterator variables
+	unsigned long ind; // for storing the pre-calculated index
+	unsigned long out_count = 0; // counts the number of values that are out of the range
 	int var_correct = FALSE; // boolean for whether a 
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range
@@ -215,9 +215,9 @@ void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lim
 void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
 {
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
-	size_t i, j; // basic iterator variables
-	size_t ind; // for storing the pre-calculated index
-	size_t out_count = 0; // counts the number of values that are out of the range
+	unsigned long i, j; // basic iterator variables
+	unsigned long ind; // for storing the pre-calculated index
+	unsigned long out_count = 0; // counts the number of values that are out of the range
 	int var_correct = FALSE; // boolean for whether a 
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range

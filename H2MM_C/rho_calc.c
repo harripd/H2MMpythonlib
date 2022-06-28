@@ -21,10 +21,10 @@
 #define FALSE 0
 
 // calculates just the powers of the trans matrix up to maxdif
-trpow* transpow(h2mm_mod* model, size_t maxdif)
+trpow* transpow(h2mm_mod* model, unsigned long maxdif)
 {
 	// initialize variables
-	size_t i, j, k, t, istride, tstride, tstride_r, tistride, Ad;
+	unsigned long i, j, k, t, istride, tstride, tstride_r, tistride, Ad;
 	double runsum;
 	trpow* power = (trpow*) calloc(1,sizeof(trpow));
 	power->max_pow = maxdif;
@@ -69,15 +69,15 @@ void* rhoulate(void *vals)
 {
 	// initialize variables
 	pwrs *D = (pwrs*) vals;
-	size_t i, j, k, m, z;
-	size_t Ad, Av, Rhod, Rhov;
-	size_t sdr = D->sT * D->td;
-	size_t sda = D->sj * D->td;
-	size_t svr = D->sT * D->tv;
-	size_t sva = D->sj * D->tv;
-	size_t sqr = D->sT * D->tq;
-	size_t sqa = D->sj * D->tq;
-	size_t si, sj, sk;
+	unsigned long i, j, k, m, z;
+	unsigned long Ad, Av, Rhod, Rhov;
+	unsigned long sdr = D->sT * D->td;
+	unsigned long sda = D->sj * D->td;
+	unsigned long svr = D->sT * D->tv;
+	unsigned long sva = D->sj * D->tv;
+	unsigned long sqr = D->sT * D->tq;
+	unsigned long sqa = D->sj * D->tq;
+	unsigned long si, sj, sk;
 	double normsum;
 	// calculate power of trans matrix
 	for ( k = 0; k < D->sk; k++)
@@ -136,9 +136,9 @@ void* rhoulate(void *vals)
 	//pthread_exit(0);
 }
 
-void* rho_all(size_t nstate, double* transmat, pwrs *powers)
+void* rho_all(unsigned long nstate, double* transmat, pwrs *powers)
 {
-	size_t i, j;
+	unsigned long i, j;
 	// free A and Rho just in case
 	for ( i = 0; i < powers->max_pow * powers->sj; i++) powers->A[i] = 0.0;
 	for ( i = 0; i < powers->max_pow * powers->sT; i++) powers->Rho[i] = 0.0;

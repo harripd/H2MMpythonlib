@@ -21,8 +21,8 @@
 // allocating new memory for the deltas, and attaching the delta to the appropriate phstream
 pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b)
 {
-	size_t i, j; // basic iterator variables
-	size_t max_delta = 1; // stores the maximum delta between succesive photons found
+	unsigned long i, j; // basic iterator variables
+	unsigned long max_delta = 1; // stores the maximum delta between succesive photons found
 	if ((burst_sizes == NULL) || (burst_deltas == NULL) || (burst_det == NULL) || (b == NULL))
 	{
 		printf("get_deltas(): One or more of the pointer arguments is NULL\n");
@@ -43,23 +43,21 @@ pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 	}
 	// final preparations for return values
 	powers->max_pow = max_delta + 1;
-	powers->pow_list = (size_t*) calloc(powers->max_pow,sizeof(size_t)); // allocate the memory for an unfilled powers list, index reduce will handle filling it in
+	powers->pow_list = (unsigned long*) calloc(powers->max_pow,sizeof(unsigned long)); // allocate the memory for an unfilled powers list, index reduce will handle filling it in
 	return powers;
 }
 
-void baseprint(size_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
+void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
 {
 	printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
 }
 
-h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(size_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
-	size_t i, j; // basic iterator variables
+	unsigned long i, j; // basic iterator variables
 	// alocate variables
-	phstream *b = (phstream*) calloc(num_bursts,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
+	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
 	// process burst arrays
-	size_t num_burst = (size_t) num_bursts;
-	//~ printf("Getting deltas\n");
 	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	//~ printf("Got powers\n");
 	//~ in_model->nphot = 0;
@@ -71,7 +69,7 @@ h2mm_mod* C_H2MM(unsigned long num_bursts, unsigned long *burst_sizes, unsigned 
 		return NULL;
 	}
 	// check if model and data have matching detectors, return in_model to indicate error
-	for ( i = 0; i < num_bursts; i++)
+	for ( i = 0; i < num_burst; i++)
 	{
 		for ( j = 0; j < b[i].nphot; j++)
 		{

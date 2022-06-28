@@ -18,7 +18,7 @@ unsigned int randcalled = 0;
 // function generates the cumulative sum of an array along dimenstion 1
 void cumsum(unsigned long len, double* arr, double* dest)
 {
-	size_t i;
+	unsigned long i;
 	dest[0] = arr[0];
 	for ( i = 1; i < len; i++)
 		dest[i] = dest[i-1] + arr[i];
@@ -27,7 +27,7 @@ void cumsum(unsigned long len, double* arr, double* dest)
 // chooses the state and/or photon from a cumulative sum array
 unsigned long randchoice(unsigned long len, double* arr)
 {
-	size_t i = 0;
+	unsigned long i = 0;
 	double r = (double)rand() / (double)RAND_MAX;
 	len = len - 1;
 	while( (r >= arr[i]) & (i < len)) i ++;
@@ -48,7 +48,7 @@ int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 		srand((unsigned) tm);
 		randcalled = TRUE;
 	}
-	size_t i;
+	unsigned long i;
 	double* priorsum = (double*) malloc(model->nstate*sizeof(double));
 	cumsum(model->nstate,model->prior,priorsum);
 	double* transsum = (double*) malloc(model->nstate*model->nstate*sizeof(double));
@@ -79,7 +79,7 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 		srand((unsigned) tm);
 		randcalled = TRUE;
 	}
-	size_t t, i, tstride, tistride;
+	unsigned long t, i, tstride, tistride;
 	unsigned long* dif = (unsigned long*) malloc(lent * sizeof(unsigned long));
 	double* priorsum = (double*) malloc(model->nstate * sizeof(double));
 	cumsum(model->nstate,model->prior,priorsum);
@@ -146,7 +146,7 @@ int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 		srand((unsigned) tm);
 		randcalled = TRUE;
 	}
-	size_t i, j;
+	unsigned long i, j;
 	double* obssum = (double*) malloc(model->nstate*model->ndet*sizeof(double));
 	for( i = 0; i < model->nstate; i++)
 	{

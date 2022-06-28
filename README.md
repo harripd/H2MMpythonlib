@@ -3,7 +3,7 @@
 ## Project Desciption
 H2MM_C is a python extension module that implements the H<sup>2</sup>MM algorithm originally developed by [Pirchi et. al. J. Phys. Chem B. 2016, 120, 13065-12075](http://dx.doi.org/10.1371/journal.pone.0160716) in a highly efficent and multithreaded manner, along with functions for posterior analysis with the *Viterbi* algorithm. 
 
-H2MM_C is also designed from the ground up to handle multiparameter models.
+H2MM_C is also designed from the ground up to handle multiparameter models, as in [Harris, P.D., Narducci, A., Gebhardt, C. et al. Multi-parameter photon-by-photon hidden Markov modeling. Nat Commun 13, 1000 (2022).]( https://doi.org/10.1038/s41467-022-28632-x).
 
 The API is intended to be user friendly, while still allowing for great flexibility. Suggestions are welcome for way to improve the code and interface.
  
@@ -54,11 +54,11 @@ Working wheels:
 
 - Windows wheels
 - manylinux wheels
+- MacOS X wheels
 
 Currently we do not have wheels for:
 
 - musllinux
-- MacOS
 
 For systems we do not have wheels for, it may still be possible to compile from the sdist archive (`.tar.gz` file). 
 `cibuildwheel` uses the most recent version of numpy. This means that these wheels will generally not work if you have a version of numpy before 1.20.0, and therefore this is given as a minimum version requirement. 
@@ -151,6 +151,7 @@ Below is a small sample of tutorial code.
 	- nphot: the number of photons in the dataset that the model is optimized against
 	- bic: the Baysian Information Criterion of the model
 	- converged: True if the model reached convergence criterion, False if the optimization stopped due to reaching the maximum number of iterations or if an error occured in the next iteration.
+
 2. `h2mm_limits`: class for bounding the values a model can take, min/max values can be specified for all 3 core arrays (trans, obs, and prior) of an h2mm_model, either as single floats, or full arrays, values are specified as keyword arguments, not specifiying a value for a particular field will mean that field will be unbounded
 	- min_trans: the minimum values for the trans array (ie the slowest possible transition rate(s) allowed), values on the diagonal will be ignored
 	- max_trans: the maximum values for the trans array (ie the fastest possible transition rate(s) allowed), values on the diagonal will be ignored
@@ -161,15 +162,45 @@ Below is a small sample of tutorial code.
 
 ## Functions
 
-1. `EM_H2MM_C`: the core function of the package, it takes an initial 'h2mm_model' object, and two lists of numpy arrays as input. The lists of numpy arrays are the data to be optimized. Each array references a burst, the first list is the index of the photon stream, the second is the arrival time. Arrays should be of an integer type, and will be converted to np.uint32 and np.uint64 types for the stream and time respectively. Returns:
-	- h2mm_model: the model optimized for the given input data.
+1. `EM_H2MM_C`: the core function of the package, used to perform model optimizations.
+    
+    Arguments:
+    - Initial model : an `h2mm_model` object that will be optimized.
+    - Streams: a set of burst photon indeces. Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s of photon indeces, must be of integer type, and positive. The indeces will be converted to `unsigned long int` when given to C-code
+    - Times: a set of burst photon times (macrotimes), Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s. The macrotimes will be converted to `unsigned long long int` when given to C-code. Therefore while floating point arrays are accepted, they are **strongly discouraged**. Must be same length as streams
+    
+    Returns:
+	- Optimized model: the `h2mm_model` optimized for the given input data.
+
 2. `H2MM_arr`: calculate the loglik of a bunch of h2mm_model objects at once, but with no optimization. The first agruments can be an h2mm_model, of a list, tuple, or numpy array of h2mm_model objects. The second and third arguments are the same as in EM_H2MM_C
+    
+    Arguments:
+    - Models : a `list`, `tuple` or `numpy.ndarray` of `h2mm_model` objects whose *loglikelihood* will be calculated agains the given data.
+    - Streams: a set of burst photon indeces. Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s of photon indeces, must be of integer type, and positive. The indeces will be converted to `unsigned long int` when given to C-code
+    - Times: a set of burst photon times (macrotimes), Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s. The macrotimes will be converted to `unsigned long long int` when given to C-code. Therefore while floating point arrays are accepted, they are **strongly discouraged**. Must be same length as streams
+    
+    Returns:
+	- Calculated Models: a set of `h2mm_model` objects organized in the same way as Models
+    
 3. `viterbi_path`: takes the same inputs as EM_H2MM_C, but the 'h2mm_model' should be optimized through 'EM_H2MM_C' first, returns a tuple the:
+    Arguments:
+    - Model : an `h2mm_model` object that will has been optimized against the given data.
+    - Streams: a set of burst photon indeces. Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s of photon indeces, must be of integer type, and positive. The indeces will be converted to `unsigned long int` when given to C-code
+    - Times: a set of burst photon times (macrotimes), Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s. The macrotimes will be converted to `unsigned long long int` when given to C-code. Therefore while floating point arrays are accepted, they are **strongly discouraged**. Must be same length as streams
+    
+    Returns:
 	- path: the most likely state path
 	- scale: the posterior probability of each photon
 	- ll: the loglikelihood of the path for each burst
 	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
+
 4. `viterbi_sort`: the viterbi algorithm but with additional parameters included:
+    Arguments:
+    - Model : an `h2mm_model` object that will has been optimized against the given data.
+    - Streams: a set of burst photon indeces. Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s of photon indeces, must be of integer type, and positive. The indeces will be converted to `unsigned long int` when given to C-code
+    - Times: a set of burst photon times (macrotimes), Must be given as a `list`, `tuple` or 1-D object `numpy.ndarray` of 1D `numpy.ndarray`s. The macrotimes will be converted to `unsigned long long int` when given to C-code. Therefore while floating point arrays are accepted, they are **strongly discouraged**. Must be same length as streams
+    
+    Returns:
 	- icl: the Integrated Complete Likelihood (ICL) of the state path given the model and data, provides an extremum based criterion for selecting the ideal number of states
 	- path: the most likely state path
 	- scale: the posterior probability of each photon
@@ -183,10 +214,42 @@ Below is a small sample of tutorial code.
 	- ph_beg: same as ph_counts, but futher sorted as in dwell_beg
 	- ph_end: same as ph_counts, but futher sorted as in dwell_end
 	- ph_burst: same as ph_counts, but futher soreted as in dwell_burst
+
 5. `sim_statepath`: from an model, generate a random state path of equally spaced time points
+    
+    Arguments:
+    - Model: a `h2mm_model` object to use as the defined parameters of the simulation
+    - Length: the number of time steps to simulate, defines the number of elements in the ouput array
+    
+    Returns:
+    - Path: an array of the states of the system at each time point, based on Monte-Carlo simulation
+
 6. `sim_sparsestatepath`: from a model and a set of sparse times, generate a random state path
+    
+    Arguments:
+    - Model: a `h2mm_model` object to use as the defined parameters of the simulation
+    - Times: a 1D `numpy.ndarray` object of times for a simulated burst
+    
+    Returns:
+    - Path: the states of the simulated photons based on the input times
+
 7. `sim_phtraj_from_state`: randomly select photons given a set of states and a model
+    Arguments:
+    - Model: a `h2mm_model` object to use as the defined parameters of the simulation.. Note: the model transition rates are ignored, only the emission probability matrix is considered
+    - states: a 1D `numpy.ndarray` of positive integers, specifying the state of each photon. Note: this state path over-rides any transition probability matrix used in the model
+    
+    Returns:
+    - Stream: the indeces (photon indeces) of the simulated photons
+
 8. `sim_phtraj_from_times`: from a model and a set of sparse times, generate a random photon trajectory
+
+    Arguments:
+    - Model: a `h2mm_model` object to use as the defined parameters of the simulation
+    - Times: a 1D `numpy.ndarray` object of times for a simulated burst
+    
+    Returns:
+    - Path: 
+    - Stream: a 1D `numpy.ndarray` of the simulated photon indeces (streams) 
 
 ## Acknowledgements
 Significant advice and help in understanding C code was provided by William Harris, who was also responsible for porting the code to Windows

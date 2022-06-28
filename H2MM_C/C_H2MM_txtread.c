@@ -15,33 +15,33 @@
 
 #define BFRSIZ 1000000                        // Buffer size for buffer passed to fgets()
 
-temps* burst_read(char *fname, size_t *n)
+temps* burst_read(char *fname, unsigned long *n)
 {
 	FILE *fid;
-	size_t i; // iterator
-	size_t num_burst = 0;
+	unsigned long i; // iterator
+	unsigned long num_burst = 0;
 	char *lptr_t = NULL; // pointer to string containing a line of arrival times
 	char *lptr_d = NULL; // pointer to a string containt a line of detector
 	char *np_t, *np_d;
 	char *curptr_t, *curptr_d;
 	unsigned long long *t_temp;
 	unsigned long *d_temp;
-	size_t n_t = 0;
-	size_t n_d = 0;
-	size_t len_burst = 0;
+	unsigned long n_t = 0;
+	unsigned long n_d = 0;
+	unsigned long len_burst = 0;
 	long num_t, num_d;
 	//
 #if defined(__linux__) || defined(__APPLE__)
-	ssize_t len_t, len_d;
+	sunsigned long len_t, len_d;
 #elif _WIN32
 	int len_t, len_d;
-	lptr_t = (char*)malloc((size_t)BFRSIZ);
+	lptr_t = (char*)malloc((unsigned long)BFRSIZ);
 	if (lptr_t == NULL)
 	{
 		perror("malloc");
 		exit(EXIT_FAILURE);
 	}
-	lptr_d = (char*)malloc((size_t)BFRSIZ);
+	lptr_d = (char*)malloc((unsigned long)BFRSIZ);
 	if (lptr_d == NULL)
 	{
 		perror("malloc");
@@ -156,17 +156,17 @@ h2mm_mod* h2mm_read(char *fname)
 	h2mm_mod *mod = (h2mm_mod*) calloc(1,sizeof(h2mm_mod));
 	char *lptr = NULL;
 	char *cptr, *eptr;
-	size_t n = 0;
-	size_t len, i, j;
-	//size_t ndet;                                                                                                     // unreferenced??
+	unsigned long n = 0;
+	unsigned long len, i, j;
+	//unsigned long ndet;                                                                                                     // unreferenced??
 	//double *trans;                                                                                                 // unreferenced??
 	//double *obs;                                                                                                   // unreferenced??
 	//double *prior;                                                                                                 // unreferenced??
 	len = getline(&lptr,&n,fid);
 	cptr = lptr;
-	mod->nstate = (size_t) strtol(cptr,&eptr,10);
+	mod->nstate = (unsigned long) strtol(cptr,&eptr,10);
 	cptr = eptr + 1;
-	mod->ndet = (size_t) strtol(cptr,&eptr,10);
+	mod->ndet = (unsigned long) strtol(cptr,&eptr,10);
 	free(lptr);
 	n = 0;
 	len = getline(&lptr,&n,fid);
@@ -227,9 +227,9 @@ h2mm_mod* h2mm_read(char* fname)
 	h2mm_mod* mod = (h2mm_mod*)calloc(1, sizeof(h2mm_mod));
 	char* lptr = NULL;
 	char* cptr, * eptr;
-	size_t n = 0;
-	size_t len, i, j;
-	lptr = (char*)malloc((size_t)BFRSIZ);
+	unsigned long n = 0;
+	unsigned long len, i, j;
+	lptr = (char*)malloc((unsigned long)BFRSIZ);
 	if (lptr == NULL)
 	{
 		perror("h2mm_read: malloc");
@@ -239,9 +239,9 @@ h2mm_mod* h2mm_read(char* fname)
 	fgets(lptr, (int)BFRSIZ, fid);
 	len = strlen(lptr);
 	cptr = lptr;
-	mod->nstate = (size_t)strtol(cptr, &eptr, 10);
+	mod->nstate = (unsigned long)strtol(cptr, &eptr, 10);
 	cptr = eptr + 1;
-	mod->ndet = (size_t)strtol(cptr, &eptr, 10);
+	mod->ndet = (unsigned long)strtol(cptr, &eptr, 10);
 	//free(lptr);
 	n = 0;
 	//len = getline(&lptr, &n, fid);

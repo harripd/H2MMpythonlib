@@ -18,8 +18,8 @@ int main(int argc, char **argv)
 	unsigned long long **times;
 	unsigned long **detectors;
 	long *len_bursts;
-	size_t i, j;
-	size_t num_burst = 0;
+	unsigned long i, j;
+	unsigned long num_burst = 0;
 	long funid = 0; 
 	char *eptr;
 	temps *head;
@@ -58,8 +58,8 @@ int main(int argc, char **argv)
 			minmaxlimit->maxs = h2mm_read(argv[5]);
 		}
 		printf("Reading optional arguments\n");
-		if (argc > 6) limits->num_cores = (size_t) strtol(argv[6],&eptr,10);
-		if (argc > 7) limits->max_iter = (size_t) strtol(argv[7],&eptr,10);
+		if (argc > 6) limits->num_cores = (unsigned long) strtol(argv[6],&eptr,10);
+		if (argc > 7) limits->max_iter = (unsigned long) strtol(argv[7],&eptr,10);
 		if (argc > 8) limits->max_time = strtod(argv[8],&eptr);
 		if (argc > 9) limits->min_conv = strtod(argv[9],&eptr);
 	}

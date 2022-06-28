@@ -31,11 +31,11 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 {
 	// initial pointer and variable assignment
 	vit_vals *D = (vit_vals*) in_vals;
-	size_t i, j, k, t;
-	size_t omegaT, omegaTp, transT, transTshift, bT; // variables to store offsets (strides) for values indexed in nested for loops
-	size_t cur_burst;
-	size_t cont;
-	size_t *psi = (size_t*) calloc(D->si*D->max_phot,sizeof(size_t));
+	unsigned long i, j, k, t;
+	unsigned long omegaT, omegaTp, transT, transTshift, bT; // variables to store offsets (strides) for values indexed in nested for loops
+	unsigned long cur_burst;
+	unsigned long cont;
+	unsigned long *psi = (unsigned long*) calloc(D->si*D->max_phot,sizeof(unsigned long));
 	double runsum = 0.0;
 	double *omega = (double*) calloc(D->si*D->max_phot,sizeof(double));
 	double omegamax;
@@ -71,7 +71,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 		D->path[cur_burst].nphot = D->phot[cur_burst].nphot;
 		D->path[cur_burst].nstate = D->model->nstate;
 		// allocate the arrays for the results of viterbi
-		D->path[cur_burst].path = (size_t*) calloc(D->phot[cur_burst].nphot,sizeof(size_t));
+		D->path[cur_burst].path = (unsigned long*) calloc(D->phot[cur_burst].nphot,sizeof(unsigned long));
 		D->path[cur_burst].scale = (double*) calloc(D->phot[cur_burst].nphot,sizeof(double));
 		// initiation
 		for ( i = 0; i < D->si; i++)
@@ -173,11 +173,11 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 #endif
 }
 
-int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores)
+int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores)
 {
-	size_t i, j;
-	if ( num_cores > num_bursts ) 
-		num_cores = num_bursts;
+	unsigned long i, j;
+	if ( num_cores > num_burst ) 
+		num_cores = num_burst;
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_t *tid = calloc(num_cores,sizeof(pthread_t));
 	pthread_mutex_t *vit_lock = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
@@ -188,10 +188,9 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 	DWORD  windowsThreadId = 0;
 #endif
 	// alocate variables
-	phstream *b = (phstream*) calloc(num_bursts,sizeof(phstream)); // remember to free all b[n]->delta to prevent memory leak
+	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // remember to free all b[n]->delta to prevent memory leak
 	// process burst arrays
-	size_t num_burst = (size_t) num_bursts;
-	size_t *cur_burst = (size_t*) calloc(1,sizeof(size_t));
+	unsigned long *cur_burst = (unsigned long*) calloc(1,sizeof(unsigned long));
 	//~ printf("Getting deltas\n");
 	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	//~ printf("Got powers\n");
@@ -200,7 +199,7 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 		printf("You have an out of order photon\n");
 		return 1;
 	}
-	for ( i = 0; i < num_bursts; i++)
+	for ( i = 0; i < num_burst; i++)
 	{
 		for ( j = 0; j < b[i].nphot; j++)
 		{
@@ -218,8 +217,8 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 	powers->A = (double*) calloc(powers->sj * powers->max_pow,sizeof(double));
 	powers->Rho = (double*) calloc(powers->sT * powers->max_pow,sizeof(double));
 	rho_all(model->nstate,model->trans,powers);
-	vit_vals *vit_submit = (vit_vals*) calloc(num_bursts,sizeof(vit_vals)); // allocate structures to give to viterbi_burst function
-	for ( i = 0; i < num_bursts; i++)
+	vit_vals *vit_submit = (vit_vals*) calloc(num_burst,sizeof(vit_vals)); // allocate structures to give to viterbi_burst function
+	for ( i = 0; i < num_burst; i++)
 	{
 		if ( vit_submit[0].max_phot < b[i].nphot )
 			vit_submit[0].max_phot = b[i].nphot;
@@ -230,7 +229,7 @@ int viterbi(unsigned long num_bursts, unsigned long *burst_sizes, unsigned long 
 		vit_submit[i].sT = powers->sj;
 		vit_submit[i].max_phot = vit_submit[0].max_phot;
 		vit_submit[i].cur_burst = cur_burst;
-		vit_submit[i].num_burst = num_bursts;
+		vit_submit[i].num_burst = num_burst;
 		vit_submit[i].A = powers->A;
 		vit_submit[i].phot = b;
 		vit_submit[i].path = path_array;

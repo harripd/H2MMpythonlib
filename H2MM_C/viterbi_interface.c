@@ -20,8 +20,8 @@ int main(int argc, char **argv)
 	unsigned long long **times;
 	unsigned long **detectors;
 	long *len_bursts;
-	size_t i, j;
-	size_t num_burst = 0;
+	unsigned long i, j;
+	unsigned long num_burst = 0;
 	temps *head;
 	//temps *next;                                                                                   // unreferenced??
 	temps *tmp;
