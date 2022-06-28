@@ -73,14 +73,6 @@ ctypedef struct print_args_struct:
     size_t keep
     size_t max_iter
     
-cdef unsigned long long* get_ptr_ull(np.ndarray[unsigned long long, ndim=1] arr):
-    cdef unsigned long long[::1] arr_view = arr
-    return &arr_view[0]
-
-cdef unsigned long* get_ptr_l(np.ndarray[unsigned long, ndim=1] arr):
-    cdef unsigned long[::1] arr_view = arr
-    return &arr_view[0]
-
 # copy data from a numpy array into an unsigned long array, and return the pointer
 cdef unsigned long* np_copy_ul(np.ndarray arr):
     cdef unsigned long* out = <unsigned long*> PyMem_Malloc(arr.shape[0]*sizeof(unsigned long))
@@ -120,7 +112,15 @@ cdef unsigned long* burst_convert(size_t num_burst, color, times, unsigned long*
         b_det[i] = np_copy_ul(color[i])
         b_delta[i] = time_diff(times[i])
     return b_size
-            
+
+# copy array into numpy
+cdef np.ndarray copy_to_np_ul(unsigned long lenp, unsigned long* arr):
+    cdef np.ndarray out = np.empty(lenp, dtype=np.uint32)
+    cdef i
+    for i in range(lenp):
+        out[i] = arr[i]
+    PyMem_Free(arr)
+    return out
 
 def verify_input(indexes, times, ndet):
     """
@@ -1898,9 +1898,8 @@ def viterbi_path(h2mm_model h_mod, burst_colors, burst_times, num_cores = os.cpu
     if type(burst_colors) == tuple:
         burst_times = list(burst_times)
     cdef size_t i
-    cdef size_t nphot = 0
     cdef size_t num_burst = burst_colors.size if type(burst_colors) == np.ndarray else len(burst_colors)
-    # set up the limits function
+    cdef size_t nphot = np.sum([burst.size for burst in burst_colors])
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
@@ -2113,13 +2112,15 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     """
     if lenp < 2:
         raise ValueError("Length must be at least 3")
-    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(lenp,dtype='L')
+    cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef int exp = statepath(&hmod.model,lenp,get_ptr_l(path),seedp)
+    cdef int exp = statepath(&hmod.model, lenp, path_n, seedp)
     if exp != 0:
+        PyMem_Free(path_n)
         raise RuntimeError("Unknown error, raise issue on github")
+    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
     return path
 
 def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
@@ -2156,19 +2157,19 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
         raise TypeError("times array must be 1D")
     if times.shape[0] < 3:
         raise ValueError("Must have at least 3 times")
-    times = times.astype('Q')
-    if not times.flags['C_CONTIGUOUS']:
-        times = np.ascontiguousarray(times)
-    cdef size_t lenp = <size_t> times.size
-    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
+    cdef unsigned long long* times_n = np_copy_ull(times)
+    cdef unsigned long lenp = <size_t> times.shape[0]
+    cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef int exp = sparsestatepath(&hmod.model, times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
+    cdef int exp = sparsestatepath(&hmod.model, lenp, times_n, path_n, seedp)
+    PyMem_Free(times_n)
     if exp == 1:
         raise ValueError("Out of order photon")
     elif exp != 0:
         raise RuntimeError("Unknown error, raise issue on github")
+    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
     return path
 
 def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
@@ -2203,18 +2204,19 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
         raise TypeError("Times must be 1D")
     if states.shape[0] < 3:
         raise ValueError("Must have at least 3 time points")
-    states = states.astype('L')
-    if not states.flags['C_CONTIGUOUS']:
-        states = np.ascontiguousarray(states)
     cdef unsigned long lenp = states.shape[0]
-    cdef unsigned long* sts = get_ptr_l(states)
-    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(states.shape[0],dtype='L')
+    cdef unsigned long* states_n = np_copy_ul(states)
+    cdef unsigned long* path_n =  <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef int exp = phpathgen(&hmod.model,states.shape[0],get_ptr_l(states),get_ptr_l(path),seedp)
+    cdef int exp = phpathgen(&hmod.model, lenp, states_n, path_n, seedp)
+    PyMem_Free(states_n)
     if exp != 0:
+        PyMem_Free(path_n)
         raise RuntimeError("Unknown error, raise issue on github")
+    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
+    print("path", path, type(path))
     return path
 
 def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
@@ -2253,21 +2255,29 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
         raise TypeError("times array must be 1D")
     if times.shape[0] < 2:
         raise ValueError("Must have at least 3 times")
-    times = times.astype('Q')
-    if not times.flags['C_CONTIGUOUS']:
-        times = np.ascontiguousarray(times)
+    cdef unsigned long lenp = times.shape[0]
+    cdef unsigned long long* times_n = np_copy_ull(times)
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef np.ndarray[unsigned long, ndim=1] path = np.empty(times.shape[0],dtype='L')
-    cdef int exp = sparsestatepath(&hmod.model,times.shape[0],get_ptr_ull(times),get_ptr_l(path),seedp)
+    cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
+    cdef int exp = sparsestatepath(&hmod.model, lenp, times_n, path_n, seedp)
     if exp == 1:
+        PyMem_Free(times_n)
+        PyMem_Free(path_n)
         raise ValueError("Out of order photon")
     elif exp != 0:
+        PyMem_Free(times_n)
+        PyMem_Free(path_n)
         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
-    cdef np.ndarray[unsigned long, ndim=1] dets = np.empty(times.shape[0],dtype='L')
-    exp = phpathgen(&hmod.model,times.shape[0],get_ptr_l(path),get_ptr_l(dets),seedp)
+    cdef unsigned long* dets_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
+    exp = phpathgen(&hmod.model, lenp, path_n, dets_n, seedp)
+    PyMem_Free(times_n)
     if exp != 0:
+        PyMem_Free(path_n)
+        PyMem_Free(dets_n)
         raise RuntimeError("Unknown error in phtragen, raise issue on github")
+    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
+    cdef np.ndarray dets = copy_to_np_ul(lenp, dets_n)
     return path , dets
 
