@@ -192,11 +192,14 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	// process burst arrays
 	unsigned long *cur_burst = (unsigned long*) calloc(1,sizeof(unsigned long));
 	//~ printf("Getting deltas\n");
-	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
-	//~ printf("Got powers\n");
+	pwrs *powers = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); /* note: allocates the powers->pow_list array, 
+																					* remember to free powers->pow_list before free powers or b, 
+																					* also, the stride lengths and td/tv/tq are not assigned 
+																					* (should be 0 because of calloc) */
+	//~ printf("Got max delta\n");
 	if (powers == NULL)
 	{
-		printf("You have an out of order photon\n");
+		// printf("You have a NULL pointer on one or more of  your photon arrays\n");
 		return 1;
 	}
 	for ( i = 0; i < num_burst; i++)

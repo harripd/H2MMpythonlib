@@ -17,19 +17,18 @@
 #define TRUE 1
 #define FALSE 0
 
-// data pre-processor, takes the raw photon times and turns them into deltas
-// allocating new memory for the deltas, and attaching the delta to the appropriate phstream
-pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b)
+// data pre-processor, finds the maximum delta, used for setting size of Rho tensor
+pwrs* get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b)
 {
 	unsigned long i, j; // basic iterator variables
 	unsigned long max_delta = 1; // stores the maximum delta between succesive photons found
 	if ((burst_sizes == NULL) || (burst_deltas == NULL) || (burst_det == NULL) || (b == NULL))
 	{
-		printf("get_deltas(): One or more of the pointer arguments is NULL\n");
+		//~ printf("get_deltas(): One or more of the pointer arguments is NULL\n");
 		return NULL;
 	}
 	pwrs *powers = (pwrs*) calloc(1,sizeof(pwrs));
-	for ( i = 0; i < num_burst; i++) // for loop building delta and index arrays, and linking to burst array
+	for ( i = 0; i < num_burst; i++) // for loop checks the max delta
 	{
 		for ( j = 1; j < burst_sizes[i]; j++) // for loop calculates delta, and places in delta array, and copies index
 		{
@@ -58,14 +57,14 @@ h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 	// alocate variables
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
 	// process burst arrays
-	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	pwrs *powers = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	//~ printf("Got powers\n");
 	//~ in_model->nphot = 0;
 	//~ for ( i = 0; i < num_bursts; i++) in_model->nphot += burst_sizes[i]; // determine total number of photons in dataset, used when calculating BIC/ICL
 	// check for errors
 	if (powers == NULL) // in case of an out of order photon, return null to indicate error
 	{
-		printf("You have an out of order photon\n");
+		//~ printf("You have NULL pointer in one or more of your photon arrays\n");
 		return NULL;
 	}
 	// check if model and data have matching detectors, return in_model to indicate error

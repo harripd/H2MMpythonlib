@@ -7,6 +7,7 @@ Tests for verification of H2MM_C functions
 """
 
 import numpy as np
+from itertools import repeat, chain
 
 import pytest
 import H2MM_C as h2
@@ -17,6 +18,16 @@ def model_almost_equal(model1,model2):
     trans = np.all(trans_check < 5) * np.all(trans_check > 0.5)
     obs = np.all(np.abs(model1.obs - model2.obs) < 0.1)
     return prior * trans * obs
+
+@pytest.fixture
+def simple_data():
+    times = [np.array([   20,   50,   90,   95,  190,  230,  350,  800]),
+             np.array([  820,  850,  990,  995, 1055, 1130, 1290, 1525]),
+             np.array([ 1750, 1820, 1950, 1985, 2055, 2110, 2220, 2325])]
+    dets =  [np.array([    1,    1,    0,    1,    0,    1,    0,    1]),
+             np.array([    0,    0,    0,    1,    1,    1,    1,    0]),
+             np.array([    1,    0,    1,    1,    0,    1,    0,    1])]
+    return dets, times
 
 def test_MakeModel():
     prior = np.ones(3)
@@ -64,6 +75,15 @@ def test_Sim():
     model_test = h2.factory_h2mm_model(3,2)
     model_test.optimize(colors,times,bounds=limits,bounds_func='revert',max_iter=3000)
     assert model_almost_equal(model_test,model_init)
+
+def test_baddata(simple_data):
+    dets, time = simple_data[0].copy(), simple_data[1].copy()
+    time[0][1] = 0
+    with pytest.raises(ValueError):
+        h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, time)
+    dets[0][0] = 2
+    with pytest.raises(Exception):
+        h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, simple_data[1])
 
 # if __name__ == '__main__':
 #     pytest.main(['-x','-v','test_H2MM.py'])

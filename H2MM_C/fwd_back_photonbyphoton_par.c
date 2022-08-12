@@ -555,7 +555,7 @@ int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 		limits->num_cores = num_burst;
 	// initiate variables
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
-	pwrs *powers = get_deltas(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	pwrs *powers = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
 	if ( powers == NULL)
 	{
 		free(b);

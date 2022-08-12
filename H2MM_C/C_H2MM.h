@@ -142,7 +142,7 @@ typedef struct
 // Function definitions
 
 // C_H2MM.c function signatures
-pwrs* get_deltas(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
+pwrs* get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
 
 void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func); // function to be used as a function pointer for printing to console
 

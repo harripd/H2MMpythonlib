@@ -18,7 +18,7 @@ with open("README.md",'r') as f:
     long_description = f.read()
 
 setup(name = "H2MM_C",
-      version = "0.8.3",
+      version = "0.9.1",
       author = "Paul David Harris",
       author_email = "harripd@gmail.com",
       maintainer = "Paul David Harris",
