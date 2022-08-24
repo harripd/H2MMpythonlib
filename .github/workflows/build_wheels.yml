@@ -14,8 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-#      - name: install pytest
-#        run: pip install pytest
+      - name: install pytest
+        run: pip install pytest
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.2.2
