@@ -1,5 +1,7 @@
 # H2MM_C
 
+![Build and Test](https://github.com/harripd/H2MMpythonlib/actions/workflows/build_wheels.yml/badge.svg)
+
 ## Project Desciption
 H2MM_C is a python extension module that implements the H<sup>2</sup>MM algorithm originally developed by [Pirchi et. al. J. Phys. Chem B. 2016, 120, 13065-12075](http://dx.doi.org/10.1371/journal.pone.0160716) in a highly efficent and multithreaded manner, along with functions for posterior analysis with the *Viterbi* algorithm. 
 

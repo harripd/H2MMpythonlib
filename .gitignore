@@ -5,3 +5,4 @@ build/
 *.egg-info
 *.whl
 tests/__pycache__
+/docs/build

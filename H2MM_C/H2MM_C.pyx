@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 #cython: language_level=3
+# Created 20 Feb 2021
+# Modified: 16 Aug 2022
+#Author: Paul David Harris
 """
-Created on Sat Feb 20 14:49:24 2021
-
-@author: Paul David Harris
+Module for analyzing data with photon by photon hidden Markov moddeling
 """
 
 import os
@@ -72,7 +73,10 @@ ctypedef struct print_args_struct:
     unsigned long disp_freq
     unsigned long keep
     unsigned long max_iter
-    
+
+#: Version string
+__version__ = '0.9.1'
+
 # copy data from a numpy array into an unsigned long array, and return the pointer
 cdef unsigned long* np_copy_ul(np.ndarray arr):
     cdef unsigned long* out = <unsigned long*> PyMem_Malloc(arr.shape[0]*sizeof(unsigned long))
@@ -162,14 +166,14 @@ def verify_input(indexes, times, ndet):
             if indexes.ndim != 1 or times.ndim != 1:
                 return NotImplementedError(f"H2MM_C does not support mutli-dimensinoal burst arrays")
             elif indexes.shape[0] != times.shape[0]:
-                return ValueError(f"Mismatched bursts: burst_colors and burst_times must have same number of bursts, got {indexes.shape[0]} and {times.shape[0]}")
+                return ValueError(f"Mismatched bursts: indexes and times must have same number of bursts, got {indexes.shape[0]} and {times.shape[0]}")
         elif index_t in (list, tuple):
             if len(indexes) != len(times):
-                return ValueError(f"Mismatched bursts: burst_colors and burst_times must be same size, got {len(indexes)} and {len(times)}")
+                return ValueError(f"Mismatched bursts: indexes and times must be same size, got {len(indexes)} and {len(times)}")
         else:
-            return TypeError(f"Unusable type: burst_colors and burst_times must be of list, tuple or numpy array of numpy arrays, got {index_t}")
+            return TypeError(f"Unusable type: indexes and times must be of list, tuple or numpy array of numpy arrays, got {index_t}")
     else:
-        return TypeError(f"Mismatched types: burst colors and burst_times must be same type")
+        return TypeError(f"Mismatched types: indexes and times must be same type")
     cdef str burst_errors = str()
     cdef unsigned long max_ind = 0
     cdef unsigned long max_temp
@@ -178,21 +182,21 @@ def verify_input(indexes, times, ndet):
         if type(indexes[i]) == type(times[i]) == np.ndarray:
             if indexes[i].ndim == times[i].ndim == 1:
                 if indexes[i].shape[0] != times[i].shape[0]:
-                    burst_errors += f"{i}: Mismatched burst size: burst_colors has {indexes[i].shape[0]} photons while burst_times has {times[i].shape[0]} photons\n"
+                    burst_errors += f"{i}: Mismatched burst size: indexes has {indexes[i].shape[0]} photons while times has {times[i].shape[0]} photons\n"
                 elif indexes[i].shape[0] < 3:
                     burst_errors += f"{i}: Insufficient photons: bursts must be at least 3 photons\n"
                 else:
                     max_temp = <unsigned long> np.max(indexes[i])
                     if max_ind >= ndet:
-                        burst_errors += f"{i}: Underdefined model: burst_colors has too many indexes for given h2mm_model"
+                        burst_errors += f"{i}: Underdefined model: indexes has too many indices for given h2mm_model"
                     elif max_ind < max_temp:
                         max_ind = max_temp
             else:
                 burst_errors += f"{i}: Multidimensional burst array: bursts must be 1D\n"
             if not np.issubdtype(indexes[i].dtype, np.integer):
-                burst_errors += f"{i}: TypeError: burst_colors must integer arrays, got {indexes[i].dtype}"
+                burst_errors += f"{i}: TypeError: indexes must integer arrays, got {indexes[i].dtype}"
             elif np.any(indexes[i] < 0):
-                burst_errors += f"{i}: ValueError: burst_colors contains negative values, indexes must be non-negative"
+                burst_errors += f"{i}: ValueError: indexes contains negative values, indices must be non-negative"
         else:
             burst_errors += f"{i}: TypeError: bursts must be 1D numpy arrays, got {type(indexes[i])} and {type(times[i])}\n"
     if burst_errors != str():
@@ -210,31 +214,6 @@ cdef class opt_lim_const:
     
     The optimization_limits module variable should be of this class
     
-    Attributes
-    ----------
-    max_iter: int
-        maximum number of iterations, default 3600
-    max_time: float
-        maximum time of optimization, note that 
-    converged_min: float
-        minimum difference between succesive iterations to consider an optimization
-        to have converged. Note that this is in seconds, and uses the innaccurate
-        C clock, therefore use is not recomended, and setting to inf (the default) 
-        means that there is no hard time limit. default inf
-    num_cores: int
-        Number of threads (cores) to use during optimzation. 
-        default os.cpu_count() //2
-    
-    Methods
-    -------
-    get_max_iter:
-        processes max_iter kwarg
-    get_max_time:
-        processes max_time kwarg
-    get_converged_min:
-        processes converged_min kwarg
-    get_num_cores:
-        processes num_cores kwarg
     """
     cdef:
         unsigned long _max_iter
@@ -253,6 +232,7 @@ cdef class opt_lim_const:
 
     @property
     def max_iter(self):
+        """Maximum number of iterations before ending optimization"""
         return self._max_iter
     @max_iter.setter
     def max_iter(self, max_iter):
@@ -261,6 +241,14 @@ cdef class opt_lim_const:
 
     @property
     def max_time(self):
+        """Maximum time of optimization.
+        
+        .. note::
+            
+            This uses the inaccurate C-clock, actual duration of optimization
+            will be variable and generally less thatn the input value
+            
+        """
         return self._max_time
     @max_time.setter
     def max_time(self, max_time):
@@ -269,6 +257,7 @@ cdef class opt_lim_const:
 
     @property
     def converged_min(self):
+        """Minimum difference between loglik of succesive iterations for a model to be considered converged"""
         return self._converged_min
     @converged_min.setter
     def converged_min(self, converged_min):
@@ -277,6 +266,13 @@ cdef class opt_lim_const:
 
     @property
     def num_cores(self):
+        """Number of cores to use in optimization
+        
+        .. note::
+            
+            This more specifically sets the number of threads (pthreads in Linux/MacOS)
+            used in optimization
+        """
         return self._num_cores
     @num_cores.setter
     def num_cores(self, num_cores):
@@ -289,6 +285,8 @@ cdef class opt_lim_const:
     def __setitem__(self, key, value):
         setattr(self, key, value)
     
+    def __repr__(self):
+        return f'Optimization limits:: num_cores: {self._num_cores}, max_iter: {self._max_iter}, converged_min: {self._converged_min}, max_time: {self._max_time}'
     
     def _get_max_iter(self, max_iter):
         """
@@ -403,7 +401,7 @@ cdef class opt_lim_const:
             raise ValueError(f"Non-int options for num_cores are 'single' or 'multi', cannot process {num_cores}")
         return n_core
 
-
+#: Like rcParams, a place to set defaults for optimization limits
 optimization_limits = opt_lim_const(max_iter=3600, max_time=np.inf, converged_min=1e-14, num_cores=os.cpu_count()//2)
     
 cdef class h2mm_model:
@@ -411,80 +409,12 @@ cdef class h2mm_model:
     The base class for storing objects representing the H2MM model, stores
     the relevant matricies, loglikelihood and information about status of
     optimization
-    
-    Attributes
-    ----------
-    prior : 
-        Vector of length nstate, The initial (prior) probability of 
-        each state (returned as numpy array)
-    trans :
-        Square nstate x nstate matrix, The transition probabilities from
-        a given state to a given state (returned as numpy array)
-    obs :
-        Array of shape nstate x ndet, The emission probability matrix, the probability
-        of a given state producing a photon in a given detector
-    
-    
-    Properties
-    ----------
-    nstate :
-        Number of states in model
-    ndet :
-        Number of detectors/streams in the model
-    niter :
-        Number of iterations of optimization for the mmodel. This is updated 
-        each time the model is optimized, depending on the reset_niter argument,
-        this value may or may not be reset when model is reoptimized
-    nphot : 
-        number of datapoints (photons) in the dataset used for optimization
-    k :
-        Number of free parameters in model, nstate^2 + (ndet - 1) * ndet - 1
-    loglik :
-        The loglikelihood of the model based on the data
-    bic :
-        The Bayes Information Criterion of the model, - 2*loglik + k * ln(nphot)
-    conv_code :
-        Code indicating the criterion by which optimization stopped
         
     """
     cdef:
         h2mm_mod model
     
     def __cinit__(self, prior, trans, obs, loglik=-np.inf, niter = 0, nphot = 0, is_conv=False):
-        """
-        Create an initial model, keyword parameters only for remaking model when
-        no optimization will be performed, otherwise do not use.
-
-        Parameters
-        ----------
-        prior : numpy.ndarray dtype=float
-            Initial prior probability matrix.
-        trans : numpy.ndarray dtype=float
-            Initial transition probability matrix.
-        obs : numpy.ndarray dtype=float
-            Initial emission probability matrix.
-        loglik : float, optional
-            Initial loglik, should only be used when recreating model without
-            optimization. The default is -np.inf.
-        niter : int, optional
-            Number of iterations, should only be used when recreateing model
-            without optimization. The default is 0.
-        nphot : int, optional
-            Number of photons in dataset, should only be used when recreateing 
-            model without optimization. The default is 0.
-        is_conv : bool, optional
-            If model is already converged, should only be used when recreateing
-            model without optimization. The default is False.
-
-        Raises
-        ------
-        ValueError
-            Incorrect dimension in an input matrix.
-        TypeError
-            Wrong type of argument.
-
-
-        """
         # if statements check to confirm first the correct dimensinality of input matrices, then that their shapes match
         cdef unsigned long i, j
         if prior.ndim != 1:
@@ -731,13 +661,16 @@ cdef class h2mm_model:
         """For internal use, ensures all model arrays are row stochastic"""
         h2mm_normalize(&self.model)
     
-    def optimize(self, burst_colors, burst_times, max_iter=None, 
+    def optimize(self, indexes, times, max_iter=None, 
               print_func='iter', print_args = None, bounds=None, 
               bounds_func=None, max_time=None, converged_min=None, 
               num_cores=None, reset_niter=False, inplace=True):
         """
         Optimize the H2MM model for the given set of data.
-        NOTE: this method calls the EM_H2MM_C function.
+        
+        .. note::
+            
+            This method calls the :func:`EM_H2MM_C` function.
     
         Parameters
         ----------
@@ -756,34 +689,61 @@ cdef class h2mm_model:
             Specifies how the results of each iteration will be displayed, several 
             strings specify built-in functions. Default is 'iter'
             Acceptable inputs: str, Callable or None
-                None:
+                
+                **None**\:
+                
                     causes no printout anywhere of the results of each iteration
+                    
                 Str: 'console', 'all', 'diff', 'comp', 'iter'
-                    'console': the results will be printed to the terminal/console 
+                
+                    **'console'**\: 
+                        
+                        the results will be printed to the terminal/console 
                         window this is useful to still be able to see the results, 
                         but not clutter up the output of your Jupyter Notebook, this 
                         is the default
-                    'all': prints out the full h2mm_model just evaluated, this is very
+                    
+                    **'all'**\: 
+                        
+                        prints out the full h2mm_model just evaluated, this is very
                         verbose, and not genearlly recomended unless you really want
                         to know every step of the optimization
-                    'diff': prints the loglik of the iteration, and the difference 
+                    
+                    **'diff'**\: 
+                        
+                        prints the loglik of the iteration, and the difference 
                         between the current and old loglik, this is the same format
                         that the 'console' option used, the difference is whether the
                         print function used is the C printf, or Cython print, which 
                         changes the destination from the console to the Jupyter notebook
-                    'diff_time': same as 'diff' but adds the time of the last iteration
+                        
+                    **'diff_time'**\: 
+                        
+                        same as 'diff' but adds the time of the last iteration
                         and the total optimization time
-                    'comp': prints out the current and old loglik
-                    comp_time': same as 'comp'  but with times, like in 'diff_time'
-                    'iter': prints out only the current iteration
+                        
+                    **'comp'**\: 
+                        
+                        prints out the current and old loglik
+                    
+                    **'comp_time'**\: 
+                        
+                        same as 'comp'  but with times, like in 'diff_time'
+                    
+                    **'iter'**\: 
+                        
+                        prints out only the current iteration
+                
                 Callable: user defined function
                     A python function for printing out a custom ouput, the function must
-                    accept the input of (int,h2mm_model,h2mm_model,h2mm_modl,float,float)
+                    accept the input of 
+                    (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`,f loat, float)
                     as the function will be handed (niter, new, current, old, t_iter, t_total)
                     from a special Cython wrapper. t_iter and t_total are the times
                     of the iteration and total time respectively, in seconds, based
                     on the C level clock function, which is noteably inaccurate,
                     often reporting larger than actual values.
+        
         print_args : 2-tuple/list (int, bool) or None, optional
             Arguments to further customize the printing options. The format is
             (int bool) where int is how many iterations before updating the display
@@ -791,90 +751,123 @@ cdef class h2mm_model:
             display will be kept to one line, The default is None, which is changed
             into (1, False). If only an int or a bool is specified, then the default
             value for the other will be used. If a custom printing function is given
-            then this argument will be passed to the function as *args.
+            then this argument will be passed to the function as \*args.
             Default is None
-        bounds_func = None: str, callable or None, optional
+        bounds_func : str, callable or None, optional
             function to be evaluated after every iteration of the H2MM algorithm
-            its primary function is to place bounds on h2mm_model
-            Note: bounding the h2mm_model causes the guarantee of improvement on each
-            iteration until convergence to no longer apply, therefore the results are
-            no longer guaranteed to be the optimal model within bounds.
+            its primary function is to place bounds on :class:`h2mm_model`
+            
+            .. note:: 
+                
+                bounding the :class:`h2mm_model` causes the guarantee of improvement on each
+                iteration until convergence to no longer apply, therefore the results are
+                no longer guaranteed to be the optimal model within bounds.
+            
             Default is None
-            Acceptable inputs:
+            Acceptable inputs\:
+                
                 C level limits: 'minmax' 'revert' 'revert_old'
                     prevents the model from having values outside of those defined
-                    by h2mm_limits class given to bounds, if an iteration produces
+                    by :class:`h2mm_limits` class given to bounds, if an iteration produces
                     a new model for loglik calculation in the next iteration with 
                     values that are out of those bounds, the 3 function differ in
                     how they correct the model when a new model has a value out of
                     bounds, they are as follows:
-                    'minmax': sets the out of bounds value to the min or max value
+                    
+                    **'minmax'**\: 
+                        
+                        sets the out of bounds value to the min or max value
                         closer to the original value
-                    'revert': sets the out of bounds value to the value from the last
+                    
+                    **'revert'**\: 
+                        
+                        sets the out of bounds value to the value from the last
                         model for which the loglik was calculated
-                    'revert_old': similar to revert, but instead reverts to the value
+                    
+                    **'revert_old'**\: 
+                        
+                        similar to revert, but instead reverts to the value
                         from the model one before the last calculated model
-                Callable: python function that takes 4 inputs and returns h2mm_model object
-                    WARNING: the user takes full responsibility for errors in the 
-                        results
+                
+                Callable: python function that takes 4 inputs and returns :class:`h2mm_model` object
+                    .. warning:: 
+                    
+                        The user takes full responsibility for errors in the results.
+                    
                     must be a python function that takes 4 arguments, the first 3 are
-                    the h2mm_model objects, in this order: new, current, old, 
+                    the :class:`h2mm_model` objects, in this order: new, current, old, 
                     the fourth is the argument supplied to the bounds keyword argument,
-                    the function must return a single h2mm_limits object, the prior, 
+                    the function must return a single :class:`h2mm_limits` object, the prior, 
                     trans and obs fields of which will be optimized next, other values 
                     are ignored.
         bounds : h2mm_limits, str, 4th input to callable, or None, optional
             The argument to be passed to the bounds_func function. If bounds_func is
             None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
             or 'revert_old' (calling C-level bouding functions), then bounds must be
-            a h2mm_limits object, if bounds_func is a callable, bounds must be an
+            a :class:`h2mm_limits` object, if bounds_func is a callable, bounds must be an
             acceptable input as the fourth argument to the function passed to bounds_func
             Default is None
         max_iter : int or None, optional
             the maximum number of iterations to conduct before returning the current
-            h2mm_model, if None (default) use value from optimization_limits. 
+            :class:`h2mm_model`, if None (default) use value from optimization_limits. 
             Default is None
         max_time : float or None, optional
             The maximum time (in seconds) before retunring current model
-            NOTE this uses the C clock, which has issues, often the time assesed by
-            C, which is usually longer than the actual time. If None (default) use
-            value from optimization_limits. Default is None
+            
+            .. note:: 
+                
+                this uses the C clock, which has issues, often the time assesed by
+                C, which is usually longer than the actual time. 
+                
+            If None (default) use value from optimization_limits. 
+            Default is None
         converged_min : float or None, optional
-            The difference between new and current h2mm_models to consider the model
+            The difference between new and current :class:`h2mm_model` to consider the model
             converged, the default setting is close to floating point error, it is
             recomended to only increase the size. If None (default) use value from 
             optimization_limits. Default is None
         num_cores : int or None, optional
             the number of C threads (which ignore the gil, thus functioning more
             like python processes), to use when calculating iterations.
-            Note that os.cpu_count() returns number of threads, but it is ideal 
-            to take the nubmer of physical cores. Therefore, unless reset by user,
-            optimization_limtis sets this to be os.cpu_count() // 2, as most machines
-            are mutlithreaded. If None (default) use value from optimization_limits. 
+            
+            .. note:: 
+                
+                optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
+                are mutlithreaded. Because os.cpu_count() returns the number of threads,
+                not necessarily the number of cpus. For most machines, being multithreaded,
+                this actually returns twice the number of physical cores. Hence the default
+                to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
+                is best to set `optimization_limits.num_cores = os.cpu_count()`
+                
+            If None (default) use value from optimization_limits. 
             Default is None
         reset_niter : bool, optional
             Tells the algorithm whether or not to reset the iteration counter of the
             model, True means that even if the model was previously optimized, the 
-            iteration counter will start at 0, so calling EM_H2MM_C on a model that
+            iteration counter will start at 0, so calling :func:`EM_H2MM_C` on a model that
             reached its maximum iteration number will proceed another max_iter 
             iterations. On the other hand, if set to False, then the new iterations
             will be added to the old. If set to False, you likely will have to increase
             max_iter, as the optimization will count the previous iterations towards
             the max_iter threshold.
             Default is False
-        inplace : bool
+        inplace : bool, optional
             Whether or not to store the optimized model in the current model object.
             Default is True
         
         Returns
         -------
-        out: h2mm_model
-            The optimized model
+        out : h2mm_model
+            The optimized :class:`h2mm_model`. will return after one of the follwing conditions
+            are met: model has converged (according to converged_min, defaule 1e-14),
+            maximum iterations reached, maximum time has passed, or an error has occured
+            (usually the result of a nan from a floating point precision error)
+            
         """
         cdef unsigned long i
         if self.model.conv == 4 and self.model.niter >= max_iter:
             max_iter = self.model.niter + max_iter
-        cdef h2mm_model out = EM_H2MM_C(self, burst_colors, burst_times, 
+        cdef h2mm_model out = EM_H2MM_C(self, indexes, times, 
                         max_iter=max_iter, print_func=print_func, 
                         print_args = print_args, bounds=bounds, 
                         bounds_func=bounds_func,  max_time=max_time, 
@@ -893,7 +886,7 @@ cdef class h2mm_model:
             self.model.nphot = out.model.nphot
         return out
     
-    def evaluate(self, burst_colors, burst_times, num_cores=None, 
+    def evaluate(self, indexes, times, num_cores=None, 
                  inplace=True):
         """
         Calculate the loglikelihood of the model given a set of data. The 
@@ -903,8 +896,6 @@ cdef class h2mm_model:
     
         Parameters
         ----------
-        h_model : list, tuple, or numpy.ndarray of h2mm_model objects
-            All of the h2mm_model object for which the loglik will be calculated
         indexes : list or tuple of NUMPY 1D int arrays
             A list of the arrival indexes for each photon in each burst.
             Each element of the list (a numpy array) cooresponds to a burst, and
@@ -919,13 +910,20 @@ cdef class h2mm_model:
         num_cores : int or None, optional
             the number of C threads (which ignore the gil, thus functioning more
             like python processes), to use when calculating iterations.
-            Note that os.cpu_count() returns number of threads, but it is ideal 
-            to take the nubmer of physical cores. Therefore, unless reset by user,
-            optimization_limtis sets this to be os.cpu_count() // 2, as most machines
-            are mutlithreaded. If None (default) use value from optimization_limits. 
+            
+            .. note:: 
+                
+                optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
+                are mutlithreaded. Because os.cpu_count() returns the number of threads,
+                not necessarily the number of cpus. For most machines, being multithreaded,
+                this actually returns twice the number of physical cores. Hence the default
+                to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
+                is best to set `optimization_limits.num_cores = os.cpu_count()`
+                
+            If None (default) use value from optimization_limits. 
             Default is None
         inplace: bool, optional
-            Whether or not to store the optimized model in the current model object.
+            Whether or not to store the eveluated model in the current model object.
             Default is True
         
         Returns
@@ -933,7 +931,7 @@ cdef class h2mm_model:
         out: h2mm_model
             The evaluated model
         """
-        cdef h2mm_model out = H2MM_arr(self, burst_colors, burst_times,num_cores = num_cores)
+        cdef h2mm_model out = H2MM_arr(self, indexes, times, num_cores=num_cores)
         if inplace:
             for i in range(self.model.nstate):
                 self.model.prior[i] = out.model.prior[i]
@@ -1081,7 +1079,7 @@ class h2mm_limits:
     Parameters
     ----------
     model : h2mm_model, optional
-        An h2mm_model to base the limits off of, if None. The main purpose
+        An :class:`h2mm_model` to base the limits off of, if None. The main purpose
         is to allow the user to check that the limts are valid for the model.
         Specifying this model will also lock the states/streams of the model,
         while if None, the limits is more flexible
@@ -1141,7 +1139,7 @@ class h2mm_limits:
         Parameters
         ----------
         model : h2mm_model, optional
-            An h2mm_model to base the limits off of, if None. The main purpose
+            An :class:`h2mm_model` to base the limits off of, if None. The main purpose
             is to allow the user to check that the limts are valid for the model.
             Specifying this model will also lock the states/streams of the model,
             while if None, the limits is more flexible
@@ -1270,7 +1268,7 @@ class h2mm_limits:
         Parameters
         ----------
         model : h2mm_model
-            h2mm_model for which the limits are to be specified.
+            :class:`h2mm_model` for which the limits are to be specified.
             Also, values are checked and a warning is raised if the model has
             values that are out of the range of the limits
         warning: bool optional
@@ -1499,7 +1497,7 @@ def factory_h2mm_model(nstate, ndet, bounds=None, trans_scale=1e-5,
         states within the model will depend on how 
         The default is None.
     trans_scale: float
-        Only used when no h2mm_limits object is supplied to bounds, sets the
+        Only used when no :class:`h2mm_limits` object is supplied to bounds, sets the
         minimum (slowest) transition rates in the trans array
     prior_dist : 'even' or 'random', optional
         Define how to distribute prior states. options are 'equal' and 'random'
@@ -1514,7 +1512,7 @@ def factory_h2mm_model(nstate, ndet, bounds=None, trans_scale=1e-5,
     Returns
     -------
     model : h2MM_model
-        An h2mm_model object ready for optimization
+        An :class:`h2mm_model` object ready for optimization
 
     """
     # check all values are useful
@@ -1691,10 +1689,12 @@ cdef void model_print_call(unsigned long niter, h2mm_mod *new, h2mm_mod *current
     cdef h2mm_model new_model = model_copy_from_ptr(new)
     cdef h2mm_model current_model = model_copy_from_ptr(current)
     cdef h2mm_model old_model = model_copy_from_ptr(old)
-    if args is None:
-        print_func(niter, new_model, current_model, old_model, t_iter, t_total)
-    else:
-        print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args)
+    new_model.normalize()
+    if niter % args[2] == 0:
+        if len(args) == 4:
+            print_func(niter, new_model, current_model, old_model, t_iter, t_total)
+        else:
+            print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
 
 # The wrapper for the user supplied print function that displays a string
 cdef void model_print_call_str(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
@@ -1704,6 +1704,7 @@ cdef void model_print_call_str(unsigned long niter, h2mm_mod *new, h2mm_mod *cur
     cdef h2mm_model new_model = model_copy_from_ptr(new)
     cdef h2mm_model current_model = model_copy_from_ptr(current)
     cdef h2mm_model old_model = model_copy_from_ptr(old)
+    new_model.normalize()
     if niter % args[2] == 0:
         if len(args) == 4:
             disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total)
@@ -1763,6 +1764,7 @@ cdef void model_print_comp(unsigned long niter, h2mm_mod *new, h2mm_mod *current
             disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
         disp_handle.update(disp_txt)
 
+# function to hand to the print_func, print comparison between current and old loglik, and iteration and total time
 cdef void model_print_comp_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef object disp_txt = <object> print_args.txt
@@ -1787,7 +1789,7 @@ cdef void model_print_iter(unsigned long niter, h2mm_mod *new, h2mm_mod *current
         disp_handle.update(disp_txt)
 
 
-def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None, 
+def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None, 
               print_func='iter', print_args=None, bounds_func=None, 
               bounds=None, max_time=np.inf, converged_min=None, 
               num_cores=None, reset_niter=True):
@@ -1815,35 +1817,62 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
     print_func : None, str or callable, optional
         Specifies how the results of each iteration will be displayed, several 
         strings specify built-in functions. Default is 'iter'
-        Acceptable inputs:
-            None:
+        Acceptable inputs: str, Callable or None
+            
+            **None**\:
+            
                 causes no printout anywhere of the results of each iteration
+                
             Str: 'console', 'all', 'diff', 'comp', 'iter'
-                'console': the results will be printed to the terminal/console 
+            
+                **'console'**\: 
+                    
+                    the results will be printed to the terminal/console 
                     window this is useful to still be able to see the results, 
                     but not clutter up the output of your Jupyter Notebook, this 
                     is the default
-                'all': prints out the full h2mm_model just evaluated, this is very
+                
+                **'all'**\: 
+                    
+                    prints out the full :class:`h2mm_model` just evaluated, this is very
                     verbose, and not genearlly recomended unless you really want
                     to know every step of the optimization
-                'diff': prints the loglik of the iteration, and the difference 
+                
+                **'diff'**\: 
+                    
+                    prints the loglik of the iteration, and the difference 
                     between the current and old loglik, this is the same format
                     that the 'console' option used, the difference is whether the
                     print function used is the C printf, or Cython print, which 
                     changes the destination from the console to the Jupyter notebook
-                'diff_time': same as 'diff' but adds the time of the last iteration
+                    
+                **'diff_time'**\: 
+                    
+                    same as 'diff' but adds the time of the last iteration
                     and the total optimization time
-                'comp': prints out the current and old loglik
-                comp_time': same as 'comp'  but with times, like in 'diff_time'
-                'iter': prints out only the current iteration
+                    
+                **'comp'**\: 
+                    
+                    prints out the current and old loglik
+                
+                **'comp_time'**\: 
+                    
+                    same as 'comp'  but with times, like in 'diff_time'
+                
+                **'iter'**\: 
+                    
+                    prints out only the current iteration
+            
             Callable: user defined function
                 A python function for printing out a custom ouput, the function must
-                accept the input of (int,h2mm_model,h2mm_model,h2mm_modl,float,float)
+                accept the input of 
+                (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`, float, float)
                 as the function will be handed (niter, new, current, old, t_iter, t_total)
                 from a special Cython wrapper. t_iter and t_total are the times
                 of the iteration and total time respectively, in seconds, based
                 on the C level clock function, which is noteably inaccurate,
                 often reporting larger than actual values.
+    
     print_args : 2-tuple/list (int, bool) or None, optional
         Arguments to further customize the printing options. The format is
         (int bool) where int is how many iterations before updating the display
@@ -1851,47 +1880,66 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
         display will be kept to one line, The default is None, which is changed
         into (1, False). If only an int or a bool is specified, then the default
         value for the other will be used. If a custom printing function is given
-        then this argument will be passed to the function as *args.
+        then this argument will be passed to the function as \*args.
         Default is None
-    bounds_func = None: str, callable or None, optional
+    bounds_func : str, callable or None, optional
         function to be evaluated after every iteration of the H2MM algorithm
-        its primary function is to place bounds on h2mm_model
-        Note: bounding the h2mm_model causes the guarantee of improvement on each
-        iteration until convergence to no longer apply, therefore the results are
-        no longer guaranteed to be the optimal model within bounds.
+        its primary function is to place bounds on :class:`h2mm_model`
+        
+        .. note:: 
+            
+            bounding the :class:`h2mm_model` causes the guarantee of improvement on each
+            iteration until convergence to no longer apply, therefore the results are
+            no longer guaranteed to be the optimal model within bounds.
+        
         Default is None
-        Acceptable inputs:
+        
+        Acceptable inputs\:
+            
             C level limits: 'minmax' 'revert' 'revert_old'
                 prevents the model from having values outside of those defined
-                by h2mm_limits class given to bounds, if an iteration produces
+                by :class:`h2mm_limits` class given to bounds, if an iteration produces
                 a new model for loglik calculation in the next iteration with 
                 values that are out of those bounds, the 3 function differ in
                 how they correct the model when a new model has a value out of
                 bounds, they are as follows:
-                'minmax': sets the out of bounds value to the min or max value
+                
+                **'minmax'**\: 
+                    
+                    sets the out of bounds value to the min or max value
                     closer to the original value
-                'revert': sets the out of bounds value to the value from the last
+                
+                **'revert'**\: 
+                    
+                    sets the out of bounds value to the value from the last
                     model for which the loglik was calculated
-                'revert_old': similar to revert, but instead reverts to the value
+                
+                **'revert_old'**\: 
+                    
+                    similar to revert, but instead reverts to the value
                     from the model one before the last calculated model
-            Callable: python function that takes 4 inputs and returns h2mm_model object
-                WARNING: the user takes full responsibility for errors in the results.
+            
+            Callable: python function that takes 4 inputs and returns :class:`h2mm_model` object
+                .. warning:: 
+                
+                    The user takes full responsibility for errors in the results.
+                
                 must be a python function that takes 4 arguments, the first 3 are
-                the h2mm_model objects, in this order: new, current, old, 
+                the :class:`h2mm_model` objects, in this order: new, current, old, 
                 the fourth is the argument supplied to the bounds keyword argument,
-                the function must return a single h2mm_limits object, the prior, 
+                the function must return a single :class:`h2mm_limits` object, the prior, 
                 trans and obs fields of which will be optimized next, other values 
                 are ignored.
     bounds : h2mm_limits, str, 4th input to callable, or None, optional
         The argument to be passed to the bounds_func function. If bounds_func is
         None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
         or 'revert_old' (calling C-level bouding functions), then bounds must be
-        a h2mm_limits object, if bounds_func is a callable, bounds must be an
+        a :class:`h2mm_limits` object, if bounds_func is a callable, bounds must be an
         acceptable input as the fourth argument to the function passed to bounds_func
         Default is None
     max_iter : int or None, optional
         the maximum number of iterations to conduct before returning the current
-        h2mm_model, if None (default) use value from optimization_limits. 
+        :class:`h2mm_model`, if None (default) use value from optimization_limits. 
         Default is None
     max_time : float or None, optional
         The maximum time (in seconds) before retunring current model
@@ -1899,22 +1947,29 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
         C, which is usually longer than the actual time. If None (default) use
         value from optimization_limits. Default is None
     converged_min : float or None, optional
-        The difference between new and current h2mm_models to consider the model
+        The difference between new and current :class:`h2mm_model` to consider the model
         converged, the default setting is close to floating point error, it is
         recomended to only increase the size. If None (default) use value from 
         optimization_limits. Default is None
     num_cores : int or None, optional
         the number of C threads (which ignore the gil, thus functioning more
         like python processes), to use when calculating iterations.
-        Note that os.cpu_count() returns number of threads, but it is ideal 
-        to take the nubmer of physical cores. Therefore, unless reset by user,
-        optimization_limtis sets this to be os.cpu_count() // 2, as most machines
-        are mutlithreaded. If None (default) use value from optimization_limits. 
+        
+        .. note:: 
+            
+            optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
+            are mutlithreaded. Because os.cpu_count() returns the number of threads,
+            not necessarily the number of cpus. For most machines, being multithreaded,
+            this actually returns twice the number of physical cores. Hence the default
+            to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
+            is best to set `optimization_limits.num_cores = os.cpu_count()`
+            
+        If None (default) use value from optimization_limits. 
         Default is None
     reset_niter : bool, optional
         Tells the algorithm whether or not to reset the iteration counter of the
         model, True means that even if the model was previously optimized, the 
-        iteration counter will start at 0, so calling EM_H2MM_C on a model that
+        iteration counter will start at 0, so calling :func:`EM_H2MM_C` on a model that
         reached its maximum iteration number will proceed another max_iter 
         iterations. On the other hand, if set to False, then the new iterations
         will be added to the old. If set to False, you likely will have to increase
@@ -1925,20 +1980,21 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
     Returns
     -------
     out : h2mm_model
-        The optimized h2mm_model. will return after one of the follwing conditions
+        The optimized :class:`h2mm_model`. will return after one of the follwing conditions
         are met: model has converged (according to converged_min, defaule 1e-14),
         maximum iterations reached, maximum time has passed, or an error has occured
         (usually the result of a nan from a floating point precision error)
+        
     """
-    burst_check = verify_input(burst_colors, burst_times, h_mod.model.ndet)
+    burst_check = verify_input(indexes, times, h_mod.model.ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
     if h_mod.model.ndet > burst_check + 1:
         warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {burst_check + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
-    if isinstance(burst_colors, tuple):
-        burst_colors = list(burst_colors)
-        burst_times = list(burst_times)
-    cdef unsigned long num_burst = len(burst_colors)
+    if isinstance(indexes, tuple):
+        indexes = list(indexes)
+        times = list(times)
+    cdef unsigned long num_burst = len(indexes)
     cdef h2mm_model h_test_new = h_mod.copy()
     cdef h2mm_model h_test_current = h_mod.copy()
     cdef h2mm_model h_test_old = h_mod.copy()
@@ -1981,7 +2037,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
     if print_func not in print_strings and not callable(print_func):
         raise ValueError("print_func must be None, 'console', 'all', 'diff', or 'comp' or callable")
     if print_func in print_strings:
-        if not type(print_args) in [int, bool, tuple,list] and print_args is not None:
+        if not isinstance(print_args, (int, bool, tuple,list)) and print_args is not None:
             raise TypeError(f"print_args must be None, int, bool, or a 2-tuple or 2-list, got {type(print_args)}")
         elif (isinstance(print_args,tuple) or isinstance(print_args,list)) and len(print_args) != 2:
             raise TypeError(f"If print args is a tuple or list, it must have length 2, got {len(print_args)}")
@@ -1996,17 +2052,17 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
         elif isinstance(print_args,bool):
             print_args = (1,print_args)
     elif callable(print_func):
-        print_args = tuple(print_args) if isinstance(print_args,list) else print_args
+        print_args = tuple(print_args) if isinstance(print_args, list) else print_args
         try:
             disp_txt.data += "print_func validation\n"
             disp_handle.update(disp_txt)
             if print_args is None:
                 print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
                 print_args = (disp_handle,disp_txt,1,False)
-            elif isinstance(print_args,int):
+            elif isinstance(print_args, int):
                 print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
                 print_args = (disp_handle,disp_txt,1, print_args) if isinstance(print_args,bool) else (disp_handle,disp_txt,print_args, False)
-            elif  type(print_args) == tuple and len(print_args) >= 2 and isinstance(print_args[0],int) and isinstance(print_args[1],bool):
+            elif  isinstance(print_args, tuple) and len(print_args) >= 2 and isinstance(print_args[0],int) and isinstance(print_args[1],bool):
                 if len(print_args) == 2:
                     print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
                 else:
@@ -2062,8 +2118,6 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
         ptr_print_args.keep = 1 if print_args[3] else 0
         ptr_print_func = model_print_call_str if isinstance(print_return,str) else model_print_call
         ptr_print_struct.func = <void*> print_func
-        if not isinstance(print_return,str):
-            print_args = None if len(print_args) == 4 else print_args[4:]
         ptr_print_struct.args = <void*> print_args
         ptr_print_call = <void*> ptr_print_struct
     elif print_func is None:
@@ -2074,7 +2128,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
     # print("Allocating C bursts data")
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, burst_colors, burst_times, b_det, b_delta)
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
     if burst_sizes is NULL:
         raise ValueError("Photon out of order")
     # print("Done Allocating C bursts data")
@@ -2135,7 +2189,7 @@ def EM_H2MM_C(h2mm_model h_mod, burst_colors, burst_times, max_iter=None,
     return out
 
 
-def H2MM_arr(h_mod, burst_colors, burst_times, num_cores=None):
+def H2MM_arr(h_mod, indexes, times, num_cores=None):
     """
     Calculate the logliklihood of every model in a list/array given a set of
     data
@@ -2143,7 +2197,7 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores=None):
     Parameters
     ----------
     h_model : list, tuple, or numpy.ndarray of h2mm_model objects
-        All of the h2mm_model object for which the loglik will be calculated
+        All of the :class:`h2mm_model` object for which the loglik will be calculated
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
         Each element of the list (a numpy array) cooresponds to a burst, and
@@ -2157,22 +2211,29 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores=None):
     num_cores : int or None, optional
         the number of C threads (which ignore the gil, thus functioning more
         like python processes), to use when calculating iterations.
-        Note that os.cpu_count() returns number of threads, but it is ideal 
-        to take the nubmer of physical cores. Therefore, unless reset by user,
-        optimization_limtis sets this to be os.cpu_count() // 2, as most machines
-        are mutlithreaded. If None (default) use value from optimization_limits. 
+        
+        .. note:: 
+            
+            optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
+            are mutlithreaded. Because os.cpu_count() returns the number of threads,
+            not necessarily the number of cpus. For most machines, being multithreaded,
+            this actually returns twice the number of physical cores. Hence the default
+            to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
+            is best to set `optimization_limits.num_cores = os.cpu_count()`
+            
+        If None (default) use value from optimization_limits. 
         Default is None
         
     Returns
     -------
     out : list tuple, or numpy.ndarray of h2mm_model
-        A list, tuple, or numpy array of the h2mm_models with the loglik computed
+        A list, tuple, or numpy array of the :class:`h2mm_model` with the loglik computed
         The converged state is automatically set to 0, and nphot is set
         in accordance with the number of photons in the data set.
         The datatype returned is the same as the datatype of h_model
     """
     cdef unsigned long i
-    cdef unsigned long num_burst = burst_colors.size if type(burst_colors) == np.ndarray else len(burst_colors)
+    cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
     cdef type tp = type(h_mod)
     cdef unsigned long mod_size, ndet
     if tp in (h2mm_model, np.ndarray, list, tuple):
@@ -2202,20 +2263,20 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores=None):
             ndet = h_mod.ndet
     else:
         raise TypeError('First argument must be list or numpy array of h2mm_model objects')
-    # if statements verify that the data is valid, ie matched lengths and dimensions for burst_times and burst_colors in all bursts
-    burst_check = verify_input(burst_colors, burst_times, ndet)
+    # if statements verify that the data is valid, ie matched lengths and dimensions for times and indexes in all bursts
+    burst_check = verify_input(indexes, times, ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
     if burst_check != ndet - 1:
         warnings.warn(f"Overdefined models: models have {ndet} photons streams, while data only suggests you have {burst_check + 1} photon streams")
-    if type(burst_colors) == tuple:
-        burst_colors = list(burst_colors)
-    if type(burst_colors) == tuple:
-        burst_times = list(burst_times)
+    if type(indexes) == tuple:
+        indexes = list(indexes)
+    if type(indexes) == tuple:
+        times = list(times)
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, burst_colors, burst_times, b_det, b_delta)
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
     if burst_sizes is NULL:
         raise ValueError("Photon out of order")
     cdef lm limits
@@ -2251,15 +2312,15 @@ def H2MM_arr(h_mod, burst_colors, burst_times, num_cores=None):
     return out
 
 
-def viterbi_path(h2mm_model h_mod, burst_colors, burst_times, num_cores=None):
+def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     """
     Calculate the most likely state path through a set of data given a H2MM model
 
     Parameters
     ----------
     h_model : h2mm_model
-        An H2MM model, should be optimized for the given data set
-        (result of EM_H2MM_C) to ensure results coorespond to give the most likely
+        An :class:`h2mm_model`, should be optimized for the given data set
+        (result of :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize`) to ensure results coorespond to give the most likely
         path
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
@@ -2291,21 +2352,21 @@ def viterbi_path(h2mm_model h_mod, burst_colors, burst_times, num_cores=None):
     icl : float
         Integrated complete likelihood, essentially the BIC for the viterbi path
     """
-    # assert statements to verify that the data is valid, ie matched lengths and dimensions for burst_times and burst_colors in all bursts
-    burst_check = verify_input(burst_colors, burst_times, h_mod.model.ndet)
+    # assert statements to verify that the data is valid, ie matched lengths and dimensions for times and indexes in all bursts
+    burst_check = verify_input(indexes, times, h_mod.model.ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
-    if type(burst_colors) == tuple:
-        burst_colors = list(burst_colors)
-    if type(burst_colors) == tuple:
-        burst_times = list(burst_times)
+    if type(indexes) == tuple:
+        indexes = list(indexes)
+    if type(indexes) == tuple:
+        times = list(times)
     cdef unsigned long i
-    cdef unsigned long num_burst = burst_colors.size if type(burst_colors) == np.ndarray else len(burst_colors)
-    cdef unsigned long nphot = np.sum([burst.size for burst in burst_colors])
+    cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
+    cdef unsigned long nphot = np.sum([burst.size for burst in indexes])
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, burst_colors, burst_times, b_det, b_delta)
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
     if burst_sizes is NULL:
         raise ValueError("Photon out of order")
     cdef ph_path *path_ret = <ph_path*> PyMem_Malloc(num_burst * sizeof(ph_path))
@@ -2343,8 +2404,8 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     Parameters
     ----------
     h_model : h2mm_model
-        An H2MM model, should be optimized for the given data set
-        (result of EM_H2MM_C) to ensure results coorespond to give the most likely
+        An :class:`h2mm_model`, should be optimized for the given data set
+        (result of :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize`) to ensure results coorespond to give the most likely
         path
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
@@ -2359,10 +2420,17 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     num_cores : int or None, optional
         the number of C threads (which ignore the gil, thus functioning more
         like python processes), to use when calculating iterations.
-        Note that os.cpu_count() returns number of threads, but it is ideal 
-        to take the nubmer of physical cores. Therefore, unless reset by user,
-        optimization_limtis sets this to be os.cpu_count() // 2, as most machines
-        are mutlithreaded. If None (default) use value from optimization_limits. 
+        
+        .. note:: 
+            
+            optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
+            are mutlithreaded. Because os.cpu_count() returns the number of threads,
+            not necessarily the number of cpus. For most machines, being multithreaded,
+            this actually returns twice the number of physical cores. Hence the default
+            to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
+            is best to set `optimization_limits.num_cores = os.cpu_count()`
+            
+        If None (default) use value from optimization_limits. 
         Default is None
 
     Returns
@@ -2487,7 +2555,7 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     Parameters
     ----------
     hmod : h2mm_model
-        An h2mm model to build the state path from
+        An :class:`h2mm_model` to build the state path from
     lenp : int
         The length of the path you want to generate
     seed : positive int, optional
@@ -2499,9 +2567,7 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     ------
     RuntimeError
         A problem with the C code, this is for future proofing
-    issue
-        Should note be implemented
-
+    
     Returns
     -------
     path_ret : numpy ndarray, positive integer
@@ -2529,7 +2595,7 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
     Parameters
     ----------
     hmod : h2mm_model
-        An h2mm model to build the state path from
+        An :class:`h2mm_model` to build the state path from
     times : numpy ndarray 1D int
         An unsigned integer of monotonically increasing times for the burst
     seed : positive int, optional
@@ -2579,7 +2645,7 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
     Parameters
     ----------
     hmod : h2mm_model
-        An h2mm model to build the stream trajectory from
+        An :class:`h2mm_model` to build the stream trajectory from
     states : numpy ndarray 1D int
         
     seed : positive int, optional
@@ -2626,7 +2692,7 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
     Parameters
     ----------
     hmod : h2mm_model
-        An h2mm model to build the path and stream trajectories from
+        An :class:`h2mm_model` to build the path and stream trajectories from
     times : numpy ndarray 1D int
         An unsigned integer of monotonically increasing times for the burst
     seed : positive int, optional

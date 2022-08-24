@@ -81,9 +81,13 @@ def test_baddata(simple_data):
     time[0][1] = 0
     with pytest.raises(ValueError):
         h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, time)
+    dets = simple_data[0].copy()
     dets[0][0] = 2
     with pytest.raises(Exception):
         h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, simple_data[1])
+    dets[0] = np.concatenate([dets[0], [1]])
+    with pytest.raises(ValueError):
+        h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, time)
 
-# if __name__ == '__main__':
-#     pytest.main(['-x','-v','test_H2MM.py'])
+if __name__ == '__main__':
+    pytest.main(['-x, -v, tests/test_H2MM.py'])
