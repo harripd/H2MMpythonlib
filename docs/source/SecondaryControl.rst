@@ -8,6 +8,8 @@ H2MM_C Secondary Control Features
     This can also be viewed as a Jupyter Notebook
     Downlaod :download:`H2MM_Control_Optimization.ipynb <notebooks/H2MM_Control_Optimization.ipynb>`
 
+    Download the data file here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
+
 First, our obligatory imports and loading of 3 detector data:
 
 .. code-block::

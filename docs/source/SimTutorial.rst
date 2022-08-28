@@ -8,6 +8,8 @@ Simulations Tutorial
     This can also be viewed as a Jupyter Notebook
     Downlaod :download:`H2MM_Simulation_Tutorial.ipynb <notebooks/H2MM_Simulation_Tutorial.ipynb>`
 
+    Download data file here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
+
 The other side of H2MM_C is a set of functions for producing simulated data.
 
 The simulation functions of H2MM_C are starte with :code:`sim_`.

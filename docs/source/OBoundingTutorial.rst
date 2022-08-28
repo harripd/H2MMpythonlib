@@ -8,6 +8,8 @@ Bounding |H2MM|
     This can also be viewed as a Jupyter Notebook
     Downlaod :download:`H2MM_Bounds_Tutorial-OOP.ipynb <notebooks/H2MM_Bounds_Tutorial-OOP.ipynb>`
 
+    The data file can be downloaded here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
+
 Let's get our obligatory imports in order, this time we'll start with the 3 detector data.
 
 .. code-block::

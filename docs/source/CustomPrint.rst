@@ -8,6 +8,8 @@ Customizing Optimization Progress Display
     This can also be viewed as a Jupyter Notebook
     Downlaod :download:`H2MM_DisplayProgress.ipynb  <notebooks/H2MM_DisplayProgress.ipynb>`
 
+    The data file can be downloaded here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
+
 As always, lets get the imports and loading data out of the way:
 
 .. code-block::

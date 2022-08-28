@@ -1,0 +1,5 @@
+sphinx
+sphinx-copybutton
+numpy
+cython
+ipython

@@ -3,6 +3,13 @@ Basic Optimizations with H2MM_C
 
 .. currentmodule:: H2MM_C
 
+.. seealso::
+
+    This can also be viewed as a Jupyter Notebook
+    Downlaod :download:`H2MM_Optimization_Tutorial-OOP.ipynb  <notebooks/H2MM_Optimization_Tutorial-OOP.ipynb>`
+
+    The data files can be downloaded here: :download:`sample_data_2det.txt <notebooks/sample_data_2det.txt>` :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
+
 First let's import some standard modules:
 
 .. code-block::
