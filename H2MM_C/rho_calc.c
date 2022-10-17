@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Calcualte the A and Rho matrices, no multithreading at this point
 // Date created: 13 Feb 2021
-// Date modified: 29 April 2022
+// Date modified: 14 Oct 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
@@ -21,21 +21,21 @@
 #define FALSE 0
 
 // calculates just the powers of the trans matrix up to maxdif
-trpow* transpow(h2mm_mod* model, unsigned long maxdif)
+trpow* transpow(const unsigned long nstate, const unsigned long maxdif, const double* trans)
 {
 	// initialize variables
 	unsigned long i, j, k, t, istride, tstride, tstride_r, tistride, Ad;
 	double runsum;
-	trpow* power = (trpow*) calloc(1,sizeof(trpow));
+	trpow* power = (trpow*) malloc(sizeof(trpow));
 	power->max_pow = maxdif;
-	power->sk = model->nstate;
-	power->sj = model->nstate * model->nstate;
-	power->A = (double*) calloc(maxdif*model->nstate*model->nstate,sizeof(double));
-	for (i = 0; i < model->nstate; i++)
+	power->sk = nstate;
+	power->sj = nstate * nstate;
+	power->A = (double*) calloc(maxdif*nstate*nstate,sizeof(double));
+	for (i = 0; i < nstate; i++)
 	{
-		istride = i * model->nstate;
-		for ( j = 0; j < model->nstate; j++)
-			power->A[istride + j] =  model->trans[istride + j];
+		istride = i * nstate;
+		for ( j = 0; j < nstate; j++)
+			power->A[istride + j] =  trans[istride + j];
 	}
 	// loop over every power
 	for (t = 1; t < maxdif; t++)
@@ -43,22 +43,22 @@ trpow* transpow(h2mm_mod* model, unsigned long maxdif)
 		tstride = power->sj * t;
 		tstride_r = tstride - power->sj;
 		// outer matrix multiplication loop
-		for (i = 0; i < model->nstate; i++)
+		for (i = 0; i < nstate; i++)
 		{
-			istride = i * model->nstate;
+			istride = i * nstate;
 			tistride = istride + tstride;
 			runsum = 0.0;
 			// inner matrix multiplication loop
-			for (j = 0; j < model->nstate; j++)
+			for (j = 0; j < nstate; j++)
 			{
 				power->A[tstride + istride + j] = 0.0;
 				Ad = tistride + j;
-				for (k = 0; k < model->nstate; k++)
+				for (k = 0; k < nstate; k++)
 					power->A[Ad] += power->A[istride + k] * power->A[tstride_r + k * power->sk + j];
 				runsum += power->A[Ad];
 			}
 			// for normalization
-			for (j = 0; j < model->nstate; j++)
+			for (j = 0; j < nstate; j++)
 				power->A[tistride + j] /= runsum;
 		}
 	}

@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Header files for H2MM and H2MM Viterbi algorithm
 // Date Created: 13 Feb 2021
-// Date Modified: 29 April 2022
+// Date Modified: 14 Oct 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <pthread.h>
@@ -10,6 +10,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
 
 // typedefs for fwd_back_photonbyphoton.c
 
@@ -96,7 +97,6 @@ typedef struct // pwrs is a structure that contains pointers to the A (transmat)
 	unsigned long tv; // for future imporovments if Rho calculation is parallelized, idenfifies one of the two powers to use to calculate the next
 	unsigned long tq; // same as tv, but the other power
 	unsigned long td; // for future improvements if Rho calculation is parallelized, idenfifies destination power, tv and tq should match 
-	unsigned long *pow_list; // for future improvemtns if Rho calculation is parallelized, identifies which powers are needed to be calculated
 	double *A; // the A array, contains the powers of the tranistion probability matrix
 	double *Rho; // the Rho array, as defined in H2MM
 } pwrs;
@@ -142,7 +142,7 @@ typedef struct
 // Function definitions
 
 // C_H2MM.c function signatures
-pwrs* get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
+unsigned long get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
 
 void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func); // function to be used as a function pointer for printing to console
 
@@ -165,7 +165,7 @@ int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 
 // rho_calc.c function signatures
 
-trpow* transpow(h2mm_mod* model, unsigned long maxdif); // calculate the power of trans matrix
+trpow* transpow(const unsigned long model, const unsigned long maxdif, const double* trans); // calculate the power of trans matrix
 
 void* rhoulate(void *vals); // calculates a power of Rho and A
 

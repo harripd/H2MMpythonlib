@@ -1,8 +1,8 @@
 // File: viterbi.c
-// Purpose: Computer viterbi path and loglik of that path from posterior probability
+// Purpose: Compute Viterbi path and loglik of that path from posterior probability
 // Author: Paul David Harris
 // Date created: 1 April 2021
-// Date modified: 29 April 2022
+// Date modified: 14 Oct 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
@@ -192,14 +192,13 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	// process burst arrays
 	unsigned long *cur_burst = (unsigned long*) calloc(1,sizeof(unsigned long));
 	//~ printf("Getting deltas\n");
-	pwrs *powers = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); /* note: allocates the powers->pow_list array, 
-																					* remember to free powers->pow_list before free powers or b, 
-																					* also, the stride lengths and td/tv/tq are not assigned 
-																					* (should be 0 because of calloc) */
+	unsigned long max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 
 	//~ printf("Got max delta\n");
-	if (powers == NULL)
+	if (max_delta == NULL)
 	{
-		// printf("You have a NULL pointer on one or more of  your photon arrays\n");
+		//~ printf("You have a NULL pointer on one or more of  your photon arrays\n");
+		if (b != NULL)
+			free(b);
 		return 1;
 	}
 	for ( i = 0; i < num_burst; i++)
@@ -208,18 +207,14 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 		{
 			if ( b[i].det[j] >= model->ndet)
 			{
-				printf("Your data has more photon streams than your h2mm model\n");
+				//~ printf("Your data has more photon streams than your h2mm model\n");
+				if (b != NULL)
+					free(b);
 				return 2;
 			}
 		}
 	}
-	powers->sk = model->nstate;
-	powers->sj = powers->sk * model->nstate; // set strides, since these never change, we keep them the same 
-	powers->si = powers->sj * model->nstate;
-	powers->sT = powers->si * model->nstate;
-	powers->A = (double*) calloc(powers->sj * powers->max_pow,sizeof(double));
-	powers->Rho = (double*) calloc(powers->sT * powers->max_pow,sizeof(double));
-	rho_all(model->nstate,model->trans,powers);
+	trpow* powers = transpow(model->nstate, max_delta, model->trans);
 	vit_vals *vit_submit = (vit_vals*) calloc(num_burst,sizeof(vit_vals)); // allocate structures to give to viterbi_burst function
 	for ( i = 0; i < num_burst; i++)
 	{
@@ -275,8 +270,6 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	if( vit_lock ) CloseHandle(vit_lock);
 #endif
 	free(b);
-	free(powers->pow_list);
-	free(powers->Rho);
 	free(powers->A);
 	free(powers);
 	return 0;

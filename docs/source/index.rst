@@ -15,6 +15,20 @@ While originally designed for confocal smFRET, in principle |H2MM| can be used t
 If you use H2MM_C, please cite both of these papers.
 For a more detailed description of the purpose and nature of |H2MM| see :doc:`AboutH2MM <AboutH2MM>`.
 
+Installation
+============
+
+For most systems, simply typing
+
+.. code-block:: bash
+
+    pip install h2mm-c
+
+into the console window will install H2MM_C.
+We supply wheels built with `cibuildwheel <https://github.com/pypa/cibuildwheel>`_ for Python 3.7 to 3.10.
+Note that you are required to have `numpy <https://numpy.org>`_ version 1.20.1 or greater to use these wheels.
+On Linux distributions, older versions of numpy have incompatibilities with the size of certain data-types.
+
 H2MM_C
 ======
 

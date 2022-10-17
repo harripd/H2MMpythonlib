@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Create a state path through data given a prior and trans array
 // Created: 18 Sept 2021
-// Modified: 18 Sept 2021
+// Modified: 14 Oct 2022
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -105,7 +105,7 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 			dif[i] = diftemp - 1;
 	}
 	// build the powers of trans matrix, and built the cumulative sum
-	trpow* powers = transpow(model,maxdif);
+	trpow* powers = transpow(model->nstate ,maxdif, model->trans);
 	double* transsum = (double*) malloc(maxdif*powers->sj*sizeof(double));
 	for ( t = 0; t < maxdif; t++)
 	{
@@ -125,6 +125,8 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 		free(dif);
 	if (powers->A != NULL)
 		free(powers->A);
+	if (powers != NULL)
+		free(powers);
 	if (priorsum != NULL)
 		free(priorsum);
 	if (transsum != NULL)

@@ -1,14 +1,24 @@
 # H2MM_C
 
 [![Build and Test](https://github.com/harripd/H2MMpythonlib/actions/workflows/build_wheels.yml/badge.svg)](https://github.com/harripd/H2MMpythonlib/actions)
+[![Documentation Status](https://readthedocs.org/projects/h2mmpythonlib/badge/?version=latest)](https://h2mmpythonlib.readthedocs.io/en/latest/?badge=latest)
 
 ## Project Desciption
-H2MM_C is a python extension module that implements the H<sup>2</sup>MM algorithm originally developed by [Pirchi et. al. J. Phys. Chem B. 2016, 120, 13065-12075](http://dx.doi.org/10.1371/journal.pone.0160716) in a highly efficent and multithreaded manner, along with functions for posterior analysis with the *Viterbi* algorithm. 
+H2MM_C is a python extension module that implements the H<sup>2</sup>MM algorithm originally developed by [Pirchi, Tsukanov et. al. J. Phys. Chem B. 2016, 120, 13065-12075](http://dx.doi.org/10.1371/journal.pone.0160716) in a highly efficent and multithreaded manner, along with functions for posterior analysis with the *Viterbi* algorithm. 
 
-H2MM_C is also designed from the ground up to handle multiparameter models, as in [Harris, P.D., Narducci, A., Gebhardt, C. et al. Multi-parameter photon-by-photon hidden Markov modeling. Nat Commun 13, 1000 (2022).]( https://doi.org/10.1038/s41467-022-28632-x).
+`H2MM_C` was designed from the ground up to handle multiparameter models, described in [Harris, P.D., Narducci, A., Gebhardt, C. et al. Multi-parameter photon-by-photon hidden Markov modeling. Nat Commun 13, 1000 (2022).]( https://doi.org/10.1038/s41467-022-28632-x), which also introduced this package.
 
-The API is intended to be user friendly, while still allowing for great flexibility. Suggestions are welcome for way to improve the code and interface.
- 
+The API is intended to be user friendly, while still allowing for great flexibility. Suggestions are welcome for ways to improve the code and interface.
+
+## Full Documentation
+Full codumentation can be found at [h2mmpythonlib.readthedocs.io](https://h2mmpythonlib.readthedocs.io)
+
+### See Also
+
+This package is offers the basic function to perform H<sup>2</sup>MM, which means that it does not restrict the use of H<sup>2</sup>MM to any particular modality. However this means that much of the analysis specific to smFRET applications is left up to the user.
+
+For those 
+
 ## Core Features
 - H<sup>2</sup>MM model optimization: finding the ideal model given a set of data.
 	- limit functions to bound the values that a model can take
@@ -18,12 +28,15 @@ The API is intended to be user friendly, while still allowing for great flexibil
 	- Useful for verifying results
 
 ## Installation
-There are several methods for installation.
-We recomend to install via `pip` (`pip3` on some systems):
+
+The easiest way to install `H2MM_C` is via pip:
 
 ```bash
-$ pip install H2MM_C
+$ pip install H2MM-C
 ```
+It should be noted that the setup files require a recent version of numpy, and at least Python 3.7.
+This is not because the code actually requires features introduced in these verstions, but rather because in Linux, with the numpy version change, the size of certain numpy data-types changed, making compiles with recent versions of numpy incompatible with earler versions. These recent numpy versions do not support Python 3.6.
+Therefore, the intrepid programmer can download the code, edit the setup files, and compile with earlier versions of numpy and/or Python, and the code *should* still work.
 
 ### Alternative Installation Methods
 

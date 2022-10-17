@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: main wrapping functions to take burst data and submit to central H2MM algorithm
 // Date created: 13 Feb 2021
-// Date modified: 29 April 2022
+// Date modified: 14 Oct 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
@@ -18,7 +18,7 @@
 #define FALSE 0
 
 // data pre-processor, finds the maximum delta, used for setting size of Rho tensor
-pwrs* get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b)
+unsigned long get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b)
 {
 	unsigned long i, j; // basic iterator variables
 	unsigned long max_delta = 1; // stores the maximum delta between succesive photons found
@@ -40,12 +40,16 @@ pwrs* get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigne
 		b[i].det = burst_det[i];
 		b[i].nphot = burst_sizes[i];
 	}
+	max_delta++;
+	return max_delta;
+}
+/* code removed when changed from returning pwrs* to unsigned long
 	// final preparations for return values
 	powers->max_pow = max_delta + 1;
 	powers->pow_list = (unsigned long*) calloc(powers->max_pow,sizeof(unsigned long)); // allocate the memory for an unfilled powers list, index reduce will handle filling it in
 	return powers;
 }
-
+*/
 void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
 {
 	printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
@@ -57,14 +61,16 @@ h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 	// alocate variables
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
 	// process burst arrays
-	pwrs *powers = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	unsigned long max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 
 	//~ printf("Got powers\n");
 	//~ in_model->nphot = 0;
 	//~ for ( i = 0; i < num_bursts; i++) in_model->nphot += burst_sizes[i]; // determine total number of photons in dataset, used when calculating BIC/ICL
 	// check for errors
-	if (powers == NULL) // in case of an out of order photon, return null to indicate error
+	if (max_delta == 0) // in case of an out of order photon, return null to indicate error
 	{
 		//~ printf("You have NULL pointer in one or more of your photon arrays\n");
+		if (b != NULL)
+			free(b);
 		return NULL;
 	}
 	// check if model and data have matching detectors, return in_model to indicate error
@@ -74,12 +80,16 @@ h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 		{
 			if ( b[i].det[j] >= in_model->ndet)
 			{
-				printf("Your data has more photon streams than your h2mm model\n");
+				//~ printf("Your data has more photon streams than your h2mm model\n");
+				if (b != NULL)
+					free(b);
 				return in_model;
 			}
 		}
 	}
 	// fill out powers structure with strides appropriate to in_model size
+	pwrs* powers = (pwrs*) malloc(sizeof(pwrs));
+	powers->max_pow = max_delta;
 	powers->sk = in_model->nstate;
 	powers->sj = powers->sk * in_model->nstate; // set strides, since these never change, we keep them the same 
 	powers->si = powers->sj * in_model->nstate;
@@ -91,7 +101,6 @@ h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned l
 	h2mm_mod *out_model = compute_ess_dhmm(num_burst, b, powers, in_model, limits, model_limits_func, model_limits, print_func, print_call);
 	// free memory not managed by cython
 	free(b);
-	free(powers->pow_list);
 	free(powers->Rho);
 	free(powers->A);
 	free(powers);

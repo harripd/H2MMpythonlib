@@ -2,7 +2,7 @@
 // Author: Paul David Harris
 // Purpose: Central H2MM algorithms for calculating the logliklihood of data given the model, and creating an updated model
 // Date created : 13 Feb 2021
-// Date modified: 29 April 2022
+// Date modified: 14 Oct 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
@@ -221,7 +221,7 @@ DWORD WINAPI fwd_back_PhotonByPhoton(void* burst)
 			}
 			//~ printf("\n");
 		} while(t != 0);
-		if(llerror) printf("We got a NaN\n");
+		//~ if(llerror) printf("We got a NaN\n");
 		for (i = 0; i < D->sk; i++) prior[i] += gamma[i];
 		//printf("fwd_back_PhotonByPhoton(): (B) cur_burst: %4u  threadId: %8x, xi_temp[1] = %f, xi_temp[2] = %f\n", (unsigned int)cur_burst, GetCurrentThreadId(),(double)xi_temp[1],(double)xi_temp[2]);
 		// find the next burst to be calculated
@@ -555,12 +555,11 @@ int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 		limits->num_cores = num_burst;
 	// initiate variables
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // allocate burst array, to be filled out by get_deltas function
-	pwrs *powers = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
-	if ( powers == NULL)
+	unsigned long max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); // note: allocates the powers->pow_list array, remember to free powers->pow_list before free powers or b, also, the stride lengths and td/tv/tq are not assigned (should be 0 because of calloc)
+	if ( max_delta == 0)
 	{
-		free(b);
-		free(powers->pow_list);
-		free(powers);
+		if (b != NULL)
+			free(b);
 		return 1;
 	}
 	unsigned long nphot = 0;
@@ -581,11 +580,11 @@ int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 	}
 	for (i = 0; i < limits->max_iter; i++)
 	{
-		if (mod_array[i].ndet < ndet)
+		if (mod_array[i].ndet < ndet) // case when input model has too few detectors
 		{
-			free(b);
-			free(powers->pow_list);
-			free(powers);
+			//~ printf("One or more models has too few streams for input data");
+			if (b != NULL)
+				free(b);
 			return 2;
 		}
 		if (prev_ndet != mod_array[i].ndet)
@@ -599,6 +598,8 @@ int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 			multi_state = TRUE;
 		}
 	}
+	pwrs* powers = (pwrs*) calloc(1, sizeof(pwrs));
+	powers->max_pow = max_delta;
 	// initialize the thread id's and mutexes
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_t *tid = (pthread_t*) malloc(limits->num_cores * sizeof(pthread_t));
@@ -744,7 +745,6 @@ int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 	free(b);
 	free(burst_submit);
 	free(mod_temp);
-	free(powers->pow_list);
 	free(powers);
 	return 0;
 }
