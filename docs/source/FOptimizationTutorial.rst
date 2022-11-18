@@ -33,7 +33,7 @@ The base steps of analysis with |H2MM| are:
 
 .. note::
 
-   Steps 2-4 are usually repeated mutliple times with different numbers of states and result compared to select the ideal model
+   Steps 2-4 are usually repeated multiple times with different numbers of states and result compared to select the ideal model
 
 Step 1: Load Data
 *****************
@@ -92,7 +92,7 @@ In the example loaded above, there are 2 detectors- 0 and 1.
 
 .. note::
 
-   Indices must start from 0 and go in integer ascendign order.
+   Indices must start from 0 and go in integer ascending order.
    I.E. if there are 2 detectors, you must use indices 0 and 1.
    Similarly, if there are 3 indices you must use indices 0, 1 and 2.
    And so on.
@@ -122,7 +122,7 @@ All you need to do is specify the number of states and the number of detectors.
 .. note::
 
     The number of **states** is arbitrary, as we will show later.
-    You shoudl compare several different numbers of states.
+    You should compare several different numbers of states.
     The number of **detectors**, however is determined by your data.
     For the file `sample_data_2det.txt` there are 2 detectors.
 
@@ -146,7 +146,7 @@ For this we use the :func:`EM_H2MM_C` function.
 .. note::
 
     The function name has historical roots, which for backwards compatibility we will maintain indefinitely.
-    Appologies for the strange name.
+    Apologies for the strange name.
 
 The syntax is 
 
@@ -180,7 +180,7 @@ The core of a :class:`h2mm_model` is composed of 3 arrays.
 In the following definition, N will indicate the number of states, and M the number of detectors.
 
 - :attr:`h2mm_model.prior`: the initial probability vector, of shape N, which represents the probability of a sequence beginning in each state.
-- :attr:`h2mm_model.trans`: the transition probability matrix, of shape N by N, the probability of a transition happenign from state i to state j.
+- :attr:`h2mm_model.trans`: the transition probability matrix, of shape N by N, the probability of a transition happening from state i to state j.
 
   .. note::
 
@@ -191,13 +191,13 @@ In the following definition, N will indicate the number of states, and M the num
 .. note::
 
    All the above arrays are **row stochastic** meaning that the sum of the values in each row sum to 1.
-   This is because these are all probabilities and each row enumerates all possibilities, thus their total prbability must be 1.
+   This is because these are all probabilities and each row enumerates all possibilities, thus their total probability must be 1.
    Calculate values accordingly
 
 These are all printed as part of the reper for :class:`h2mm_model`
 
-There are ot number of other secondary parameters stored in the :class:`h2mm_model` object.
-The size of the matricies can be accessed with
+There are a number of other secondary parameters stored in the :class:`h2mm_model` object.
+The size of the matrices can be accessed with
 
 - :attr:`h2mm_model.nstate` the number of states
 - :attr:`h2mm_model.ndet` the number of detectors
@@ -246,11 +246,11 @@ The syntax is:
 Loop Based Analysis
 -------------------
 
-Since we need to compare different models, it is generally more usefull to run the analysis in a loop, and then compare the different optimizations.
+Since we need to compare different models, it is generally more useful to run the analysis in a loop, and then compare the different optimizations.
 
 In particular, the *ICL* is very useful in identifying the best model.
 
-We will also now use a data set with 3 detectors, so that we can see how different detector numbers affect the analylsis code.
+We will also now use a data set with 3 detectors, so that we can see how different detector numbers affect the analysis code.
 
 .. code-block::
 
@@ -446,7 +446,7 @@ This is done like so:
 
 .. code::
 
-    # define input prior, trans and obs matricies
+    # define input prior, trans and obs matrices
     prior = np.array([0.5,0.5])
     trans = np.array([[0.99999, 0.00001], [0.00001, 0.99999]])
     obs = np.array([[0.2, 0.3, 0.5], [0.4, 0.2, 0.4]])
@@ -479,12 +479,12 @@ We can optimize this just as before:
 
 You will notice that so far |H2MM| analysis has not given any estimation of the error of the parameter values.
 
-One way to estimate the error is to copare how quickly the loglikelihood falls off as a given parameter is varied around the optimized value.
+One way to estimate the error is to compare how quickly the loglikelihood falls off as a given parameter is varied around the optimized value.
 
-For this we not to just evaluate the loglikelihood of a model, instead of optmizing the model (we already have the optimized model).
+For this we not to just evaluate the loglikelihood of a model, instead of optimizing the model (we already have the optimized model).
 
 To merely evaluate a set of models, we have the :func:`H2MM_arr` function.
-The function call is nearely identical to :func:`EM_H2MM_C`:
+The function call is nearly identical to :func:`EM_H2MM_C`:
 
 ``hm.H2MM_arr(models: list[hm.h2mm_model], indexes: list[numpy.ndarray], times: list[numpy.ndarray])``
 
@@ -495,7 +495,7 @@ It can even be a tuple or numpy object array.
 :func:`H2MM_arr` will return the same data type it was given, but with the loglikelihoods of all the models evaluated.
 
 For error evaluation, we will make a list of models, and vary just one value in them.
-Since the 4 state model looks like the best model, lets try this on that model, and change the most iteresting transition rate, that from state 1 to state 2 (states indexing from 0 since this is python after all).
+Since the 4 state model looks like the best model, lets try this on that model, and change the most interesting transition rate, that from state 1 to state 2 (states indexing from 0 since this is python after all).
 
 .. code-block::
 
@@ -506,7 +506,7 @@ Since the 4 state model looks like the best model, lets try this on that model, 
 
     error_models = list()
     for tk in np.linspace(-2e-6, 2e-6, 41):
-        new_trans = trans_4s3d.copy() # copy so that tweeks can be make without changing the original array
+        new_trans = trans_4s3d.copy() # copy so that tweaks can be make without changing the original array
         new_trans[1,2] += tk
         new_trans[1,1] -= tk # adjust the diagonal so that matrix remains row stochastic
         tk_model = hm.h2mm_model(prior_4s3d, new_trans, obs_4s3d)

@@ -2,15 +2,13 @@
 // Author: Paul David Harris
 // Purpose: Header files for H2MM and H2MM Viterbi algorithm
 // Date Created: 13 Feb 2021
-// Date Modified: 14 Oct 2022
+// Date Modified: 31 Oct 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <pthread.h>
-#endif
-#ifdef _WIN32
+#elif _WIN32
 #include <windows.h>
 #endif
-
 
 // typedefs for fwd_back_photonbyphoton.c
 
@@ -25,7 +23,7 @@ typedef struct
 // Structure for building linked list fo bursts, before calculating deltas
 struct temp
 {
-	long len_burst; // size of burst
+	unsigned long len_burst; // size of burst
 	unsigned long long *times; // absolute arrival time
 	long *detectors; // detector index
 	struct temp *next; // pointer to next burst
@@ -46,26 +44,45 @@ typedef struct
 	double loglik; // loglike, updated by fwd_back_PhotonByPhoton threads
 } h2mm_mod;
 
+typedef struct
+{
+	unsigned long cur_burst; // next burst to work on
+	unsigned long num_burst; // total number of bursts in set
+#if defined(__linux__) || defined(__APPLE__)
+	pthread_mutex_t *burst_mutex; // mutex for checking on cur_burst
+#elif _WIN32
+	HANDLE burst_mutex; // mutex for checking on cur_burst
+#endif
+} brst_mutex;
 
 // structure contains all inputs for fwd_back_PhotonByPhoton
 typedef struct
 {
 	phstream *phot; // array of phstream structures (burst data)
+	h2mm_mod *current; // the h2mm_mod from last iteration
+	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
+	brst_mutex *burst_lock;
 	unsigned long max_phot; // the size of the larges burst, used for allocating various arrays
-	unsigned long *cur_burst; // ponter to same unsigned long, lets each thread of fwd_back_PhotonByPhoton know which burst to compute next
-	unsigned long num_burst; // number of bursts in data set, the size of the phot array
 	unsigned long sk; // number of states, indexing chosen to match
 	unsigned long sj; // square of the number of states
 	unsigned long si; // cube of the number of states
 	unsigned long sT; // fourth power of number of states
 	double *Rho; // Rho array, an sT x sk x sk x sk x sk array
 	double *A; // contains powers of transition matrix, a sT x sk x sK array
-	h2mm_mod *current; // the h2mm_mod from last iteration
-	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
-#if defined(__linux__) || defined(__APPLE__)
-	pthread_mutex_t *h2mm_lock; // mutex for checking on cur_burst
-#endif
+	// internal arrays, just to avoid having to calloc / free over and over
+	double* alpha; // no need to zero
+	double* beta; // no need to zero
+	double* b; // no need to zero
+	double** gamma; // no need to zero
+	double* xi_temp; // no need to zero
+	double* xi_summed; // zero after each iteration 
+	double* obs_temp; // zero after each iteration 
+	double* prior; // zero after each iteration
+	double loglik; // zero after each iteration
+	unsigned long llerror; // If a NAN or other was encountered in the calculation
 } fback_vals;
+
+
 
 // C_H2MM.c structures
 
@@ -122,90 +139,199 @@ typedef struct
 } ph_path;
 
 // structure contains all inputs for viterbi_burst thread
+
 typedef struct
 {
 	unsigned long si; // the number of states, also stride of 1st dimension of A
 	unsigned long sT; // stride of 0th dimension of A, gives power of A
-	unsigned long *cur_burst; // pointer to common record of next burst to be calculated
 	unsigned long max_phot; // size of larges burst, used for allocating arrays
-	unsigned long num_burst; // number of bursts in data set
 	double *A; // A array, the powers of the transition probability matrix
 	phstream *phot; // pointer to burst array, part of input
 	ph_path *path; // pointer to viterbi path found by viterbi algorithm
 	h2mm_mod *model; // h2mm model used in calculating the path
-#if defined(__linux__) || defined(__APPLE__)
-	pthread_mutex_t *vit_lock; // mutex for updating cur_burst
-#endif
+	brst_mutex *burst_lock; // mutex for updating cur_burst
 } vit_vals;
+
+// structure for threading loglik calculations
+typedef struct
+{
+	double *ll;
+	unsigned long **state;
+	h2mm_mod *model;
+	trpow *A;
+	phstream *b;
+	brst_mutex *burst_lock;
+} pll_vals;
 
 
 // Function definitions
 
-// C_H2MM.c function signatures
-unsigned long get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b); // builds burst arrays, and finds deltas between abolute arrival times
+// loop_functions.c definitions
+// Outer level functions for optimizating models against data
 
-void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func); // function to be used as a function pointer for printing to console
+int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
-h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call); // The algorithm called by the wrappers/interface files
+int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
-// fwd_back_photonbyphoton_par.c function signatures
+int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
-// function called by each thread in H2MM, each thread calculates succesive bursts
-#if defined(__linux__) || defined(__APPLE__)
-void* fwd_back_PhotonByPhoton(void* burst);
-#elif _WIN32
-DWORD WINAPI fwd_back_PhotonByPhoton(void* burst);
-#endif
+int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
-void h2mm_normalize(h2mm_mod *model_params); // funciton to normalize new H2MM model calculated by fw_back_PhotonByPhoton threads
 
-h2mm_mod* compute_ess_dhmm(unsigned long num_burst, phstream *b, pwrs *powers, h2mm_mod *in, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*), void *print_call); // called to optimize H2MM model, 
+// model_array.c functions
+// Outer level functions for calcualating loglik and gamma of arrays of models
 
-int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits); // calculate the loglik of an array of h2mm_mod based on single dataset
+int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, lm *limits);
 
-// rho_calc.c function signatures
+int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, double ****gamma, lm *limits);
 
-trpow* transpow(const unsigned long model, const unsigned long maxdif, const double* trans); // calculate the power of trans matrix
 
-void* rhoulate(void *vals); // calculates a power of Rho and A
+// viterbi.c functions
+// functions for performing viterbi analysis
 
-void* rho_all(unsigned long nstate, double* transmat, pwrs *powers); // calculated new Rho and A matrixes
-
-// model_limits_funcs.c functions signatures
-
-void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // reverts any values that are out of range to their previous values
-
-void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // reverts any values that are out of range to their values from the "old" model ie the model before the one whose loglik was just calculated 
-
-void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims); // replaces values that are out of range to the minimum or maximum value
-
-// viterbi.c function signatures 
-
-// function called by each thread in viterbi, each thread calculates succesive bursts
 #if defined(__linux__) || defined(__APPLE__)
 void* viterbi_burst(void* in_vals);
 #elif _WIN32
 DWORD WINAPI viterbi_burst(void* in_vals);
 #endif
 
-// main function for calculating the viterbi path 
-
 int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores);
 
-// C_H2MM_interface
+// burst_threads.c functions
+// functions for coordinating threads of h2mm optimizations
 
-temps* burst_read(char *fname, unsigned long *n); // read burst data from a .txt file
+unsigned long get_next_burst(brst_mutex *burst);
 
-h2mm_mod* h2mm_read(char *fname); // read h2mm model from .txt file
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_no_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_no_gamma(void* burst);
+#endif
 
-// simulation functions
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_gamma(void* burst);
+#endif
 
-void cumsum(unsigned long len, double* arr, double* dest); // calculate the cumulative sum of an array
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_only(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_only(void* burst);
+#endif
 
-unsigned long randchoice(unsigned long len, double* arr); // select a random set index within range len, based on array arr
 
-int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed); // generate random statepath based on model, with equally spaced times
+// fwd_back.c functions
+// core parts of the h2mm algorithm calculation
 
-int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed); // generate random statepath of sparsely spaced times
+void fwd_calc(fback_vals* D, unsigned long cur_burst, unsigned long recursion_size, unsigned long recursion_stride);
 
-int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed); // generate random set of detectors based on given statepath
+void bck_calc(fback_vals* D, unsigned long cur_burst, unsigned long recursion_size, unsigned long recursion_stride, double* gamma);
+
+void thread_update_h2mm_loglik(fback_vals* D);
+
+void thread_update_h2mm_arrays(fback_vals* D);
+
+
+// rho_calc.c functions
+// functions for pre-calculating powers of transition matrix and Rho
+
+trpow* transpow(unsigned long nstate, unsigned long maxdif, double* trans);
+
+void* rhoulate(void *vals);
+
+void* rho_all(unsigned long nstate, double* transmat, pwrs *powers);
+
+
+// model_limits_funcs.c functions
+// models for bouding models in optimizations
+
+int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits);
+
+int limit_check_only(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims);
+
+int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims);
+
+int limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims);
+
+int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims);
+
+
+// state_path.c functions
+// functions for generating Markov paths
+
+void cumsum(unsigned long len, double* arr, double* dest);
+
+unsigned long randchoice(unsigned long len, double* arr);
+
+int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed);
+
+int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed);
+
+int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed);
+
+
+// utils.c functions
+// miscilaneous small functions for basic tasks
+
+unsigned long get_max_delta(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, phstream *b);
+
+void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func);
+
+void h2mm_normalize(h2mm_mod *model_params);
+
+unsigned long get_max_det(unsigned long num_burst, phstream *bursts);
+
+unsigned long check_det(unsigned long num_burst, phstream *bursts, h2mm_mod *in_model);
+
+int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest);
+
+h2mm_mod* h2mm_model_calc_log(h2mm_mod *source);
+
+int copy_model(h2mm_mod *source, h2mm_mod *dest);
+
+int copy_model_vals(h2mm_mod *source, h2mm_mod *dest);
+
+h2mm_mod* allocate_models(const unsigned long n, const unsigned long nstate, const unsigned long ndet, const unsigned long nphot);
+
+int free_model(h2mm_mod *model);
+
+int free_models(const unsigned long n, h2mm_mod *model);
+
+int zero_model(h2mm_mod *model);
+
+unsigned long get_max_phot(unsigned long num_burst, phstream *bursts);
+
+pwrs* allocate_powers(h2mm_mod *in_model, unsigned long max_delta);
+
+int free_powers(pwrs *power);
+
+int free_trpow(trpow *power);
+
+int allocate_path(unsigned long nphot, unsigned long nstate, ph_path* path);
+
+int free_path_arrs(ph_path* path);
+
+ph_path* allocate_paths(unsigned long num_burst, unsigned long* len_burst, unsigned long nstate);
+
+int free_paths(unsigned long num_burst, ph_path* paths);
+
+// pathloglik.c functions
+
+int pathloglik(unsigned long num_burst, unsigned long *len_burst, unsigned long **deltas, unsigned long ** dets, unsigned long **states, h2mm_mod *model, double *loglik, unsigned long num_cores);
+
+#if defined(__linux__) || defined(__APPLE__)
+void* path_ll(void* in);
+#elif _WIN32
+DWORD WINAPI path_ll(void* in);
+#endif
+
+// C_H2MM_txtread.c functions
+
+temps* burst_read(char *fname, unsigned long *n);
+
+h2mm_mod* h2mm_read(char *fname);
+
+h2mm_mod* h2mm_read(char* fname);
+
+int print_model(h2mm_mod* model);

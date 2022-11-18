@@ -6,7 +6,7 @@ Customizing Optimization Progress Display
 .. seealso::
 
     This can also be viewed as a Jupyter Notebook
-    Downlaod :download:`H2MM_DisplayProgress.ipynb  <notebooks/H2MM_DisplayProgress.ipynb>`
+    Download :download:`H2MM_DisplayProgress.ipynb  <notebooks/H2MM_DisplayProgress.ipynb>`
 
     The data file can be downloaded here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
 
@@ -277,7 +277,7 @@ If you simply pass :code:`print_args = True` then the result of every iteration 
 
 As you can see, this is very verbose.
 
-Changing the Frequecy of Display Updates
+Changing the Frequency of Display Updates
 ****************************************
 
 If you would rather have periodic updates, then you can hand :code:`print_args` an integer instead.
@@ -328,7 +328,7 @@ You can even combine the integer argument and :code:`True`/:code:`False` argumen
 Custom Printing Functions
 -------------------------
 
-If you want to customize the display evne further, you can define your own display function.
+If you want to customize the display environment further, you can define your own display function.
 
 It must have at least 5 arguments, as :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize` will call it like so:
 
@@ -337,7 +337,7 @@ It must have at least 5 arguments, as :func:`EM_H2MM_C` or :meth:`h2mm_model.opt
 Where 
 
 - :code:`niter` is the number of iterations
-- :code:`new_model` is the :class:`h2mm_model` object that whose loglikelihood will be evaluate next (the product of the latest round in the optiization)
+- :code:`new_model` is the :class:`h2mm_model` object that whose loglikelihood will be evaluate next (the product of the latest round in the optimization)
 - :code:`current_model` is the :class:`h2mm_model` whose loglikelihood was just calculated, the "current" round of the optimization
 - :code:`old_model` is the :class:`h2mm_model` that was calculated the iteration just before.
 - :code:`t_iter` is the time (using the inaccurate C clock) it took to calculate the current iteration
@@ -407,11 +407,11 @@ And an example of it's use in action:
 Extra Arguments for :code:`print_func`
 **************************************
 
-Somtimes you might want even more flexibility in the display, maybe for instance you want to change display for several different optimizations, but would still like to use the same printing function.
+Sometimes you might want even more flexibility in the display, maybe for instance you want to change display for several different optimizations, but would still like to use the same printing function.
 
 For that, **H2MM_C** still has you covered.
 
-For this, you can add additional argumetns to your printer function (probably best as :code:`*args`), and supply those additional arguments by adding more elements to the `print_args` tuple- just make sure to specify the frequency and whether or not you want to keep the previous display:
+For this, you can add additional arguments to your printer function (probably best as :code:`*args`), and supply those additional arguments by adding more elements to the `print_args` tuple- just make sure to specify the frequency and whether or not you want to keep the previous display:
 
 .. code-block::
 

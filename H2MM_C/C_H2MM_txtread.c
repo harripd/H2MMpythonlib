@@ -32,7 +32,7 @@ temps* burst_read(char *fname, unsigned long *n)
 	long num_t, num_d;
 	//
 #if defined(__linux__) || defined(__APPLE__)
-	sunsigned long len_t, len_d;
+	unsigned long len_t, len_d;
 #elif _WIN32
 	int len_t, len_d;
 	lptr_t = (char*)malloc((unsigned long)BFRSIZ);
@@ -211,6 +211,7 @@ h2mm_mod* h2mm_read(char *fname)
 		n = 0;
 	}
 //~ printf("Done\n");
+	fclose(fid);
 	return mod;
 }
 #elif _WIN32

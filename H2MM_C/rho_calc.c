@@ -21,12 +21,13 @@
 #define FALSE 0
 
 // calculates just the powers of the trans matrix up to maxdif
-trpow* transpow(const unsigned long nstate, const unsigned long maxdif, const double* trans)
+trpow* transpow(unsigned long nstate, unsigned long maxdif, double* trans)
 {
 	// initialize variables
 	unsigned long i, j, k, t, istride, tstride, tstride_r, tistride, Ad;
 	double runsum;
-	trpow* power = (trpow*) malloc(sizeof(trpow));
+	trpow *power = (trpow*) malloc(sizeof(trpow));
+	
 	power->max_pow = maxdif;
 	power->sk = nstate;
 	power->sj = nstate * nstate;

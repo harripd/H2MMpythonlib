@@ -5,7 +5,7 @@ Object Oriented Tutorials
 
 This section details how to analyze data in an object oriented approach.
 This means calling methods instead of functions.
-The code is often clearner looking, but it can also be a little easier to make mistakes compared to the functional approach.
+The code is often cleaner looking, but it can also be easier to make mistakes compared to the functional approach.
 
 .. seealso::
 

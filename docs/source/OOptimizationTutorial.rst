@@ -6,7 +6,7 @@ Basic Optimizations with H2MM_C
 .. seealso::
 
     This can also be viewed as a Jupyter Notebook
-    Downlaod :download:`H2MM_Optimization_Tutorial-OOP.ipynb  <notebooks/H2MM_Optimization_Tutorial-OOP.ipynb>`
+    Download :download:`H2MM_Optimization_Tutorial-OOP.ipynb  <notebooks/H2MM_Optimization_Tutorial-OOP.ipynb>`
 
     The data files can be downloaded here: :download:`sample_data_2det.txt <notebooks/sample_data_2det.txt>` :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
 
@@ -31,7 +31,7 @@ The base steps of analysis with |H2MM| are:
 
 .. note::
 
-   Steps 2-4 are usually repeated mutliple times with different numbers of states and result compared to select the ideal model
+   Steps 2-4 are usually repeated multiple times with different numbers of states and result compared to select the ideal model
 
 Step 1: Load Data
 *****************
@@ -71,7 +71,7 @@ One list contains the detectors (indices) of the data.
 The second, the times of the data.
 
 - `color2` contains the detectors
-- `times2` contaisn the times of the data
+- `times2` contains the times of the data
 
 Both are lists of 1-D numpy arrays.
 
@@ -79,18 +79,18 @@ Both are lists of 1-D numpy arrays.
 
    The size of the detector list and time list, and of the arrays within must match.
    This is because each data point is a pair of numbers: the index of the detector, and the *absolute* time of the data point.
-   Each array (element of the two lists) is a sequence of data that is to be anlayzed as a separate instance of data that can be represented by the same hidden Markov model.
+   Each array (element of the two lists) is a sequence of data that is to be analyzed as a separate instance of data that can be represented by the same hidden Markov model.
    Therefore the length of `color2` must be the same as the length of `times2`
    Similarly, the length of the first array in `color2` must be the same as the length of the first array in `times2`.
    The lengths of the second arrays in `color2` and `times2` must also match, and so on.
    There is no need however for the lengths of the first and second arrays in `color2` and `times2` to match, as sequences of data points need not be the same length.
 
-For the next step, it is important that the nubmer of detectors is known, as this affects the initial model to be used.
+For the next step, it is important that the number of detectors is known, as this affects the initial model to be used.
 In the example loaded above, there are 2 detectors- 0 and 1.
 
 .. note::
 
-   Indices must start from 0 and go in integer ascendign order.
+   Indices must start from 0 and go in integer ascending order.
    I.E. if there are 2 detectors, you must use indices 0 and 1.
    Similarly, if there are 3 indices you must use indices 0, 1 and 2.
    And so on.
@@ -120,19 +120,19 @@ All you need to do is specify the number of states and the number of detectors.
 .. note::
 
     The number of **states** is arbitrary, as we will show later.
-    You shoudl compare several different numbers of states.
+    You should compare several different numbers of states.
     The number of **detectors**, however is determined by your data.
     For the file `sample_data_2det.txt` there are 2 detectors.
 
 So let's make the initial model.
-The synax is:
+The syntax is:
 `hm.factory_h2mm_model(nstate: int, ndet: int)`:
 
 So let's make an initial model:
 
 .. code-block::
 
-    model_3s2d = hm.facotry_h2mm_model(3,2) # 3states, 2 detectors
+    model_3s2d = hm.facotry_h2mm_model(3,2) # 3 states, 2 detectors
 
 Step 3: Optimize the Model
 **************************
@@ -175,19 +175,19 @@ In the following definition, N will indicate the number of states, and M the num
 - :attr:`h2mm_model.trans`: the transition probability matrix, of shape N by N, the probability of a transition happenign from state i to state j.
   .. note::
 
-     The units of the transition probability matrix are in units fo the clock-rate of the data
+     The units of the transition probability matrix are in units of the clock-rate of the data
 
 - :attr:`h2mm_model.obs`: the emission probability matrix, of shame N by M. The probability that if the system is in state i, the detector j will be observed.
 
 .. note::
 
    All the above arrays are **row stochastic** meaning that the sum of the values in each row sum to 1.
-   This is because these are all probabilities and each row enumerates all possibilities, thus their total prbability must be 1.
+   This is because these are all probabilities and each row enumerates all possibilities, thus their total probability must be 1.
    Calculate values accordingly
 
 These are all printed as part of the reper for :class:`h2mm_model`
 
-There are ot number of other secondary parameters stored in the :class:`h2mm_model` object.
+There are a number of other secondary parameters stored in the :class:`h2mm_model` object.
 The size of the matricies can be accessed with
 
 - :attr:`h2mm_model.nstate` the number of states
@@ -240,7 +240,7 @@ Since we need to compare different models, it is generally more usefull to run t
 
 In particular, the *ICL* is very useful in identifying the best model.
 
-We will also now use a data set with 3 detectors, so that we can see how different detector numbers affect the analylsis code.
+We will also now use a data set with 3 detectors, so that we can see how different detector numbers affect the analysis code.
 
 .. code-block::
 
@@ -334,11 +334,11 @@ For this we will start with a simple loop, optimizing for 1 to 4 states (there's
 |  0.4416386060438939, 0.0870081949493097, 0.4713531990067965
 |  0.8409805356960829, 0.07645731068492255, 0.08256215361899454]
  
-Now that several models have been calculated, it is imortant to select the ideal model, so you do not use over- or under-fit models that do not properly represent the data.
+Now that several models have been calculated, it is important to select the ideal model, so you do not use over- or under-fit models that do not properly represent the data.
 
 There are two primary criterion for this:
-#. A statistical discirminator like the *ICL* or *BIC*
-#. Reasonableness of the model based on prior knowldege fo the system.
+#. A statistical discriminator like the *ICL* or *BIC*
+#. Reasonableness of the model based on prior knowledge of the system.
 
 So let's plot the *ICL* to see what the best model is:
 
@@ -368,7 +368,7 @@ So let's plot the *ICL* to see what the best model is:
 
 So it looks like the ideal model (minimum *ICL*) is the 4 state model.
 
-But since this is also the most nubmer of states optimized, a 5 state model might be even better.
+But since this is also the most number of states optimized, a 5 state model might be even better.
 Even if the 4 state model is best, seeing that the *ICL* of the 5 state model increases, it is still best to optimize it so that we can be assured that the 4 state model is best.
 And if the 5 state model turns out to have an even smaller *ICL*, we should go on and optimize a 6 state model.
 
@@ -435,7 +435,7 @@ This is done like so:
 
 .. code::
 
-    # define input prior, trans and obs matricies
+    # define input prior, trans and obs matrices
     prior = np.array([0.5,0.5])
     trans = np.array([[0.99999, 0.00001], [0.00001, 0.99999]])
     obs = np.array([[0.2, 0.3, 0.5], [0.4, 0.2, 0.4]])
@@ -468,13 +468,13 @@ We can optimize this just as before:
 
    :ref:`h2mm_arr` which uses the :func:`H2MM_arr` instead.
    While in most other cases there is no practical difference in using the functional vs object oriented apprach, here, :meth:`h2mm_model.evaluate` will be slower, because there is more python interaction.
-   This is because some pre-processing must be done on the input data, which will be done everytime :meth:`h2mm_model.evaluate` is called, while if used appropriately :func:`H2MM_arr` will only do this once, and even features a few C level optimizations for iterating through the models, all this is lost when using the object oriented approach.
+   This is because some pre-processing must be done on the input data, which will be done every time :meth:`h2mm_model.evaluate` is called, while if used appropriately :func:`H2MM_arr` will only do this once, and even features a few C level optimizations for iterating through the models, all this is lost when using the object oriented approach.
 
 You will notice that so far |H2MM| analysis has not given any estimation of the error of the parameter values.
 
-One way to estimate the error is to copare how quickly the loglikelihood falls off as a given parameter is varied around the optimized value.
+One way to estimate the error is to compare how quickly the loglikelihood falls off as a given parameter is varied around the optimized value.
 
-For this we not to just evaluate the loglikelihood of a model, instead of optmizing the model (we already have the optimized model).
+For this we not to just evaluate the loglikelihood of a model, instead of optimizing the model (we already have the optimized model).
 
 To merely evaluate the loglikelihood of a model against some data,  we have the :meth:`h2mm_model.evaluate` function.
 The method call is identical to :meth:`h2mm_model.optimize`:
@@ -482,7 +482,7 @@ The method call is identical to :meth:`h2mm_model.optimize`:
 ``hm.H2MM_arr(models: list[hm.h2mm_model], indexes: list[numpy.ndarray], times: list[numpy.ndarray])``
 
 For error evaluation, we will make a list of models, and vary just one value in them.
-Since the 4 state model looks like the best model, lets try this on that model, and change the most iteresting transition rate, that from state 1 to state 2 (states indexing from 0 since this is python after all).
+Since the 4 state model looks like the best model, lets try this on that model, and change the most interesting transition rate, that from state 1 to state 2 (states indexing from 0 since this is python after all).
 
 .. code-block::
 

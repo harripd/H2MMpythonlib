@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #cython: language_level=3
 # Created 20 Feb 2021
-# Modified: 16 Aug 2022
+# Modified: 25 Oct 2022
 #Author: Paul David Harris
 """
 Module for analyzing data with photon by photon hidden Markov moddeling
@@ -11,7 +11,9 @@ import os
 import numpy as np
 cimport numpy as np
 from IPython.display import DisplayHandle, Pretty
+import IPython
 import warnings
+from libc.stdlib cimport malloc
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject
 
@@ -21,6 +23,10 @@ from cpython.ref cimport PyObject
 #      pass
 # cdef extern from "C_H2MM.c":
 #      pass
+
+cdef extern from "math.h":
+    bint isnan(double x)
+
 cdef extern from "C_H2MM.h":
     ctypedef struct lm:
         unsigned long max_iter
@@ -46,18 +52,33 @@ cdef extern from "C_H2MM.h":
         double loglik
         unsigned long *path
         double *scale
-        double *omega
+    int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest)
+    int copy_model(h2mm_mod *source, h2mm_mod *dest)
+    int copy_model_vals(h2mm_mod *source, h2mm_mod *dest)
+    int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest)
+    h2mm_mod* allocate_models(const unsigned long n, const unsigned long nstate, const unsigned long ndet, const unsigned long nphot)
+    ph_path* allocate_paths(unsigned long num_burst, unsigned long* len_burst, unsigned long nstate)
+    int free_paths(unsigned long num_burst, ph_path* paths)
+    int free_model(h2mm_mod *model)
+    int free_models(const unsigned long n, h2mm_mod *model)
     void h2mm_normalize(h2mm_mod *model_params)
-    h2mm_mod* C_H2MM(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, lm *limits, void (*model_limits_func)(h2mm_mod*,h2mm_mod*,h2mm_mod*,void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int compute_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *mod_array, lm *limits) nogil
-    int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
+    int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    unsigned long viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
     void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
-    void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
-    void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
-    void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+    int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, lm *limits) nogil
+    int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, double ****gamma, lm *limits) nogil
+    int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits)
+    int limit_check_only(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
+    int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
+    int limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
+    int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
     int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed)
     int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed)
     int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed)
+    int pathloglik(unsigned long num_burst, unsigned long *len_burst, unsigned long **deltas, unsigned long ** dets, unsigned long **states, h2mm_mod *model, double *loglik, unsigned long num_cores) nogil
 
 ctypedef struct bound_struct:
     void *func
@@ -99,6 +120,7 @@ cdef unsigned long* time_diff(np.ndarray time):
     delta[0] = 0
     for i in range(1,time.shape[0]):
         if time[i-1] > time[i]:
+            PyMem_Free(delta)
             return NULL
         df = <unsigned long> (time[i] - time[i-1])
         if df == 0:
@@ -118,15 +140,16 @@ cdef burst_free(unsigned long n, unsigned long** dets, unsigned long** deltas, u
 
 # make burst differences and burst times c arrays from lists
 cdef unsigned long* burst_convert(unsigned long num_burst, color, times, unsigned long** b_det, unsigned long** b_delta):
-    cdef unsigned long i
+    cdef unsigned long i = 0
     cdef unsigned long* b_size = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
-    for i in range(num_burst):
-        b_size[i] = color[i].shape[0]
-        b_det[i] = np_copy_ul(color[i])
-        b_delta[i] = time_diff(times[i])
+    for i, (col, tim) in enumerate(zip(enum_arrays(color), enum_arrays(times))):
+        b_size[i] = col.shape[0]
+        b_det[i] = np_copy_ul(col)
+        b_delta[i] = time_diff(tim)
         if b_delta[i] is NULL:
             burst_free(i+1, b_det, b_delta, b_size)
             return NULL
+        i += 1
     return b_size
 
 # copy array into numpy
@@ -138,6 +161,21 @@ cdef np.ndarray copy_to_np_ul(unsigned long lenp, unsigned long* arr):
     PyMem_Free(arr)
     return out
 
+cdef np.ndarray copy_to_np_d(unsigned long lenp, double* arr):
+    cdef np.ndarray out = np.empty(lenp, dtype=np.float64)
+    cdef i
+    for i in range(lenp):
+        out[i] = arr[i]
+    PyMem_Free(arr)
+    return out
+
+cdef enum_arrays(model_array):
+    if isinstance(model_array, (list, tuple)):
+        return iter(model_array)
+    elif isinstance(model_array, np.ndarray):
+        return iter(model_array.ravel())
+    else:
+        return iter((model_array, ))
 
 def verify_input(indexes, times, ndet):
     """
@@ -160,55 +198,58 @@ def verify_input(indexes, times, ndet):
         appropriate exception is returned
 
     """
-    index_t, times_t = type(indexes), type(times)
-    if index_t == times_t:
-        if index_t == np.ndarray:
-            if indexes.ndim != 1 or times.ndim != 1:
-                return NotImplementedError(f"H2MM_C does not support mutli-dimensinoal burst arrays")
-            elif indexes.shape[0] != times.shape[0]:
-                return ValueError(f"Mismatched bursts: indexes and times must have same number of bursts, got {indexes.shape[0]} and {times.shape[0]}")
-        elif index_t in (list, tuple):
-            if len(indexes) != len(times):
-                return ValueError(f"Mismatched bursts: indexes and times must be same size, got {len(indexes)} and {len(times)}")
-        else:
-            return TypeError(f"Unusable type: indexes and times must be of list, tuple or numpy array of numpy arrays, got {index_t}")
-    else:
+    cdef type indexes_t = type(indexes)
+    if indexes_t not in (list, tuple, np.ndarray):
+        return TypeError(f"Unusable type: indexes and times must be of list, tuple or numpy array of numpy arrays, got {indexes_t}")
+    elif indexes_t != type(times):
         return TypeError(f"Mismatched types: indexes and times must be same type")
+    elif array_size(indexes) != array_size(times):
+        return ValueError(f"Mismatched bursts: indexes and times must be same size, got {array_size(indexes)} and {array_size(times)}")
     cdef str burst_errors = str()
     cdef unsigned long max_ind = 0
     cdef unsigned long max_temp
-    cdef n = indexes.size if index_t == np.ndarray else len(indexes)
-    for i in range(n):
-        if type(indexes[i]) == type(times[i]) == np.ndarray:
-            if indexes[i].ndim == times[i].ndim == 1:
-                if indexes[i].shape[0] != times[i].shape[0]:
-                    burst_errors += f"{i}: Mismatched burst size: indexes has {indexes[i].shape[0]} photons while times has {times[i].shape[0]} photons\n"
-                elif indexes[i].shape[0] < 3:
-                    burst_errors += f"{i}: Insufficient photons: bursts must be at least 3 photons\n"
-                else:
-                    max_temp = <unsigned long> np.max(indexes[i])
-                    if max_ind >= ndet:
-                        burst_errors += f"{i}: Underdefined model: indexes has too many indices for given h2mm_model"
-                    elif max_ind < max_temp:
-                        max_ind = max_temp
+    cdef unsigned long n = indexes.size if indexes_t == np.ndarray else len(indexes)
+    for i, (index, time) in enumerate(zip(enum_arrays(indexes), enum_arrays(times))):
+        if isinstance(index, np.ndarray) and isinstance(time, np.ndarray):
+            if index.ndim != 1 or time.ndim != 1:
+                burst_errors += f"{i}: TypeError: bursts must be 1D numpy arrays, got {type(indexes[i])} and {type(times[i])}\n"
+            elif index.shape[0] != time.shape[0]:
+                burst_errors += f"{i}: Mismatched burst size: indexes has {indexes[i].shape[0]} photons while times has {times[i].shape[0]} photons\n"
+            elif index.shape[0] < 3:
+                burst_errors += f"{i}: Insufficient photons: bursts must be at least 3 photons\n"
+            elif not np.issubdtype(index.dtype, np.integer):
+                burst_errors += f"{i}: TypeError: indexes must integer arrays, got {indexes[i].dtype}\n"
+            elif np.any(index < 0):
+                burst_errors += f"{i}: ValueError: indexes contains negative values, indices must be non-negative\n"
+            elif np.any(np.diff(time) < 0):
+                burst_errors += f"{i}: ValueError: out of order photon\n"
             else:
-                burst_errors += f"{i}: Multidimensional burst array: bursts must be 1D\n"
-            if not np.issubdtype(indexes[i].dtype, np.integer):
-                burst_errors += f"{i}: TypeError: indexes must integer arrays, got {indexes[i].dtype}"
-            elif np.any(indexes[i] < 0):
-                burst_errors += f"{i}: ValueError: indexes contains negative values, indices must be non-negative"
+                max_temp = <unsigned long> np.max(index)
+                if max_temp >= ndet:
+                    burst_errors += f"{i}: ValueError: index exceeds model definition\n"
+                if max_temp > max_ind:
+                    max_ind = max_temp
         else:
-            burst_errors += f"{i}: TypeError: bursts must be 1D numpy arrays, got {type(indexes[i])} and {type(times[i])}\n"
+            burst_errors += f"{i}: TypeError: indexes and times must be 1D numpy arrays, got {type(index)} and {type(time)}\n"
     if burst_errors != str():
         return ValueError("Incorect type for bursts:\n" + burst_errors)
     else:
         return max_ind
     
 
+cdef tuple array_size(inp):
+    if isinstance(inp, (list, tuple)):
+        return (len(inp), )
+    elif isinstance(inp, np.ndarray):
+        return inp.shape
+    else:
+        return (1, )
+    
+
 cdef class opt_lim_const:
     """
-    Speical class for setting default optimization min/max values.
-    Provides access to and type prodtected setting of these values, 
+    Special class for setting default optimization min/max values.
+    Provides access to and type protected setting of these values, 
     either as attributes or keys.
     Attributes have same names as key-word arguments of functions.
     
@@ -347,14 +388,14 @@ cdef class opt_lim_const:
         Parameters
         ----------
         converged_min : float or None
-            Minimum difference between succesive iteration for optimization to be
+            Minimum difference between successive iteration for optimization to be
             considered converged, the value passed to
             the max_iter keyword argument.
 
         Returns
         -------
         converged_min : float
-            Minimum difference between succesive iteration for optimization to be
+            Minimum difference between successive iteration for optimization to be
             considered converged, if keyword argument is None, the value stored 
             in the default argument.
 
@@ -407,14 +448,46 @@ optimization_limits = opt_lim_const(max_iter=3600, max_time=np.inf, converged_mi
 cdef class h2mm_model:
     """
     The base class for storing objects representing the H2MM model, stores
-    the relevant matricies, loglikelihood and information about status of
-    optimization
+    the relevant matrices, loglikelihood and information about status of
+    optimization.
+    
+    Parameters
+    ----------
+    prior : numpy.ndarray
+        The initial probability matrix, 1D, size nstate
+    trans : numpy.ndarray
+        The transition probability matrix, 2D, shape [nstate, nstate]
+    obs : numpy.ndarray
+        The emission probability matrix, 2D, shape [nstate, ndet]
+    Optional Parameters
+    -------------------
+    .. note::
         
+        These are generally only used when trying to re-create a model from, for
+        instance a previous optimization of a closed notebook.
+    
+    loglik : float (optional)
+        The loglikelihood, always set with nphot otherwise BIC will not be calculated
+        correctly. Usually should be set by evaluation against data. Default is -inf
+    niter : int
+        The number of iterations, used for recreating previously optimized model.
+        Usually should be set by evaluation against data. Default is 0
+    nphot : int (optional)
+        The number of photons in data set used for optimization, should only be set
+        when recreating model, Usually should be set by evaluation against data.
+        Default is 0
+    is_conv : bool (optional)
+        Whether or not the model has met a convergence criterion, should only be 
+        set when recreating model, otherwise allow evaluation functions to handle
+        this operation. Default is False
     """
     cdef:
-        h2mm_mod model
+        h2mm_mod *model
     
-    def __cinit__(self, prior, trans, obs, loglik=-np.inf, niter = 0, nphot = 0, is_conv=False):
+    def __cinit__(self, *args, **kwargs):
+        self.model = NULL
+    
+    def __init__(self, prior, trans, obs, loglik=-np.inf, niter = 0, nphot = 0, is_conv=False):
         # if statements check to confirm first the correct dimensinality of input matrices, then that their shapes match
         cdef unsigned long i, j
         if prior.ndim != 1:
@@ -451,9 +524,8 @@ cdef class h2mm_model:
         prior = prior.astype('double')
         trans = trans.astype('double')
         obs = obs.astype('double')
-        self.model.nstate = <unsigned long> obs.shape[0]
-        self.model.ndet = <unsigned long> obs.shape[1]
-        self.model.nphot = nphot
+        # allocate and copy information over to h2mm_mod pointer
+        self.model = allocate_models(1, obs.shape[0], obs.shape[1], <unsigned long> nphot)
         if loglik == -np.inf:
             self.model.conv = 0
             self.model.loglik = <double> loglik
@@ -461,20 +533,72 @@ cdef class h2mm_model:
             self.model.conv = 3 if is_conv else 2
             self.model.loglik = <double> loglik
         # allocate and copy array values
-        self.model.trans = <double*> PyMem_Malloc(self.model.nstate**2 * sizeof(double))
         for i in range(self.model.nstate):
             for j in range(self.model.nstate):
                 self.model.trans[self.model.nstate*i + j] = trans[i,j]
-        self.model.prior = <double*> PyMem_Malloc(self.model.nstate * sizeof(double))
         for i in range(self.model.nstate):
             self.model.prior[i] = prior[i]
-        self.model.obs =  <double*> PyMem_Malloc(self.model.ndet * self.model.nstate * sizeof(double))
         for i in range(self.model.ndet):
             for j in range(self.model.nstate):
                 self.model.obs[self.model.nstate * i + j] = obs[j,i]
         self.normalize()
-    # a number of property defs so that the values are accesible from python
+        
+    def __dealloc__(self):
+        free_models(1, self.model)
+        
+    @staticmethod
+    cdef h2mm_model from_ptr(h2mm_mod *model):
+        cdef h2mm_model new = h2mm_model.__new__(h2mm_model)
+        new.model = model
+        return new
+        
+    def __repr__(self):
+        cdef unsigned long i, j
+        msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {self.model.conv}\n"
+        msg += "prior:\n"
+        for i in range(self.model.nstate):
+            msg += f"{self.model.prior[i]}, " if i < self.model.nstate -1 else f"{self.model.prior[i]}\n"
+        msg += "trans:\n"
+        for i in range(self.model.nstate):
+            for j in range(self.model.nstate):
+                msg += f"{self.model.trans[i*self.model.nstate + j]}"
+                msg += ", " if j < self.model.nstate -1 else "\n"
+        msg += "obs:\n"
+        for i in range(self.model.nstate):
+            for j in range(self.model.ndet):
+                msg += f"{self.model.obs[j*self.model.nstate + i]}"
+                msg += ", " if j < self.model.ndet - 1 else "\n"
+        return msg
     
+    def __str__(self):
+        if self.model.conv == 0:
+            msg = "Initial model, "
+            ll = ', loglik unknown'
+        elif self.model.conv == 1:
+            if self.model.loglik == 0.0:
+                msg = f"Non-calculated optimization model, {self.model.niter} iterations, "
+                ll = f'nphot={self.model.nphot}'
+            else:
+                msg = f"Mid-optimization, {self.model.niter} iterations, "
+                ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 2:
+            msg = "Non-optimzed model, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 3:
+            msg = f"Converged model, {self.model.niter} iterations, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 4:
+            msg = f"Max iterations {self.model.niter} iterations, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 5:
+            msg = f"Max time {self.model.niter} iterations, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 6:
+            msg = "Optimization stopped after error, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        return msg + f'States={self.model.nstate}, Streams={self.model.ndet}, ' + ll
+        
+    # a number of property defs so that the values are accesible from python
     @property
     def prior(self):
         """Prior probability matrix, 1D, size nstate"""
@@ -635,6 +759,8 @@ cdef class h2mm_model:
             return f'After {self.model.niter} iterations the optimization reached the time limit'
         elif self.model.conv == 6:
             return f'Optimization terminated because of reaching floating point NAN on iteration {self.model.niter}, returned the last viable model'
+        elif self.model.conv == 7:
+            return f'Model after optimal model found {self.model.niter}'
     
     @property
     def niter(self):
@@ -659,12 +785,12 @@ cdef class h2mm_model:
     
     def normalize(self):
         """For internal use, ensures all model arrays are row stochastic"""
-        h2mm_normalize(&self.model)
+        h2mm_normalize(self.model)
     
-    def optimize(self, indexes, times, max_iter=None, 
-              print_func='iter', print_args = None, bounds=None, 
-              bounds_func=None, max_time=None, converged_min=None, 
-              num_cores=None, reset_niter=False, inplace=True):
+    def optimize(self, indexes, times, max_iter=None, print_func='iter', 
+              print_args = None, bounds=None, bounds_func=None,
+              max_time=None, converged_min=None, num_cores=None, 
+              reset_niter=False, gamma = False, opt_array=False, inplace=True):
         """
         Optimize the H2MM model for the given set of data.
         
@@ -676,14 +802,14 @@ cdef class h2mm_model:
         ----------
         indexes : list of NUMPY 1D int arrays
             A list of the arrival indexes for each photon in each burst.
-            Each element of the list (a numpy array) cooresponds to a burst, and
+            Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
-            The indexes list must maintain  1to1 coorespondence to the times list
+            The indexes list must maintain  1-to-1 correspondence to the times list
         times : list of NUMPY 1D int arrays
             A list of the arrival times for each photon in each burst
-            Each element of the list (a numpy array) cooresponds to a burst, and
+            Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
-            The times list must maintain  1to1 coorespondence to the indexes list
+            The times list must maintain  1-to-1 correspondence to the indexes list
         
         print_func : None, str or callable, optional
             Specifies how the results of each iteration will be displayed, several 
@@ -706,7 +832,7 @@ cdef class h2mm_model:
                     **'all'**\: 
                         
                         prints out the full h2mm_model just evaluated, this is very
-                        verbose, and not genearlly recomended unless you really want
+                        verbose, and not generally recommended unless you really want
                         to know every step of the optimization
                     
                     **'diff'**\: 
@@ -735,13 +861,13 @@ cdef class h2mm_model:
                         prints out only the current iteration
                 
                 Callable: user defined function
-                    A python function for printing out a custom ouput, the function must
+                    A python function for printing out a custom output, the function must
                     accept the input of 
-                    (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`,f loat, float)
+                    (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`,float, float)
                     as the function will be handed (niter, new, current, old, t_iter, t_total)
                     from a special Cython wrapper. t_iter and t_total are the times
                     of the iteration and total time respectively, in seconds, based
-                    on the C level clock function, which is noteably inaccurate,
+                    on the C level clock function, which is notably inaccurate,
                     often reporting larger than actual values.
         
         print_args : 2-tuple/list (int, bool) or None, optional
@@ -803,7 +929,7 @@ cdef class h2mm_model:
         bounds : h2mm_limits, str, 4th input to callable, or None, optional
             The argument to be passed to the bounds_func function. If bounds_func is
             None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
-            or 'revert_old' (calling C-level bouding functions), then bounds must be
+            or 'revert_old' (calling C-level bounding functions), then bounds must be
             a :class:`h2mm_limits` object, if bounds_func is a callable, bounds must be an
             acceptable input as the fourth argument to the function passed to bounds_func
             Default is None
@@ -812,11 +938,11 @@ cdef class h2mm_model:
             :class:`h2mm_model`, if None (default) use value from optimization_limits. 
             Default is None
         max_time : float or None, optional
-            The maximum time (in seconds) before retunring current model
+            The maximum time (in seconds) before returning current model
             
             .. note:: 
                 
-                this uses the C clock, which has issues, often the time assesed by
+                this uses the C clock, which has issues, often the time assessed by
                 C, which is usually longer than the actual time. 
                 
             If None (default) use value from optimization_limits. 
@@ -824,7 +950,7 @@ cdef class h2mm_model:
         converged_min : float or None, optional
             The difference between new and current :class:`h2mm_model` to consider the model
             converged, the default setting is close to floating point error, it is
-            recomended to only increase the size. If None (default) use value from 
+            recommended to only increase the size. If None (default) use value from 
             optimization_limits. Default is None
         num_cores : int or None, optional
             the number of C threads (which ignore the gil, thus functioning more
@@ -833,7 +959,7 @@ cdef class h2mm_model:
             .. note:: 
                 
                 optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
-                are mutlithreaded. Because os.cpu_count() returns the number of threads,
+                are multithreaded. Because os.cpu_count() returns the number of threads,
                 not necessarily the number of cpus. For most machines, being multithreaded,
                 this actually returns twice the number of physical cores. Hence the default
                 to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
@@ -851,42 +977,82 @@ cdef class h2mm_model:
             max_iter, as the optimization will count the previous iterations towards
             the max_iter threshold.
             Default is False
+        gamma : bool, optional
+            Whether or not to return the gamma array, which gives the probabilities
+            of each photon being in a given state.
+            
+            .. note::
+                
+                If opt_array is True, then only the gamma arrays for the ideal
+                model are returned.
+                
+            Default is False
+        opt_array : bool
+            Defines how the result is returned, if False (default) then return only
+            the ideal model, if True, then a numpy array is returned containing all
+            models during the optimization.
+            
+            .. note::
+                
+                The last model in the array is the model after the convergence criterion
+                have been met. Therefore check the :attr:`h2mm_model.conv_code`, if it
+                is 7, then the second to last model is the ideal model. Still, usually
+                the last model will be so close to ideal that it will not make any 
+                significant difference.
+                
+            Default is False
         inplace : bool, optional
             Whether or not to store the optimized model in the current model object.
+            
+            .. note::
+                
+                When opt_array is True, then the ideal model is copied into the
+                current model object, while the return value contains all models
+                
             Default is True
         
         Returns
         -------
         out : h2mm_model
-            The optimized :class:`h2mm_model`. will return after one of the follwing conditions
-            are met: model has converged (according to converged_min, defaule 1e-14),
-            maximum iterations reached, maximum time has passed, or an error has occured
+            The optimized :class:`h2mm_model`. will return after one of the following conditions
+            are met: model has converged (according to converged_min, default 1e-14),
+            maximum iterations reached, maximum time has passed, or an error has occurred
             (usually the result of a nan from a floating point precision error)
+        gamma : list, tuple or np.ndarray (optional)
+            If gamma = True, this variable is returned, which contains (as numpy arrays)
+            the probabilities of each photon to be in each state, for each burst.
+            The arrays are returned in the same order and type as the input indexes,
+            individual data points organized as [photon, state] within each data
+            sequence.
             
         """
-        cdef unsigned long i
+        cdef h2mm_model out_model
         if self.model.conv == 4 and self.model.niter >= max_iter:
             max_iter = self.model.niter + max_iter
-        cdef h2mm_model out = EM_H2MM_C(self, indexes, times, 
-                        max_iter=max_iter, print_func=print_func, 
-                        print_args = print_args, bounds=bounds, 
-                        bounds_func=bounds_func,  max_time=max_time, 
-                        converged_min=converged_min, num_cores=num_cores,
-                        reset_niter=reset_niter)
+        out = EM_H2MM_C(self, indexes, times, max_iter=max_iter, 
+                        print_func=print_func, print_args = print_args, 
+                        bounds=bounds, bounds_func=bounds_func,  
+                        max_time=max_time, converged_min=converged_min, 
+                        num_cores=num_cores,reset_niter=reset_niter, 
+                        gamma=gamma, opt_array=opt_array)
         if inplace:
-            for i in range(self.model.nstate):
-                self.model.prior[i] = out.model.prior[i]
-            for i in range(self.model.nstate**2):
-                self.model.trans[i] = out.model.trans[i]
-            for i in range(self.model.nstate * self.model.ndet):
-                self.model.obs[i] = out.model.obs[i]
-            self.model.loglik = out.model.loglik
-            self.model.niter = out.model.niter
-            self.model.conv = out.model.conv
-            self.model.nphot = out.model.nphot
+            # separate the models from gamma
+            if gamma:
+                out_arr, gamma = out
+            else:
+                out_arr = out
+            # find the ideal model
+            if opt_array:
+                for i in range(out_arr.size, -1, -1):
+                    if out_arr[i] != 7:
+                        out_model = out_arr[i]
+                        break
+            else:
+                out_model = out
+            copy_model(out_model.model, self.model)
         return out
     
-    def evaluate(self, indexes, times, num_cores=None, 
+    def evaluate(self, indexes, times, gamma=False, num_cores=None, 
                  inplace=True):
         """
         Calculate the loglikelihood of the model given a set of data. The 
@@ -898,15 +1064,16 @@ cdef class h2mm_model:
         ----------
         indexes : list or tuple of NUMPY 1D int arrays
             A list of the arrival indexes for each photon in each burst.
-            Each element of the list (a numpy array) cooresponds to a burst, and
+            Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
-            The indexes list must maintain  1to1 coorespondence to the times list
+            The indexes list must maintain  1-to11 correspondence to the times list
         times : list or tuple of NUMPY 1D int arrays
             A list of the arrival times for each photon in each burst
-            Each element of the list (a numpy array) cooresponds to a burst, and
+            Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
-            The times list must maintain  1to1 coorespondence to the indexes list
-        
+            The times list must maintain  1-to-1 correspondence to the indexes list
+        gamma : bool (optional)
+            Whether or not to return the gamma array. (The default is False)
         num_cores : int or None, optional
             the number of C threads (which ignore the gil, thus functioning more
             like python processes), to use when calculating iterations.
@@ -914,7 +1081,7 @@ cdef class h2mm_model:
             .. note:: 
                 
                 optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
-                are mutlithreaded. Because os.cpu_count() returns the number of threads,
+                are multithreaded. Because os.cpu_count() returns the number of threads,
                 not necessarily the number of cpus. For most machines, being multithreaded,
                 this actually returns twice the number of physical cores. Hence the default
                 to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
@@ -923,84 +1090,35 @@ cdef class h2mm_model:
             If None (default) use value from optimization_limits. 
             Default is None
         inplace: bool, optional
-            Whether or not to store the eveluated model in the current model object.
+            Whether or not to store the evaluated model in the current model object.
             Default is True
         
         Returns
         -------
         out: h2mm_model
             The evaluated model
+        gamma_arr : list, tuple or np.ndarray (optional)
+            If gamma = True, this variable is returned, which contains (as numpy arrays)
+            the probabilities of each photon to be in each state, for each burst and model.
+            The arrays are returned in the same order and type as the indexes, 
+            individual data points organized as [photon, state] within each data
+            sequence.
         """
-        cdef h2mm_model out = H2MM_arr(self, indexes, times, num_cores=num_cores)
+        cdef h2mm_model out_model
+        if gamma:
+            out = H2MM_arr(self, indexes, times, gamma=gamma, num_cores=num_cores)
+            out_model, gamma = out
+        else:
+            out_model = H2MM_arr(self, indexes, times, gamma=gamma, num_cores=num_cores)
+            out = out_model
         if inplace:
-            for i in range(self.model.nstate):
-                self.model.prior[i] = out.model.prior[i]
-            for i in range(self.model.nstate**2):
-                self.model.trans[i] = out.model.trans[i]
-            for i in range(self.model.nstate * self.model.ndet):
-                self.model.obs[i] = out.model.obs[i]
-            self.model.loglik = out.model.loglik
-            self.model.niter = out.model.niter
-            self.model.conv = out.model.conv
-            self.model.nphot = out.model.nphot
+            copy_model(out_model.model, self.model)
+        
         return out
     
     def copy(self):
-        return model_copy_from_ptr(&self.model)
-    
-    def __repr__(self):
-        cdef unsigned long i, j
-        msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {self.model.conv}\n"
-        msg += "prior:\n"
-        for i in range(self.model.nstate):
-            msg += f"{self.model.prior[i]}, " if i < self.model.nstate -1 else f"{self.model.prior[i]}\n"
-        msg += "trans:\n"
-        for i in range(self.model.nstate):
-            for j in range(self.model.nstate):
-                msg += f"{self.model.trans[i*self.model.nstate + j]}"
-                msg += ", " if j < self.model.nstate -1 else "\n"
-        msg += "obs:\n"
-        for i in range(self.model.nstate):
-            for j in range(self.model.ndet):
-                msg += f"{self.model.obs[j*self.model.nstate + i]}"
-                msg += ", " if j < self.model.ndet - 1 else "\n"
-        return msg
-    
-    def __str__(self):
-        if self.model.conv == 0:
-            msg = "Initial model, "
-            ll = ', loglik unknown'
-        elif self.model.conv == 1:
-            if self.model.loglik == 0.0:
-                msg = f"Non-calculated optimization model, {self.model.niter} iterations, "
-                ll = f'nphot={self.model.nphot}'
-            else:
-                msg = f"Mid-optimization, {self.model.niter} iterations, "
-                ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 2:
-            msg = "Non-optimzed model, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 3:
-            msg = f"Converged model, {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 4:
-            msg = f"Max iterations {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 5:
-            msg = f"Max time {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 6:
-            msg = "Optimization stopped after error, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        return msg + f'States={self.model.nstate}, Streams={self.model.ndet}, ' + ll
-    
-    def __dealloc__(self):
-        if self.model.prior is not NULL:
-            PyMem_Free(self.model.prior)
-        if self.model.trans is not NULL:
-            PyMem_Free(self.model.trans)
-        if self.model.obs is not NULL:
-            PyMem_Free(self.model.obs)
+        """ Make a duplicate model in new memory"""
+        return model_copy_from_ptr(self.model)
 
 
 cdef class _h2mm_lims:
@@ -1080,7 +1198,7 @@ class h2mm_limits:
     ----------
     model : h2mm_model, optional
         An :class:`h2mm_model` to base the limits off of, if None. The main purpose
-        is to allow the user to check that the limts are valid for the model.
+        is to allow the user to check that the limits are valid for the model.
         Specifying this model will also lock the states/streams of the model,
         while if None, the limits is more flexible
         If None, none of these checks will be in place
@@ -1122,80 +1240,16 @@ class h2mm_limits:
         If None, no limits are set (all values min is 1.0)
         The default is None.
     nstate : int, optional
-        Number of states in the model to be optimzied, if set to 0, and not
-        spefied elsewhere, number of states is flexible.
+        Number of states in the model to be optimized, if set to 0, and not
+        specified elsewhere, number of states is flexible.
         The default is 0.
     ndet : int, optional
-        Number of streams in the model to be optimzied, if set to 0, and not
-        spefied elsewhere, number of states is flexible.
+        Number of streams in the model to be optimized, if set to 0, and not
+        specified elsewhere, number of states is flexible.
         The default is 0.
         
     """
     def __init__(self,model=None,min_prior=None,max_prior=None,min_trans=None,max_trans=None,min_obs=None,max_obs=None,nstate=0,ndet=0):
-        """
-        Special class for setting limits on the h2mm_model, as min and max values
-        If min/max kwarg is given ad a float, the minimum will be set as universal
-
-        Parameters
-        ----------
-        model : h2mm_model, optional
-            An :class:`h2mm_model` to base the limits off of, if None. The main purpose
-            is to allow the user to check that the limts are valid for the model.
-            Specifying this model will also lock the states/streams of the model,
-            while if None, the limits is more flexible
-            If None, none of these checks will be in place
-            The default is None.
-        min_prior : float or 1D numpy array, optional
-            The minimum value(s) of the prior array. If float, all values are
-            set the same, but unless fixed elsewhere, the number of states is
-            flexible.
-            If None, no limits are set (all values min is 0.0)
-            The default is None.
-        max_prior : float or 1D numpy array, optional
-            The maximum value(s) of the prior array. If float, all values are
-            set the same, but unless fixed elsewhere, the number of states is
-            flexible.
-            If None, no limits are set (all values min is 1.0)
-            The default is None.
-        min_trans : float or 2D square numpy array, optional
-            The minimum value(s) of the trans array. If float, all values are
-            set the same, but unless fixed elsewhere, the number of states is
-            flexible. Values on diagonal set to 0.0
-            If None, no limits are set (all values min is 0.0)
-            The default is None.
-        max_trans : float or 2D square numpy array, optional
-            The maximum value(s) of the trans array. If float, all values are
-            set the same, but unless fixed elsewhere, the number of states is
-            flexible. Values on diagonal set to 1.0
-            If None, no limits are set (all values min is 1.0)
-            The default is None.
-        min_obs : float or 2D numpy array, optional
-            The minimum value(s) of the obs array. If float, all values are
-            set the same, but unless fixed elsewhere, the number of states is
-            flexible.
-            If None, no limits are set (all values min is 0.0)
-            The default is None.
-        max_obs : float or 2D numpy array, optional
-            The maximum value(s) of the obs array. If float, all values are
-            set the same, but unless fixed elsewhere, the number of states is
-            flexible.
-            If None, no limits are set (all values min is 1.0)
-            The default is None.
-        nstate : int, optional
-            Number of states in the model to be optimzied, if set to 0, and not
-            spefied elsewhere, number of states is flexible.
-            The default is 0.
-        ndet : int, optional
-            Number of streams in the model to be optimzied, if set to 0, and not
-            spefied elsewhere, number of states is flexible.
-            The default is 0.
-            
-        Raises
-        ------
-        ValueError
-            Init method checks that the values are valid, and raises errors
-            describing the issue.
-        """
         none_kwargs = True
         if not isinstance(nstate,int) or not isinstance(ndet,int) or nstate < 0 or ndet < 0:
             raise TypeError("Cannot give negative or non-int values for nstate or ndet")
@@ -1263,7 +1317,7 @@ class h2mm_limits:
     
     def make_model(self,model,warning=True):
         """
-        Method for chekcing the limits arrays generated from the input model
+        Method for checking the limits arrays generated from the input model
         
         Parameters
         ----------
@@ -1621,18 +1675,8 @@ cdef void model_full_ptr_copy(h2mm_model in_model, h2mm_mod* mod_ptr):
     for i in range(in_model.model.nstate*in_model.model.ndet):
         mod_ptr.obs[i] = in_model.model.obs[i]
 
-    
-cdef h2mm_model model_from_ptr(h2mm_mod *model):
-    # function to make a h2mm_model object from a pointer generated by C code
-    cdef h2mm_model ret_model = h2mm_model(np.zeros((model.nstate)),np.zeros((model.nstate,model.nstate)),np.zeros((model.nstate,model.ndet)))
-    if ret_model.model.prior is not NULL:
-        PyMem_Free(ret_model.model.prior)
-    if ret_model.model.trans is not NULL:
-        PyMem_Free(ret_model.model.trans)
-    if ret_model.model.obs is not NULL:
-        PyMem_Free(ret_model.model.obs)
-    ret_model.model = model[0]
-    return ret_model
+
+# The wrapper for the user supplied python limits function
 
 cdef h2mm_model model_copy_from_ptr(h2mm_mod *model):
     # function for copying the values h2mm_mod C structure into an new h2mm_model object
@@ -1640,46 +1684,116 @@ cdef h2mm_model model_copy_from_ptr(h2mm_mod *model):
     # to the h2mm_model object do not change the original pointer
     # primarily used in the cy_limit function to create the model objects handed
     # to the user supplied python function
-    cdef h2mm_model ret_model = h2mm_model(np.zeros((model.nstate)),np.zeros((model.nstate,model.nstate)),np.zeros((model.nstate,model.ndet)))
-    cdef unsigned long i
-    for i in range(model.nstate):
-        ret_model.model.prior[i] = model.prior[i]
-    for i in range(model.nstate**2):
-        ret_model.model.trans[i] = model.trans[i]
-    for i in range(model.nstate*model.ndet):
-        ret_model.model.obs[i] = model.obs[i]
-    ret_model.model.niter = model.niter
-    ret_model.model.nphot = model.nphot
-    ret_model.model.conv = model.conv
-    ret_model.model.loglik = model.loglik
-    return ret_model
+    cdef h2mm_mod *ret_model = allocate_models(1, model.nstate, model.ndet, model.nphot)
+    copy_model(model, ret_model)
+    return h2mm_model.from_ptr(ret_model)
 
-cdef void model_copy_to_ptr(h2mm_model model, h2mm_mod *mod_ptr):
-    # copy a h2mm_model object prior, trans, and obs into the C structure
-    # skips other non-array values
-    # primarily for copying the output of the python function called by cy_limit
-    # into the C structure given by the pointer
-    if model.model.nstate != mod_ptr.nstate:
-        raise ValueError("Mismatched number of photon streams, got %d bounded model and %d from optimization" % (model.model.nstate, mod_ptr.nstate))
-    if model.model.ndet != mod_ptr.ndet:
-        raise ValueError("Mismatched number of photon streams, got %d bounded model and %d from optimization" % (model.model.ndet, mod_ptr.ndet))
-    for i in range(mod_ptr.nstate):
-        mod_ptr.prior[i] = model.model.prior[i]
-    for i in range(mod_ptr.nstate**2):
-        mod_ptr.trans[i] = model.model.trans[i]
-    for i in range(mod_ptr.nstate*mod_ptr.ndet):
-        mod_ptr.obs[i] = model.model.obs[i]
-
-# The wrapper for the user supplied python limits function
-cdef void cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims):
+cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, lm* limits, void *lims):
+    # initial checks ensuring model does not optimize too long or have loglik error
+    if current.niter >= limits.max_iter:
+        current.conv = 4
+        return 2
+    if time > limits.max_time:
+        current.conv = 5
+        return 2
+    if isnan(current.loglik):
+        old.conv = 6
+        return 1
+    cdef int ret
+    cdef h2mm_model limit_model
+    cdef h2mm_model old_mod = model_copy_from_ptr(old)
+    cdef h2mm_model cur_mod = model_copy_from_ptr(current)
+    cdef h2mm_model new_mod = model_copy_from_ptr(new)
     cdef bound_struct *bound = <bound_struct*> lims
-    cdef object func = <object> bound.func
-    cdef object limits = <object> bound.limits
-    cdef h2mm_model new_model = model_copy_from_ptr(new)
-    cdef h2mm_model current_model = model_copy_from_ptr(current)
-    cdef h2mm_model old_model = model_copy_from_ptr(old)
-    cdef h2mm_model bounded_model = func(new_model, current_model, old_model, limits)
-    model_copy_to_ptr(bounded_model,new)
+    cdef unsigned long niter = current.niter
+    cdef object func = <object> bound.func 
+    cdef object py_limits = <object> bound.limits
+    h2mm_normalize(new)
+    new.niter = niter + 1
+    # execute the limit function
+    try:
+        limit_res = func(new_mod, cur_mod, old_mod, py_limits)
+    except:
+        current.conv = 6
+        return -4
+    if not isinstance(limit_res, (list, tuple, h2mm_model, np.ndarray, int)):
+        current.conv = 6
+        return -4
+    elif isinstance(limit_res, bool):
+        if limit_res:
+            current.conv = 2
+            new.conv = 7
+            return 0
+        else:
+            old.conv = 3
+            current.conv = 7
+            return 1
+    elif isinstance(limit_res, int):
+        if limit_res == 0:
+            current.conv = 2
+            new.conv = 1
+            return 0
+        elif limit_res == 1:
+            old.conv = 3
+            current.conv = 7
+            return 1
+        elif limit_res == 2:
+            current.conv = 3
+            return 2
+        else:
+            old.conv = 6
+            return -4
+    elif isinstance(limit_res, h2mm_model): # when limit function only returns h2mm_model
+        limit_model = limit_res
+        # check that return model is valid
+        if limit_model.model.ndet != current.ndet or limit_model.model.nstate != current.nstate:
+            old.conv = 6
+            return -3
+        ret = h2mm_check_converged(new, current, old, time, limits)
+        if ret != 0:
+            return ret
+        else:
+            copy_model_vals(limit_model.model, new)
+            return ret
+    # if the function returns 2 values, run longer processing code
+    elif isinstance(limit_res, (list, tuple, np.ndarray)):
+        # check deeper validity of return value
+        if len(limit_res) != 2 or not isinstance(limit_res[0], h2mm_model) or not isinstance(limit_res[1], (bool, int)) or limit_res[1] > 2:
+            old.conv = 6
+            return -4
+        limit_model = limit_res[0]
+        if limit_model.model.ndet != current.ndet or limit_model.model.nstate != current.nstate: # bad return model
+            old.conv = 6
+            return -3
+        copy_model_vals(limit_model.model, new)
+        if isinstance(limit_res[1], bool):
+            if limit_res[1]:
+                current.conv = 2
+                new.conv = 1
+                return 0
+            else:
+                old.conv = 3
+                current.conv = 7
+                return 1
+        else:
+            ret = limit_res[1]
+            if ret == 0:
+                current.conv = 2
+                new.conv = 1
+            elif ret == 1:
+                old.conv = 3
+                current.conv = 7
+            elif ret == 2:
+                current.conv = 3
+            else:
+                old.conv = 6
+                return -3
+            return ret
+    else:
+        old.conv = 6
+        return -4
+
+
 
 # The wrapper for the user supplied print function
 cdef void model_print_call(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
@@ -1776,25 +1890,105 @@ cdef void model_print_comp_time(unsigned long niter, h2mm_mod *new, h2mm_mod *cu
             disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
         disp_handle.update(disp_txt)
 
+
 # function to hand to the print_func, prints current and old loglik
 cdef void model_print_iter(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
     cdef print_args_struct *print_args = <print_args_struct*> func
-    cdef object disp_txt = <object> print_args.txt
-    cdef object disp_handle = <object> print_args.handle
+    cdef object disp_txt = <object> print_args.txt if print_args.txt is not NULL else None
+    cdef object disp_handle = <object> print_args.handle if print_args.handle is not NULL else None
     if niter % print_args.disp_freq == 0:
         if print_args.keep == 1:
             disp_txt.data += f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
         else:
             disp_txt.data = f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
         disp_handle.update(disp_txt)
+  
+# function to generate numpy array of 2d numpy double arrays (primarily for returning gamma)
+cdef np.ndarray gen_gamma_numpy(tuple shape, unsigned long* dim1, unsigned long dim2, double** arrays):
+    cdef unsigned long i
+    cdef unsigned long size = 1
+    for i in shape:
+        size *= i
+    cdef np.ndarray[object] out = np.empty(size, dtype=object)
+    for i in range(size):
+        out[i] = copy_to_np_d(dim1[i] * dim2, arrays[i]).reshape((dim1[i], dim2))
+    return out.reshape(shape)
 
+ # function to generate list or tuple of 2d numpy double arrays (primarily for returning gamma)
+cdef gen_gamma_py(type tp, tuple shape, unsigned long* dim1, unsigned long dim2, double** arrays):
+    return tp(copy_to_np_d(dim1[i]*dim2, arrays[i]).reshape((dim1[i], dim2)) for i in range(shape[0]))
+
+# wrapper to choose correct gamma generating function
+cdef gen_gamma(type tp, tuple shape, unsigned long* dim1, unsigned long dim2, double** gamma):
+    if tp == np.ndarray:
+        return gen_gamma_numpy(shape, dim1, dim2, gamma)
+    elif tp in (list, tuple):
+        return gen_gamma_py(tp, shape, dim1, dim2, gamma)
+
+# function to generate numpy array of 1d numpy unsigned long arrays (primarily for returning path)
+cdef np.ndarray gen_path_numpy(tuple shape, unsigned long* dim1, unsigned long** arrays):
+    cdef unsigned long i
+    cdef unsigned long size = 1
+    for i in shape:
+        size *= i
+    cdef np.ndarray[object] out = np.empty(size, dtype=object)
+    for i in range(size):
+        out[i] = copy_to_np_ul(dim1[i], arrays[i])
+    return out.reshape(shape)
+
+ # function to generate list or tuple of 1d numpy unsinged long arrays (primarily for returning path)
+cdef gen_path_py(type tp, tuple shape, unsigned long* dim1, unsigned long** arrays):
+    return tp(copy_to_np_ul(dim1[i], arrays[i]) for i in range(shape[0]))
+
+
+# function to generate numpy array of 1d numpy double arrays (primarily for returning scale)
+cdef np.ndarray gen_scale_numpy(tuple shape, unsigned long* dim1, double** arrays):
+    cdef unsigned long i
+    cdef unsigned long size = 1
+    for i in shape:
+        size *= i
+    cdef np.ndarray[object] out = np.empty(size, dtype=object)
+    for i in range(size):
+        out[i] = copy_to_np_d(dim1[i], arrays[i])
+    return out.reshape(shape)
+
+ # function to generate list or tuple of 1d numpy double arrays (primarily for returning scale)
+cdef gen_scale_py(type tp, tuple shape, unsigned long* dim1, double** arrays):
+    return tp(copy_to_np_d(dim1[i], arrays[i]) for i in range(shape[0]))
+
+
+# wrapper to choose correct path generating function
+cdef gen_path(type tp, tuple shape, unsigned long* dim1, ph_path* path):
+    cdef unsigned long i
+    cdef unsigned long size = 1
+    for i in shape:
+        size *= i
+    cdef unsigned long **ppath = <unsigned long**> PyMem_Malloc(size*sizeof(unsigned long*))
+    cdef double **pscale = <double**> PyMem_Malloc(size*sizeof(double*))
+    # build pointer arrays from path and scale
+    for i in range(size):
+        ppath[i] = path[i].path
+        pscale[i] = path[i].scale
+    if tp == np.ndarray:
+        rpath = gen_path_numpy(shape, dim1, ppath)
+        rscale = gen_scale_numpy(shape, dim1, pscale)
+    elif tp in (list, tuple):
+        rpath = gen_path_py(tp, shape, dim1, ppath)
+        rscale = gen_scale_py(tp, shape, dim1, pscale)
+    if ppath is not NULL:
+        PyMem_Free(ppath)
+        ppath = NULL
+    if pscale is not NULL:
+        PyMem_Free(pscale)
+        pscale = NULL
+    return rpath, rscale
 
 def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None, 
               print_func='iter', print_args=None, bounds_func=None, 
               bounds=None, max_time=np.inf, converged_min=None, 
-              num_cores=None, reset_niter=True):
+              num_cores=None, reset_niter=True, gamma=False, opt_array = False):
     """
-    Calcualate the most likely model that explains the given set of data. The 
+    Calculate the most likely model that explains the given set of data. The 
     input model is used as the start of the optimization.
 
     Parameters
@@ -1805,14 +1999,14 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         initial guess is very far off
     indexes : list of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The indexes list must maintain  1to1 coorespondence to the times list
+        The indexes list must maintain  1-to-1 correspondence to the times list
     times : list of NUMPY 1D int arrays
         A list of the arrival times for each photon in each burst
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The times list must maintain  1to1 coorespondence to the indexes list
+        The times list must maintain  1-to-1 correspondence to the indexes list
     
     print_func : None, str or callable, optional
         Specifies how the results of each iteration will be displayed, several 
@@ -1835,7 +2029,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
                 **'all'**\: 
                     
                     prints out the full :class:`h2mm_model` just evaluated, this is very
-                    verbose, and not genearlly recomended unless you really want
+                    verbose, and not generally recommended unless you really want
                     to know every step of the optimization
                 
                 **'diff'**\: 
@@ -1864,13 +2058,13 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
                     prints out only the current iteration
             
             Callable: user defined function
-                A python function for printing out a custom ouput, the function must
+                A python function for printing out a custom output, the function must
                 accept the input of 
                 (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`, float, float)
                 as the function will be handed (niter, new, current, old, t_iter, t_total)
                 from a special Cython wrapper. t_iter and t_total are the times
                 of the iteration and total time respectively, in seconds, based
-                on the C level clock function, which is noteably inaccurate,
+                on the C level clock function, which is notably inaccurate,
                 often reporting larger than actual values.
     
     print_args : 2-tuple/list (int, bool) or None, optional
@@ -1933,7 +2127,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     bounds : h2mm_limits, str, 4th input to callable, or None, optional
         The argument to be passed to the bounds_func function. If bounds_func is
         None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
-        or 'revert_old' (calling C-level bouding functions), then bounds must be
+        or 'revert_old' (calling C-level bounding functions), then bounds must be
         a :class:`h2mm_limits` object, if bounds_func is a callable, bounds must be an
         acceptable input as the fourth argument to the function passed to bounds_func
         Default is None
@@ -1942,14 +2136,14 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         :class:`h2mm_model`, if None (default) use value from optimization_limits. 
         Default is None
     max_time : float or None, optional
-        The maximum time (in seconds) before retunring current model
-        NOTE this uses the C clock, which has issues, often the time assesed by
+        The maximum time (in seconds) before returning current model
+        NOTE this uses the C clock, which has issues, often the time assessed by
         C, which is usually longer than the actual time. If None (default) use
         value from optimization_limits. Default is None
     converged_min : float or None, optional
         The difference between new and current :class:`h2mm_model` to consider the model
         converged, the default setting is close to floating point error, it is
-        recomended to only increase the size. If None (default) use value from 
+        recommended to only increase the size. If None (default) use value from 
         optimization_limits. Default is None
     num_cores : int or None, optional
         the number of C threads (which ignore the gil, thus functioning more
@@ -1958,7 +2152,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         .. note:: 
             
             optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
-            are mutlithreaded. Because os.cpu_count() returns the number of threads,
+            are multithreaded. Because os.cpu_count() returns the number of threads,
             not necessarily the number of cpus. For most machines, being multithreaded,
             this actually returns twice the number of physical cores. Hence the default
             to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
@@ -1976,25 +2170,60 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         max_iter, as the optimization will count the previous iterations towards
         the max_iter threshold.
         Default is False
+    gamma : bool, optional
+        Whether or not to return the gamma array, which gives the probabilities
+        of each photon being in a given state.
+        
+        .. note::
+            
+            If opt_array is True, then only the gamma arrays for the ideal
+            model are returned.
+        
+        Default is False
+    opt_array : bool
+        Defines how the result is returned, if False (default) then return only
+        the ideal model, if True, then a numpy array is returned containing all
+        models during the optimization.
+        
+        .. note::
+            
+            The last model in the array is the model after the convergence criterion
+            have been met. Therefore check the :attr:`h2mm_model.conv_code`, if it
+            is 7, then the second to last model is the ideal model. Still, usually
+            the last model will be so close to ideal that it will not make any 
+            significant difference
+            
+        Default is False
     
     Returns
     -------
     out : h2mm_model
-        The optimized :class:`h2mm_model`. will return after one of the follwing conditions
-        are met: model has converged (according to converged_min, defaule 1e-14),
-        maximum iterations reached, maximum time has passed, or an error has occured
+        The optimized :class:`h2mm_model`. will return after one of the following conditions
+        are met: model has converged (according to converged_min, default 1e-14),
+        maximum iterations reached, maximum time has passed, or an error has occurred
         (usually the result of a nan from a floating point precision error)
         
+    gamma : list, tuple or np.ndarray (optional)
+        If gamma = True, this variable is returned, which contains (as numpy arrays)
+        the probabilities of each photon to be in each state, for each burst.
+        The arrays are returned in the same order and type as the input indexes,
+        individual data points organized as [photon, state] within each data
+        sequence.
+        
     """
+    # check inputs are valid
     burst_check = verify_input(indexes, times, h_mod.model.ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
     if h_mod.model.ndet > burst_check + 1:
         warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {burst_check + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
-    if isinstance(indexes, tuple):
-        indexes = list(indexes)
-        times = list(times)
-    cdef unsigned long num_burst = len(indexes)
+    # check the bounds_func
+    cdef unsigned long num_burst = indexes.size if isinstance(indexes, np.ndarray) else len(indexes)
+    cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
+    cdef tuple print_strings = (None,'console','all','diff','diff_time','comp','comp_time','iter')
+    cdef object disp_txt = Pretty("Print Func validation")
+    cdef object disp_handle = DisplayHandle()
+    disp_handle.display(disp_txt)
     cdef h2mm_model h_test_new = h_mod.copy()
     cdef h2mm_model h_test_current = h_mod.copy()
     cdef h2mm_model h_test_old = h_mod.copy()
@@ -2002,44 +2231,12 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     h_test_new.model.conv, h_test_current.model.conv, h_test_old.model.conv = 1, 1, 1
     h_test_new.model.nphot, h_test_current.model.nphot, h_test_old.model.nphot = 1000, 1000, 1000
     h_test_new.model.loglik, h_test_current.model.loglik, h_test_old.model.loglik = -0.0, -2e-4, -3e-4
-    cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
-    cdef tuple print_strings = (None,'console','all','diff','diff_time','comp','comp_time','iter')
-    # check the bounds_func
-    disp_txt = Pretty("Preparing Data")
-    disp_handle = DisplayHandle()
-    disp_handle.display(disp_txt)
-    if callable(bounds_func):
-        try:
-            disp_txt.data = "bounds_func validation"
-            disp_handle.update(disp_txt)
-            test_lim = bounds_func(h_test_new,h_test_current,h_test_old, bounds)
-            disp_txt.data += "\nbounds_func validated"
-            disp_handle.update(disp_txt)
-        except Exception as exep:
-            disp_txt.data += "\nInvalid bounds_func/bounds argument"
-            disp_handle.update(disp_txt)
-            raise exep
-        if not isinstance(test_lim,h2mm_model):
-            raise ValueError("bounds_func must return h2mm_model, got {type(test_lim)}")
-    elif type(bounds) == h2mm_limits:
-        if bounds_func is None:
-            bounds_func = 'minmax'
-        elif bounds_func not in bounds_strings:
-            raise ValueError("Invalid bounds_func input, if bounds is h2mm_limits object, then bounds_func must be 'minmax', 'revert', or 'revert_old'")
-    elif bounds is None:
-        if bounds_func in bounds_strings:
-            raise ValueError(f"Must specify bounds with h2mm_limits object when bounds_func is specified as '{bounds_func}'")
-        elif bounds_func is not None:
-            raise TypeError("bounds_func must be None or callable when bounds is None")
-    else:
-        raise TypeError(f"bounds must be either None or h2mm_limits unless bounds_func is callable. got type({type(bounds)})")
-    # chekc print_func
     if print_func not in print_strings and not callable(print_func):
         raise ValueError("print_func must be None, 'console', 'all', 'diff', or 'comp' or callable")
     if print_func in print_strings:
-        if not isinstance(print_args, (int, bool, tuple,list)) and print_args is not None:
+        if not isinstance(print_args, (int, bool, tuple, list)) and print_args is not None:
             raise TypeError(f"print_args must be None, int, bool, or a 2-tuple or 2-list, got {type(print_args)}")
-        elif (isinstance(print_args,tuple) or isinstance(print_args,list)) and len(print_args) != 2:
+        elif isinstance(print_args, (tuple, list)) and len(print_args) != 2:
             raise TypeError(f"If print args is a tuple or list, it must have length 2, got {len(print_args)}")
         elif type(print_args) in (tuple,list) and (not isinstance(print_args[0],int) or not isinstance(print_args[1],bool)):
             raise ValueError("For print_args as 2-tuple or 2-list, but be composed of (int, bool) types, got ({type(print_args[0])}, {type(print_args[0])})")
@@ -2079,7 +2276,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
             disp_txt.data += "print_func invalid function, must take (niter,new,current,old,t_iter,t_total,*print_args)\n"
             disp_handle.update(disp_txt)
             raise e
-    # set up the limits function
+    # set up optimzation min/max limits
     cdef lm limits
     limits.max_iter = <unsigned long> optimization_limits._get_max_iter(max_iter)
     limits.num_cores = <unsigned long> optimization_limits._get_num_cores(num_cores)
@@ -2126,21 +2323,30 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
 
     # allocate the memory for the pointer arrays to be submitted to the C function
     # print("Allocating C bursts data")
+    disp_txt.data = "Preparing data"
+    disp_handle.update(disp_txt)
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
     if burst_sizes is NULL:
+        if ptr_print_args is not NULL: 
+            PyMem_Free(ptr_print_args)
+            ptr_print_args = NULL
+        if ptr_print_struct is not NULL:
+            PyMem_Free(ptr_print_struct)
+            ptr_print_struct = NULL
         raise ValueError("Photon out of order")
     # print("Done Allocating C bursts data")
     # if the bounds_func is not None, then setup the bounds arrays
-    cdef void (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, void*)
+    cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*)
     cdef void *b_ptr
-    
     # cdef h2mm_minmax *bound = <h2mm_minmax*> PyMem_Malloc(sizeof(h2mm_minmax))
+    disp_txt.data = "Bounds preparation"
+    disp_handle.update(disp_txt)
     cdef _h2mm_lims bound
     cdef bound_struct *b_struct = <bound_struct*> PyMem_Malloc(sizeof(bound_struct))
     if bounds_func is None:
-        bound_func = NULL
+        bound_func = limit_check_only
         b_ptr = NULL
     elif bounds_func in ['minmax', 'revert', 'revert_old']:
         bound = bounds._make_model(h_mod)
@@ -2160,36 +2366,126 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef unsigned long old_niter = h_mod.model.niter
     if reset_niter:
         h_mod.model.niter = 0
+    # disp_handle.update(disp_txt)
+    cdef int res
+    cdef unsigned long i, n
+    cdef h2mm_mod *out_arr
+    cdef double **gamma_arr = NULL
+    disp_txt.data = "Bounds prepared"
     disp_handle.update(disp_txt)
-    cdef h2mm_mod* out_model = C_H2MM(num_burst,burst_sizes,b_delta,b_det,&h_mod.model,&limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
+    # based on gamma and opt_array kwargs, choose which h2mm optimization to run
+    if gamma and opt_array:
+        res =  h2mm_optimize_gamma_array(num_burst,burst_sizes,b_delta,b_det, h_mod.model, &out_arr, &gamma_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
+    elif gamma:
+        out_arr = allocate_models(1, h_mod.nstate, h_mod.ndet, 0)
+        res =  h2mm_optimize_gamma(num_burst,burst_sizes,b_delta,b_det, h_mod.model, out_arr, &gamma_arr,&limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
+    elif opt_array:
+        res =  h2mm_optimize_array(num_burst,burst_sizes,b_delta,b_det, h_mod.model, &out_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
+    else:
+        out_arr = allocate_models(1, h_mod.nstate, h_mod.ndet, 0)
+        res =  h2mm_optimize(num_burst,burst_sizes,b_delta,b_det, h_mod.model, out_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
+    if gamma and res >= 0:
+        gamma_out = gen_gamma(type(indexes), array_size(indexes), burst_sizes, h_mod.model.nstate, gamma_arr)
+        if gamma_arr is not NULL:
+            PyMem_Free(gamma_arr)
+            gamma_arr = NULL
     cdef unsigned long keep = ptr_print_args.keep
-    PyMem_Free(b_struct)
+    # free pointers
+    if b_struct is not NULL:
+        PyMem_Free(b_struct)
+        b_struct = NULL
     burst_free(num_burst, b_det, b_delta, burst_sizes)
-    PyMem_Free(ptr_print_args)
-    h_mod.model.niter = old_niter
-    # free the limts arrays
-    if out_model is NULL:
-        raise ValueError('Bursts photons are out of order, please check your data')
-    elif out_model == &h_mod.model:
+    if ptr_print_args is not NULL:
+        PyMem_Free(ptr_print_args)
+        ptr_print_args = NULL
+    if ptr_print_struct is not NULL:
+        PyMem_Free(ptr_print_struct)
+        ptr_print_struct = NULL
+    h_mod.model.niter = old_niter # restore niter of input model (if reset_niter, this was reset to 0)
+    # post processing, converting
+    cdef unsigned long conv, niter
+    if opt_array and res > 0:
+        n = 0
+        while out_arr[n].conv != 1 and n < limits.max_iter + 2:
+            n += 1
+        n -= 1
+        out = np.array([model_copy_from_ptr(&out_arr[i]) for i in range(n+1)], dtype=object)
+        free_models(limits.max_iter + 2, out_arr)
+        niter = out_arr[n].niter
+        conv = out_arr[n].conv
+    elif res > 0:
+        conv = out_arr.conv
+        niter = out_arr.niter
+        out = h2mm_model.from_ptr(out_arr)
+    # process the return code
+    if res == -1:
+        raise ValueError('Bad pointer, check cython code')
+    elif res == -2:
         raise ValueError('Too many photon streams in data for H2MM model')
-    cdef h2mm_model out = model_from_ptr(out_model)
-    if out.model.conv == 3:
-        out_text = f'The model converged after {out.model.niter} iterations'
-    elif out.model.conv == 4:
+    elif res == -3:
+        raise ValueError('limits function must return model of same shape as inintial model')
+    elif res == -4:
+        raise TypeError('limits function must return bool, h2mm_model, (h2mm_model, bool) or (h2mm_model, int [0,2])')
+    elif res < -4:
+        raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
+    elif conv == 3:
+        out_text = f'The model converged after {niter} iterations'
+    elif conv == 4:
         out_text = 'Optimization reached maximum number of iterations'
-    elif out.model.conv == 5:
+    elif conv == 5:
         out_text = 'Optimization reached maxiumum time'
-    elif out.model.conv == 6:
-        out_text = f'An error occured on iteration {out.model.niter}, returning previous model'
+    elif conv == 6:
+        out_text = f'An error occured on iteration {niter}, returning previous model'
+    elif conv == 7:
+        out_text = f'The model converged after {niter-1} iterations'
+    else:
+
+        raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
     if keep == 1:
         disp_txt.data += out_text
     else:
         disp_txt.data = out_text
     disp_handle.update(disp_txt)
+    if gamma:
+        return out, gamma_out
+    else:
+        return out
+
+# function generates output numpy array of h2mm objects
+cdef h2mm_arr_gen(type mod_tp, tuple mod_shape, h2mm_mod* models):
+    cdef unsigned long i
+    cdef unsigned long mod_size = 1
+    for i in mod_shape:
+        mod_size *= i
+    if mod_tp in (list, tuple):
+        out = mod_tp(model_copy_from_ptr(&models[i]) for i in range(mod_size))
+    elif mod_tp ==  np.ndarray:
+        out = np.array(tuple(model_copy_from_ptr(&models[i]) for i in range(mod_size)), dtype=object).reshape(mod_shape)
+    else:
+        out = model_copy_from_ptr(models)
     return out
 
 
-def H2MM_arr(h_mod, indexes, times, num_cores=None):
+
+cdef all_arr_gen(type mod_tp, type burst_tp, tuple mod_shape, tuple burst_shape, unsigned long* burst_sizes, h2mm_mod* models, double*** gamma):
+    cdef unsigned long mod_size = 1
+    cdef Py_ssize_t i
+    for i in mod_shape:
+        mod_size *= i
+    if mod_tp == np.ndarray:
+        gamma_out = np.empty(mod_size, dtype=object)
+        for i in range(mod_size):
+            gamma_out[i] = gen_gamma(burst_tp, burst_shape, burst_sizes, models[i].nstate, gamma[i])
+        gamma_out = gamma_out.reshape(mod_shape)
+    elif mod_tp in (list, tuple):
+        gamma_out = mod_tp(gen_gamma(burst_tp, burst_shape, burst_sizes, models[i].nstate, gamma[i]) for i in range(mod_size))
+    else:
+        gamma_out = gen_gamma(burst_tp, burst_shape, burst_sizes, models[0].nstate, gamma[0])
+    h2mm_out = h2mm_arr_gen(mod_tp, mod_shape, models)
+    return h2mm_out, gamma_out
+
+
+def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
     """
     Calculate the logliklihood of every model in a list/array given a set of
     data
@@ -2200,22 +2496,24 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None):
         All of the :class:`h2mm_model` object for which the loglik will be calculated
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The indexes list must maintain  1to1 coorespondence to the times list
+        The indexes list must maintain  1-to-1 correspondence to the times list
     times : list or tuple of NUMPY 1D int arrays
         A list of the arrival times for each photon in each burst
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The times list must maintain  1to1 coorespondence to the indexes list
-    num_cores : int or None, optional
+        The times list must maintain  1-to-1 correspondence to the indexes list
+    gamma : bool, optional
+        Whether or not to return the gamma array, which gives the probabilities
+        of each photon being in a given state.
         the number of C threads (which ignore the gil, thus functioning more
         like python processes), to use when calculating iterations.
         
         .. note:: 
             
             optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
-            are mutlithreaded. Because os.cpu_count() returns the number of threads,
+            are multithreaded. Because os.cpu_count() returns the number of threads,
             not necessarily the number of cpus. For most machines, being multithreaded,
             this actually returns twice the number of physical cores. Hence the default
             to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
@@ -2231,86 +2529,83 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None):
         The converged state is automatically set to 0, and nphot is set
         in accordance with the number of photons in the data set.
         The datatype returned is the same as the datatype of h_model
+    gamma_arr : list, tuple or np.ndarray (optional)
+        If gamma = True, this variable is returned, which contains (as numpy arrays)
+        the probabilities of each photon to be in each state, for each burst and model.
+        The arrays are returned in the same order and type as the input models and 
+        indexes, individual data points organized as [photon, state] within each data
+        sequence.
     """
-    cdef unsigned long i
-    cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
+    cdef unsigned long i = 1
+    cdef unsigned long j
     cdef type tp = type(h_mod)
-    cdef unsigned long mod_size, ndet
-    if tp in (h2mm_model, np.ndarray, list, tuple):
-        if tp in (list, tuple):
-            mod_shape = len(h_mod)
-            mod_size = len(h_mod)
-            for i, h in enumerate(h_mod):
-                if type(h) != h2mm_model:
-                    raise TypeError(f'All elements of first argument must of type h2mm_model, element {i} is not')
-                elif i == 0:
-                    ndet = h.ndet
-                elif h.ndet != ndet:
-                    raise ValueError("All models must have same number of photon streams")
-        elif tp == np.ndarray:
-            mod_shape = h_mod.shape
-            mod_size = h_mod.size
-            for i, h in enumerate(h_mod.ravel()):
-                if type(h) != h2mm_model:
-                    raise TypeError('All elemenets of first argument must be fo type h2mm_model')
-                elif i == 0:
-                    ndet = h.ndet
-                elif h.ndet != ndet:
-                    raise ValueError("All models must have same number of photon streams")
-        else:
-            mod_shape = 1
-            mod_size = 1
-            ndet = h_mod.ndet
-    else:
+    cdef type btp = type(indexes)
+    cdef unsigned long num_burst = indexes.size if btp == np.ndarray else len(indexes)
+    cdef unsigned long ndet
+    cdef unsigned long mod_size = 1
+    cdef tuple mod_shape = array_size(h_mod)
+    for i in mod_shape:
+        mod_size *= i
+    if tp not in (h2mm_model, list, tuple, np.ndarray):
         raise TypeError('First argument must be list or numpy array of h2mm_model objects')
+    for i, h in enumerate(enum_arrays(h_mod)):
+        if not isinstance(h, h2mm_model):
+            raise TypeError(f'All elements of first argument must of type h2mm_model, element {i} is not')
+        if i == 0:
+            ndet = h.ndet
+        if h.ndet != ndet:
+            raise ValueError("All models must have same number of photon streams")
+    # check bursts of correct type
+    burst_shape = array_size(indexes)
     # if statements verify that the data is valid, ie matched lengths and dimensions for times and indexes in all bursts
     burst_check = verify_input(indexes, times, ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
     if burst_check != ndet - 1:
         warnings.warn(f"Overdefined models: models have {ndet} photons streams, while data only suggests you have {burst_check + 1} photon streams")
-    if type(indexes) == tuple:
-        indexes = list(indexes)
-    if type(indexes) == tuple:
-        times = list(times)
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
+    cdef int e_val
     if burst_sizes is NULL:
         raise ValueError("Photon out of order")
-    cdef lm limits
+    cdef lm *limits = <lm*> PyMem_Malloc(sizeof(lm))
     limits.num_cores = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    limits.max_iter = mod_size
-    # for loop casts the values to the right datat type, then makes sure the data is contiguous, but don't copy the pointers just yet, that is in a separate for loop to make sure no numpy shenanigans 
-    cdef h2mm_mod *mod_array = <h2mm_mod*> PyMem_Malloc(mod_size * sizeof(h2mm_mod))
-    if tp in (list, tuple):
-        for i, h in enumerate(h_mod):
-            model_full_ptr_copy(h,&mod_array[i])
-    elif tp == np.ndarray:
-        for i, h in enumerate(h_mod.reshape(h_mod.size)):
-            model_full_ptr_copy(h,&mod_array[i])
-    else:
-        model_full_ptr_copy(h_mod,mod_array)
+    cdef h2mm_mod *mod_array =  <h2mm_mod*> malloc(mod_size * sizeof(h2mm_mod))
+    cdef h2mm_model h_temp
+    for i, h in enumerate(enum_arrays(h_mod)):
+        h_temp = h
+        duplicate_toempty_model(h_temp.model, &mod_array[i])
     # set up the in and out h2mm_mod variables
-    cdef int e_val = compute_multi(num_burst,burst_sizes,b_delta,b_det,mod_array,&limits)
+    cdef double ***gamma_arr = NULL
+    if gamma:
+        e_val = calc_multi_gamma(num_burst, burst_sizes, b_delta, b_det, mod_size, mod_array, &gamma_arr, limits)
+    else:
+        e_val = calc_multi(num_burst, burst_sizes, b_delta, b_det, mod_size, mod_array, limits)
+    if gamma and e_val==0:
+        # out = h2mm_arr_gen(tp, mod_shape, mod_array)
+        out = all_arr_gen(tp, btp, mod_shape, burst_shape, burst_sizes, mod_array, gamma_arr)
+        for i in range(mod_size):
+            if gamma_arr[i] is not NULL:
+                PyMem_Free(gamma_arr[i])
+                gamma_arr[i] = NULL
+        if gamma_arr is not NULL:
+            PyMem_Free(gamma_arr)
+            gamma_arr = NULL
+    elif e_val == 0:
+        out = h2mm_arr_gen(tp, mod_shape, mod_array)
     # free the limts arrays
     burst_free(num_burst, b_det, b_delta, burst_sizes)
+    free_models(mod_size, mod_array)
+    PyMem_Free(limits)
     if e_val == 1:
         raise ValueError('Bursts photons are out of order, please check your data')
     elif e_val == 2:
         raise ValueError('Too many photon streams in data for one or more H2MM models')
-    if tp == list:
-        out = [model_from_ptr(&mod_array[i]) for i in range(limits.max_iter)]
-    elif tp == tuple:
-        out_list = [model_from_ptr(&mod_array[i]) for i in range(mod_size)]
-        out = (out_list)
-    elif tp == np.ndarray:
-        out = np.array([model_from_ptr(&mod_array[i]) for i in range(limits.max_iter)]).reshape(mod_shape)
-    else:
-        out = model_from_ptr(mod_array)
     return out
 
+# viterbi function
 
 def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     """
@@ -2320,25 +2615,25 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     ----------
     h_model : h2mm_model
         An :class:`h2mm_model`, should be optimized for the given data set
-        (result of :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize`) to ensure results coorespond to give the most likely
+        (result of :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize`) to ensure results correspond to give the most likely
         path
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The indexes list must maintain  1to1 coorespondence to the times list
+        The indexes list must maintain  1-to-1 correspondence to the times list
     times : list or tuple of NUMPY 1D int arrays
         A list of the arrival times for each photon in each burst
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The times list must maintain  1to1 coorespondence to the indexes list
+        The times list must maintain  1-to-1 correspondence to the indexes list
     num_cores : int or None, optional
         the number of C threads (which ignore the gil, thus functioning more
         like python processes), to use when calculating iterations.
         Note that os.cpu_count() returns number of threads, but it is ideal 
-        to take the nubmer of physical cores. Therefore, unless reset by user,
+        to take the number of physical cores. Therefore, unless reset by user,
         optimization_limtis sets this to be os.cpu_count() // 2, as most machines
-        are mutlithreaded. If None (default) use value from optimization_limits. 
+        are multithreaded. If None (default) use value from optimization_limits. 
         Default is None
     
     Returns
@@ -2350,50 +2645,44 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     ll : NUMPY 1D float array
         loglikelihood of each burst
     icl : float
-        Integrated complete likelihood, essentially the BIC for the viterbi path
+        Integrated complete likelihood, essentially the BIC for the *Viterbi* path
     """
     # assert statements to verify that the data is valid, ie matched lengths and dimensions for times and indexes in all bursts
     burst_check = verify_input(indexes, times, h_mod.model.ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
-    if type(indexes) == tuple:
-        indexes = list(indexes)
-    if type(indexes) == tuple:
-        times = list(times)
     cdef unsigned long i
     cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
-    cdef unsigned long nphot = np.sum([burst.size for burst in indexes])
+    
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
     if burst_sizes is NULL:
         raise ValueError("Photon out of order")
-    cdef ph_path *path_ret = <ph_path*> PyMem_Malloc(num_burst * sizeof(ph_path))
+    cdef unsigned long nphot = sum(burst_sizes[i] for i in range(num_burst))
+    cdef ph_path *path_ret = allocate_paths(num_burst, burst_sizes, h_mod.model.nstate)
     cdef n_core = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    # for loop casts the values to the right datat type, then makes sure the data is contiguous, but don't copy the pointers just yet, that is in a separate for loop to make sure no numpy shenanigans 
     # set up the in and out h2mm_mod variables
-    cdef int e_val = viterbi(num_burst,burst_sizes,b_delta,b_det,&h_mod.model,path_ret,n_core)
+    cdef unsigned long e_val = viterbi(num_burst, burst_sizes, b_delta, b_det, h_mod.model, path_ret, n_core)
+    if e_val == 0:
+        path, scale = gen_path(type(indexes), array_size(indexes), burst_sizes, path_ret) 
     burst_free(num_burst, b_det, b_delta, burst_sizes)
     if e_val == 1:
         raise ValueError('Bursts photons are out of order, please check your data')
     elif e_val == 2:
         raise ValueError('Too many photon streams in data for H2MM model')
-    cdef list path = []
-    cdef list scale = []
-    cdef double loglik = 0
-    cdef np.ndarray[double,ndim=1] ll = np.zeros(num_burst)
+    cdef double loglik = 0.0
+    cdef np.ndarray[double] ll = np.zeros(num_burst)
     for i in range(num_burst):
         loglik += path_ret[i].loglik
         ll[i] = path_ret[i].loglik
-        path.append(np.copy(np.asarray(<unsigned long[:path_ret[i].nphot]> path_ret[i].path)))
-        scale.append(np.copy(np.asarray(<double[:path_ret[i].nphot]> path_ret[i].scale)))
-        PyMem_Free(path_ret[i].path)
-        PyMem_Free(path_ret[i].scale)
+    if isinstance(indexes, np.ndarray):
+        ll = ll.reshape(indexes.shape)
     cdef double icl = ((h_mod.nstate**2 + ((h_mod.ndet - 1) * h_mod.nstate) - 1) * np.log(nphot)) - 2 * loglik
     PyMem_Free(path_ret)
     return path, scale, ll, icl
-
+    
 
 def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     """
@@ -2405,18 +2694,18 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     ----------
     h_model : h2mm_model
         An :class:`h2mm_model`, should be optimized for the given data set
-        (result of :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize`) to ensure results coorespond to give the most likely
+        (result of :func:`EM_H2MM_C` or :meth:`h2mm_model.optimize`) to ensure results correspond to give the most likely
         path
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The indexes list must maintain  1to1 coorespondence to the times list
+        The indexes list must maintain  1-to-1 correspondence to the times list
     times : list or tuple of NUMPY 1D int arrays
         A list of the arrival times for each photon in each burst
-        Each element of the list (a numpy array) cooresponds to a burst, and
+        Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The times list must maintain  1to1 coorespondence to the indexes list
+        The times list must maintain  1-to-1 correspondence to the indexes list
     num_cores : int or None, optional
         the number of C threads (which ignore the gil, thus functioning more
         like python processes), to use when calculating iterations.
@@ -2424,7 +2713,7 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
         .. note:: 
             
             optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
-            are mutlithreaded. Because os.cpu_count() returns the number of threads,
+            are multithreaded. Because os.cpu_count() returns the number of threads,
             not necessarily the number of cpus. For most machines, being multithreaded,
             this actually returns twice the number of physical cores. Hence the default
             to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
@@ -2436,7 +2725,7 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     Returns
     -------
     icl : float
-        Integrated complete likelihood, essentially the BIC for the viterbi path
+        Integrated complete likelihood, essentially the BIC for the *Viterbi* path
     path : list of NUMPY 1D int arrays
         The most likely state path for each photon
     scale : list of NUMPY 1D float arrays
@@ -2459,7 +2748,7 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
         of the dwell in the clock rate of the data set.
     dwell_end : square list of lists of NUMPY 1D int arrays
         Gives the dwell times of all dwells that start at the end of a burst,
-        sorted by the state of the dwell (Top level list), and the preceeding
+        sorted by the state of the dwell (Top level list), and the preceding
         state (Lower level list), each element of the numpy array is the duration
         of the dwell in the clock rate of the data set.
     dwell_burst : list of NUMPY 1D int arrays
@@ -2472,21 +2761,21 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
         Gives the photon counts of dwells in the middle of bursts, sorted
         by state of the dwell (top level of the list) and the state of the next
         dwell in the burst (lower level burst), each row in an array is a single
-        dwell, the columns coorespond to the counts of each photon stream.
+        dwell, the columns correspond to the counts of each photon stream.
     ph_beg : square list of NUMPY 2D arrays
         Gives the photon counts of dwells at the beginning of bursts, sorted
         by state of the dwell (top level of the list) and the state of the next
         dwell in the burst  (lower level list), each row in an array is a single
-        dwell, the columns coorespond to the counts of each photon stream.
+        dwell, the columns correspond to the counts of each photon stream.
     ph_end : square list of NUMPY 2D arrays
         Gives the photon counts of dwells at the ends of bursts, sorted
         by state of the dwell (top level of the list) and the state of the previous
         dwell in the burst, each row in an array is a single dwell, the columns 
-        coorespond to the counts of each photon stream.
+        correspond to the counts of each photon stream.
     ph_burst : list of NUMPY 2D arrays
         Gives the counts of photons in bursts with only a single state. Sorted
         according to the state of the burst. Each row in an array is a single
-        dwell, the columns coorespond to the counts of each photon stream.
+        dwell, the columns correspond to the counts of each photon stream.
     """
     # use viterbi to find most likely path based on posterior probability through all bursts
     cdef Py_ssize_t i, b, e, st
@@ -2546,6 +2835,136 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     return icl, paths, scale, ll, burst_type, dwell_mid, dwell_beg, dwell_end, dwell_burst, ph_counts, ph_mid, ph_beg, ph_end, ph_burst
 
 
+def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None, 
+                BIC=True, total_loglik=False, loglikarray=False):
+    """
+    Function for calculating the statistical parameters of a specific state path 
+    and data set given a model (ln(P(XY|lambda))). By default returns the BIC of
+    the entire data set, can also return the base logliklihood in total and/or
+    per burst. Which return values selected are defined in keyword arguments.
+
+    Parameters
+    ----------
+    model : h2mm_model
+        DESCRIPTION.
+    indexes : list[numpy.ndarray], tuple[numpy.ndarray] or numpy.ndarray[numpy.ndarray]
+        DESCRIPTION.
+    times : list, tuple, or numpy.ndarray of integer numpy.ndarray
+        DESCRIPTION.
+    state_path : list, tuple, or numpy.ndarray of integer numpy.ndarray
+        DESCRIPTION.
+    num_cores : int, optional
+        Number of cores to use in calculation, if None, then use value in 
+        optimization_limits. The default is None.
+    BIC : bool, optional
+        Whether to return the Bayes Information Criterion of the calculation. 
+        The default is True.
+    total_loglik : bool, optional
+        Whether to return the loglikelihood of the entire data set as a single number.
+        The default is False.
+    loglikarray : bool, optional
+        Whether to return the loglikelihoods of each burst as a numpy array. 
+        The default is False.
+
+    Raises
+    ------
+    TypeError
+        One or more inputs did not contain the proper data types.
+    ValueError
+        One or more values out of the acceptable ranges given the input model
+    RuntimeError
+        Deeper issue, raise issue on github.
+
+    Returns
+    -------
+    bic : float
+        Bayes information criterion of entire data set and path.
+    loglik : float
+        Log likelihood of entire dataset
+    loglik_array : np.ndarray
+        Loglikelihood of each burst separately
+
+    """
+    burst_check = verify_input(indexes, times, model.model.ndet)
+    cdef unsigned long i
+    cdef str burst_errors = ""
+    if isinstance(burst_check, Exception):
+        raise burst_check
+    elif type(indexes) != type(state_path):
+        raise TypeError(f"Mismatched types: indexes and state_path must be same type")
+    elif array_size(indexes) != array_size(state_path):
+        raise ValueError("Mismatched sizes: indexes and state_path must be same size, got {array_size(indexes)} and {array_size(state_path)}")
+    else:
+        for i, path in enumerate(enum_arrays(state_path)):
+            if not isinstance(path, np.ndarray):
+                burst_errors += f"{i}: TypeError: state_path elements must be 1D numpy arrays, got {type(path)}"
+            elif path.ndim != 1:
+                burst_errors += f"{i}: TypeError: state path elements must be 1D numpy arrays, got {type(path)} and {type(path)}\n"
+            elif indexes[i].shape[0] != path.shape[0]:
+                burst_errors += f"{i}: Mismatched burst size: indexes has {indexes[i].shape[0]} photons while state_path has {path.shape[0]} photons\n"
+            elif not np.issubdtype(path.dtype, np.integer):
+                burst_errors += f"{i}: TypeError: state path arrays must integer arrays, got {path.dtype}"
+            elif np.any(path < 0):
+                burst_errors += f"{i}: ValueError: states cannot be negative"
+            elif np.any(path >= model.model.nstate):
+                burst_errors += f"{i}: ValueError: too many states in path for model"
+        if burst_errors != "":
+            raise ValueError("Incorrect data for state_path\n" + burst_errors)
+    # get burst size, could also calculate with array_size, but this is shorter
+    cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
+    # allocate the memory for the pointer arrays to be submitted to the C function
+    cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
+    if burst_sizes is NULL:
+        raise ValueError("Photon out of order")
+    cdef unsigned long **state = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
+    for i, path in enumerate(enum_arrays(state_path)):
+        state[i] = np_copy_ul(path)
+    cdef unsigned long nphot = sum(burst_sizes[i] for i in range(num_burst))
+    cdef n_core = <unsigned long> optimization_limits._get_num_cores(num_cores)
+    cdef double *ll = <double*> PyMem_Malloc(num_burst * sizeof(double))
+    cdef res = pathloglik(num_burst, burst_sizes, b_delta, b_det, state, model.model, ll, n_core)
+    # process values
+    cdef double sum_loglik, bic
+    cdef np.ndarray loglik
+    cdef list out = list()
+    if res == 0:
+        loglik = copy_to_np_d(num_burst, ll).reshape(array_size(indexes))
+        sum_loglik = np.sum(loglik)
+        bic = (model.k * np.log(nphot)) - (2*sum_loglik)
+    else:
+        if ll is not NULL:
+            PyMem_Free(ll)
+            ll = NULL
+    for i in range(num_burst):
+        if state[i] is not NULL:
+            PyMem_Free(state[i])
+            state[i] = NULL
+    if state is not NULL:
+        PyMem_Free(state)
+        state = NULL
+    burst_free(num_burst, b_det, b_delta, burst_sizes)
+    if res == -2:
+        raise ValueError("Detector indexes out of range")
+    elif res == -1:
+        raise ValueError("Empty or null array, raise issue on github")
+    elif res < -2:
+        raise RuntimeError("Uknown error, raise issue on github")
+    if BIC:
+        out += [bic]
+    if total_loglik:
+        out += [sum_loglik]
+    if loglikarray:
+        out += [loglik]
+    if len(out) == 0:
+        return None
+    elif len(out) == 1:
+        return out[0]
+    else:
+        return tuple(out)
+
+
 # simulation functions
 
 def sim_statepath(h2mm_model hmod, int lenp, seed=None):
@@ -2580,7 +2999,7 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef int exp = statepath(&hmod.model, lenp, path_n, seedp)
+    cdef int exp = statepath(hmod.model, lenp, path_n, seedp)
     if exp != 0:
         PyMem_Free(path_n)
         raise RuntimeError("Unknown error, raise issue on github")
@@ -2614,7 +3033,7 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
 
     Returns
     -------
-    path : numpy ndarra 1D long int
+    path : numpy ndarray 1D long int
         A randomly generated statepath based on the input model and times
 
     """
@@ -2628,7 +3047,7 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef int exp = sparsestatepath(&hmod.model, lenp, times_n, path_n, seedp)
+    cdef int exp = sparsestatepath(hmod.model, lenp, times_n, path_n, seedp)
     PyMem_Free(times_n)
     if exp == 1:
         raise ValueError("Out of order photon")
@@ -2676,7 +3095,7 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef int exp = phpathgen(&hmod.model, lenp, states_n, dets_n, seedp)
+    cdef int exp = phpathgen(hmod.model, lenp, states_n, dets_n, seedp)
     PyMem_Free(states_n)
     if exp != 0:
         PyMem_Free(dets_n)
@@ -2693,7 +3112,7 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
     ----------
     hmod : h2mm_model
         An :class:`h2mm_model` to build the path and stream trajectories from
-    times : numpy ndarray 1D int
+    times : numpy.ndarray 1D int
         An unsigned integer of monotonically increasing times for the burst
     seed : positive int, optional
         The initial random seed, use if you want to be able to replicate results.
@@ -2711,9 +3130,9 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
     
     Returns
     -------
-    path : numpy ndarra 1D int
+    path : numpy.ndarray 1D int
         State trajectory generated for the input times
-    dets : numpy ndarra 1D int
+    dets : numpy.ndarray 1D int
         stream trajectory generate for the input times, derived from path
 
     """
@@ -2727,7 +3146,7 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
     if seed is not None:
         seedp = <unsigned int> seed
     cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
-    cdef int exp = sparsestatepath(&hmod.model, lenp, times_n, path_n, seedp)
+    cdef int exp = sparsestatepath(hmod.model, lenp, times_n, path_n, seedp)
     if exp == 1:
         PyMem_Free(times_n)
         PyMem_Free(path_n)
@@ -2737,7 +3156,7 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
         PyMem_Free(path_n)
         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
     cdef unsigned long* dets_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
-    exp = phpathgen(&hmod.model, lenp, path_n, dets_n, seedp)
+    exp = phpathgen(hmod.model, lenp, path_n, dets_n, seedp)
     PyMem_Free(times_n)
     if exp != 0:
         PyMem_Free(path_n)

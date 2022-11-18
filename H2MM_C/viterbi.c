@@ -2,7 +2,7 @@
 // Purpose: Compute Viterbi path and loglik of that path from posterior probability
 // Author: Paul David Harris
 // Date created: 1 April 2021
-// Date modified: 14 Oct 2022
+// Date modified: 06 Nov 2022
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
@@ -24,8 +24,6 @@
 #if defined(__linux__) || defined(__APPLE__)
 void* viterbi_burst(void* in_vals)
 #elif _WIN32
-HANDLE vit_lock = 0;
-
 DWORD WINAPI viterbi_burst(void* in_vals)
 #endif
 {
@@ -34,45 +32,12 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 	unsigned long i, j, k, t;
 	unsigned long omegaT, omegaTp, transT, transTshift, bT; // variables to store offsets (strides) for values indexed in nested for loops
 	unsigned long cur_burst;
-	unsigned long cont;
 	unsigned long *psi = (unsigned long*) calloc(D->si*D->max_phot,sizeof(unsigned long));
 	double runsum = 0.0;
 	double *omega = (double*) calloc(D->si*D->max_phot,sizeof(double));
 	double omegamax;
-#if defined(__linux__) || defined(__APPLE__)
-	pthread_mutex_lock(D->vit_lock);
-	if ( D->cur_burst[0] < D->num_burst ) 
+	while ((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
 	{
-		cur_burst = D->cur_burst[0]++;
-		cont = TRUE;
-	}
-	else
-	{
-		cont = FALSE;
-	}
-	pthread_mutex_unlock(D->vit_lock);
-#elif _WIN32
-	if (WaitForSingleObject(vit_lock, INFINITE) == WAIT_OBJECT_0)
-	{
-		if ( D->cur_burst[0] < D->num_burst ) 
-		{
-			cur_burst = D->cur_burst[0]++;
-			cont = TRUE;
-		}
-		else
-		{
-			cont = FALSE;
-		}
-		ReleaseMutex(vit_lock);
-	}
-#endif
-	while (cont )
-	{
-		D->path[cur_burst].nphot = D->phot[cur_burst].nphot;
-		D->path[cur_burst].nstate = D->model->nstate;
-		// allocate the arrays for the results of viterbi
-		D->path[cur_burst].path = (unsigned long*) calloc(D->phot[cur_burst].nphot,sizeof(unsigned long));
-		D->path[cur_burst].scale = (double*) calloc(D->phot[cur_burst].nphot,sizeof(double));
 		// initiation
 		for ( i = 0; i < D->si; i++)
 		{
@@ -130,37 +95,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 			t--;
 			D->path[cur_burst].path[t] = psi[D->si * (t + 1) + D->path[cur_burst].path[t+1]];
 		} while(t != 0);
-#if defined(__linux__) || defined(__APPLE__)
-		pthread_mutex_lock(D->vit_lock);
-		if ( D->cur_burst[0] < D->num_burst ) 
-		{
-			cur_burst = D->cur_burst[0]++;
-			cont = TRUE;
-		}
-		else
-		{
-			cont = FALSE;
-		}
-		pthread_mutex_unlock(D->vit_lock);
-#elif _WIN32
-		if (WaitForSingleObject(vit_lock, INFINITE) == WAIT_OBJECT_0)
-		{
-			if ( D->cur_burst[0] < D->num_burst )
-			{
-				cur_burst = D->cur_burst[0]++;
-				cont = TRUE;
-			}
-			else
-			{
-				cont = FALSE;
-			}
-			ReleaseMutex(vit_lock);
-		}
-		else
-		{
-			cont = FALSE;
-		}
-#endif
+		
 	}
 	if (omega != NULL)
 		free(omega);
@@ -184,22 +119,21 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	pthread_mutex_init(vit_lock,NULL);
 #elif _WIN32
 	HANDLE* tid = (HANDLE*)calloc(num_cores, sizeof(HANDLE));
-	vit_lock = CreateMutex(NULL, FALSE, NULL);
 	DWORD  windowsThreadId = 0;
+	HANDLE vit_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
 	// alocate variables
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // remember to free all b[n]->delta to prevent memory leak
 	// process burst arrays
-	unsigned long *cur_burst = (unsigned long*) calloc(1,sizeof(unsigned long));
 	//~ printf("Getting deltas\n");
 	unsigned long max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 
 	//~ printf("Got max delta\n");
-	if (max_delta == NULL)
+	if (max_delta == 0)
 	{
 		//~ printf("You have a NULL pointer on one or more of  your photon arrays\n");
 		if (b != NULL)
 			free(b);
-		return 1;
+		return -1;
 	}
 	for ( i = 0; i < num_burst; i++)
 	{
@@ -210,34 +144,31 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 				//~ printf("Your data has more photon streams than your h2mm model\n");
 				if (b != NULL)
 					free(b);
-				return 2;
+				return -2;
 			}
 		}
 	}
+	unsigned long max_phot = get_max_phot(num_burst, b);
+	brst_mutex *burst_lock = malloc(sizeof(brst_mutex));
+	burst_lock->burst_mutex = vit_lock;
+	burst_lock->cur_burst = 0;
+	burst_lock->num_burst = num_burst;
 	trpow* powers = transpow(model->nstate, max_delta, model->trans);
 	vit_vals *vit_submit = (vit_vals*) calloc(num_burst,sizeof(vit_vals)); // allocate structures to give to viterbi_burst function
-	for ( i = 0; i < num_burst; i++)
-	{
-		if ( vit_submit[0].max_phot < b[i].nphot )
-			vit_submit[0].max_phot = b[i].nphot;
-	}
+	
 	for ( i = 0; i < num_cores; i++)
 	{
 		vit_submit[i].si = powers->sk;
 		vit_submit[i].sT = powers->sj;
-		vit_submit[i].max_phot = vit_submit[0].max_phot;
-		vit_submit[i].cur_burst = cur_burst;
-		vit_submit[i].num_burst = num_burst;
+		vit_submit[i].burst_lock = burst_lock;
 		vit_submit[i].A = powers->A;
 		vit_submit[i].phot = b;
 		vit_submit[i].path = path_array;
 		vit_submit[i].model = model;
-#if defined(__linux__) || defined(__APPLE__)
-		vit_submit[i].vit_lock = vit_lock;
-#endif
+		vit_submit[i].max_phot = max_phot;
+		vit_submit[i].burst_lock = burst_lock;
 	}
 	//printf("Spinning up the threads\n"); // Spin up the threads
-	
 #if defined(__linux__) || defined(__APPLE__)
 	for ( i = 0; i < num_cores; i++)
 		pthread_create(&tid[i],NULL,viterbi_burst,(void*) &vit_submit[i]);
@@ -269,8 +200,21 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	free((void*)tid);
 	if( vit_lock ) CloseHandle(vit_lock);
 #endif
-	free(b);
-	free(powers->A);
-	free(powers);
+	if (burst_lock != NULL)
+	{
+		free(burst_lock);
+		burst_lock = NULL;
+	}
+	if (b != NULL)
+	{
+		free(b);
+		b = NULL;
+	}
+	free_trpow(powers);
+		if (vit_submit != NULL)
+	{
+		free(vit_submit);
+		vit_submit = NULL;
+	}
 	return 0;
 }

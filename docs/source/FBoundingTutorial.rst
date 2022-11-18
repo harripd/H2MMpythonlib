@@ -89,8 +89,8 @@ The :class:`h2mm_limits` object :code:`us_bounds` prevents any value (except on-
 
 Bounds Process
 --------------
-When you use a bounds method, each iteration goes through teh following steps:
-#. Caclulate the *loglikelihood* and a new model
+When you use a bounds method, each iteration goes through the following steps:
+#. Calculate the *loglikelihood* and a new model
 #. Check if the optimization has converged
 #. Analyze the new model, and correct if necessary.
 
@@ -105,13 +105,13 @@ These specify the minimum/maximum values in the respective array.
 If no value is specified for a given min/max array, then the values of that array can be as small or as large as possible for an unbounded model.
 
 In all cases, these values can be specified as either a float or an array.
-- If specified as a float, then the value is universal for all values in the given array (this is most usueful for the :attr:`h2mm_model.trans` matrix). This means less granularity, but then the :class:`h2mm_limits` object can be used for any number of states/detectors
+- If specified as a float, then the value is universal for all values in the given array (this is most useful for the :attr:`h2mm_model.trans` matrix). This means less granularity, but then the :class:`h2mm_limits` object can be used for any number of states/detectors
 - If specified as an array, then the values in the array are matched with the cooresponding array in :class:`h2mm_model`. This means greater granularity, but then you are locked into using the :class:`h2mm_limits` object only for optimizations with a specific number of states/detectors.
 
 As mentioned in the above outline, you also need to specify the :code:`bounds_func` argument when using :code:`bounds`.
 There are 3 options for this:
 #. :code:`'minmax'`: The shallowest correction, sets the out of bounds value to its minimum or maximum
-#. :code:`'revert'`: The prefered method, sets the out of bounds value to the value it was in the previous model
+#. :code:`'revert'`: The preferred method, sets the out of bounds value to the value it was in the previous model
 #. :code:`'revert_old'`: A more extreme form of :code:`'revert'` which goes to the model before the last in the optimization, and sets the out of bounds value to that "older" value.
 
 Using :func:`factory_h2mm_model` with Bounds
@@ -159,7 +159,7 @@ Finally, the function must return a single :class:`h2mm_model` object, which is 
 .. warning::
 
     Make sure the model you return makes sense, otherwise the optimization will behave very strangely.
-    Think of this as the "gloves off" appraoch, you might have a very powerful new method, or you might get something meaningless depending on how you code it.
+    Think of this as the "gloves off" approach, you might have a very powerful new method, or you might get something meaningless depending on how you code it.
     That's your responsibility.
 
 **So let's see this in action**

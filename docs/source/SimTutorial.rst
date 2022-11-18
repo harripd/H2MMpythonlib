@@ -6,7 +6,7 @@ Simulations Tutorial
 .. seealso::
 
     This can also be viewed as a Jupyter Notebook
-    Downlaod :download:`H2MM_Simulation_Tutorial.ipynb <notebooks/H2MM_Simulation_Tutorial.ipynb>`
+    Download :download:`H2MM_Simulation_Tutorial.ipynb <notebooks/H2MM_Simulation_Tutorial.ipynb>`
 
     Download data file here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
 
@@ -17,12 +17,12 @@ Within |H2MM| there are several "levels" of data:
 
 - **times**, treated as fixed points, part of normal data
 - **state** of each data point, these can be simulated from a :class:`h2mm_model` and a set of **times**
-- **index** of each data point- the observables of |H2MM|, these can be simulated with **times**, a :class:`h2mm_model` and (optionally) **states**
+- **index** of each data point- the observable of |H2MM|, these can be simulated with **times**, a :class:`h2mm_model` and (optionally) **states**
 
 .. note::
 
    These simulates are based purely on hidden Markov modeling.
-   They are **NOT** molecular, fluoresence or other sort of simulation.
+   They are **NOT** molecular, fluorescence or other sort of simulation.
    Use another package if you want to simulate something while explicitly handling such complexities in the simulation
 
 First, let's get our imports out of the way.
@@ -115,7 +115,7 @@ Another strategy, which can be a way to check the reasonableness of a model, is 
    You will certainly not get the same indices in the simulated data and real data.
    The ratios of the indices should be similar however- use you knowledge about the system to figure out a legitimate way to compare.
 
-So let's load the times from the 3 detector data, and simualte the data from that:
+So let's load the times from the 3 detector data, and simulate the data from that:
 
 .. code-block::
 
@@ -152,7 +152,7 @@ So let's load the times from the 3 detector data, and simualte the data from tha
 Simulating from Components
 --------------------------
 
-It is also possible to simualte first **states**, and then with a separate function, simulate the times.
+It is also possible to simulate first **states**, and then with a separate function, simulate the times.
 If you only want the state path, you can just do the first step, and then save the memory, computational time, and code complexity, or maybe you already have the state path, so just to the second half.
 
 This is done with the :func:`sim_sparsestatepath` and :func:`sim_phtraj_from_state` functions.

@@ -6,7 +6,7 @@ Bounding |H2MM|
 .. seealso::
 
     This can also be viewed as a Jupyter Notebook
-    Downlaod :download:`H2MM_Bounds_Tutorial-OOP.ipynb <notebooks/H2MM_Bounds_Tutorial-OOP.ipynb>`
+    Download :download:`H2MM_Bounds_Tutorial-OOP.ipynb <notebooks/H2MM_Bounds_Tutorial-OOP.ipynb>`
 
     The data file can be downloaded here: :download:`sample_data_3det.txt <notebooks/sample_data_3det.txt>`
 
@@ -89,8 +89,8 @@ The :class:`h2mm_limits` object :code:`us_bounds` prevents any value (except on-
 
 Bounds Process
 --------------
-When you use a bounds method, each iteration goes through teh following steps:
-#. Caclulate the *loglikelihood* and a new model
+When you use a bounds method, each iteration goes through the following steps:
+#. Calculate the *loglikelihood* and a new model
 #. Check if the optimization has converged
 #. Analyze the new model, and correct if necessary.
 
@@ -105,13 +105,13 @@ These specify the minimum/maximum values in the respective array.
 If no value is specified for a given min/max array, then the values of that array can be as small or as large as possible for an unbounded model.
 
 In all cases, these values can be specified as either a float or an array.
-- If specified as a float, then the value is universal for all values in the given array (this is most usueful for the :attr:`h2mm_model.trans` matrix). This means less granularity, but then the :class:`h2mm_limits` object can be used for any number of states/detectors
-- If specified as an array, then the values in the array are matched with the cooresponding array in :class:`h2mm_model`. This means greater granularity, but then you are locked into using the :class:`h2mm_limits` object only for optimizations with a specific number of states /detectors.
+- If specified as a float, then the value is universal for all values in the given array (this is most useful for the :attr:`h2mm_model.trans` matrix). This means less granularity, but then the :class:`h2mm_limits` object can be used for any number of states/detectors
+- If specified as an array, then the values in the array are matched with the corresponding array in :class:`h2mm_model`. This means greater granularity, but then you are locked into using the :class:`h2mm_limits` object only for optimizations with a specific number of states /detectors.
 
 As mentioned in the above outline, you also need to specify the :code:`bounds_func` argument when using :code:`bounds`.
 There are 3 options for this:
 #. :code:`'minmax'`: The shallowest correction, sets the out of bounds value to its minimum or maximum
-#. :code:`'revert'`: The prefered method, sets the out of bounds value to the value it was in the previous model
+#. :code:`'revert'`: The preferred method, sets the out of bounds value to the value it was in the previous model
 #. :code:`'revert_old'`: A more extreme form of :code:`'revert'` which goes to the model before the last in the optimization, and sets the out of bounds value to that "older" value.
 
 Using :func:`factory_h2mm_model` with Bounds
@@ -119,7 +119,7 @@ Using :func:`factory_h2mm_model` with Bounds
 
 You will note that in the previous example, we specified the :class:`h2mm_model` explicity, instead of using the :func:`factory_h2mm_model` function.
 This is because it is possible that the :func:`factory_h2mm_model` could return a :class:`h2mm_model` whose values are already out of bounds based for the :class:`h2mm_limits` object.
-This could create odd behaviour during optimization.
+This could create odd behavior during optimization.
 
 There is a way around this: you can call :func:`factory_h2mm_model` with the :class:`h2mm_limits` object passed through the :code:`bounds` keyword argument, and the function will automatically return a :class:`h2mm_model` object that is within the bound provided.
 

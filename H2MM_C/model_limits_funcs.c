@@ -2,18 +2,66 @@
 // Author: Paul David Harris
 // Purpose: Provide functions to set limits on the h2mm_model parameters
 // Created: 8 June 2021
-// Modified: 8 June 2021
+// Modified: 04 Nov 2022
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
 #include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
-void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits)
 {
+	if ( isnan(current->loglik) ) // error
+	{
+		old->conv = 6;
+		return 1;
+	}
+	else if ( (current->loglik - old->loglik) <  limits->min_conv) // model converged
+	{
+		if (current->loglik > old->loglik) // current model is still "improved" from previous, so use current model
+		{
+			current->conv = 3;
+			return  2;
+		}
+		else // the old model had a better loglik, so use it
+		{
+			old->conv = 3;
+			current->conv = 7;
+			return 1;
+		}
+	}
+	else if (current->niter >= limits->max_iter)
+	{
+		current->conv = 4;
+		return 2;
+	}
+	else if (total_time > limits->max_time)
+	{
+		current->conv = 5;
+		return 2;
+	}
+	else
+	{
+		current->conv = 2;
+		new->conv = 1;
+		new->niter = current->niter + 1;
+		h2mm_normalize(new);
+		return 0;
+	}
+}
+
+int limit_check_only(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
+{
+	return h2mm_check_converged(new, current, old, total_time, limit);
+}
+
+int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
+{
+	int ret = h2mm_check_converged(new, current, old, total_time, limit);
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
 	unsigned long i, j; // basic iterator variables
 	unsigned long ind; // for storing the pre-calculated index
@@ -110,10 +158,12 @@ void limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
 		free(nstate_bounds);
 	if (ndet_bounds != NULL)
 		free(ndet_bounds);
+	return ret;
 }
 
-void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+int limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
 {
+	int ret = h2mm_check_converged(new, current, old, total_time, limit);
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
 	unsigned long i, j; // basic iterator variables
 	unsigned long ind; // for storing the pre-calculated index
@@ -210,10 +260,19 @@ void limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lim
 		free(nstate_bounds);
 	if (ndet_bounds != NULL)
 		free(ndet_bounds);
+	if ( ret == 0)
+	{
+		old->loglik = 0.0;
+		for ( i = 0; i < old->nstate; i ++) old->prior[i] = 0.0;
+		for ( i = 0; i < old->nstate * old->nstate; i++) old->trans[i] = 0.0;
+		for ( i = 0; i < old->nstate * old->ndet; i++) old->obs[i] = 0.0;
+	}
+	return ret;
 }
 
-void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
+int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
 {
+	int ret = h2mm_check_converged(new, current, old, total_time, limit);
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
 	unsigned long i, j; // basic iterator variables
 	unsigned long ind; // for storing the pre-calculated index
@@ -340,4 +399,12 @@ void limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, void *lims)
 		free(nstate_bounds);
 	if (ndet_bounds != NULL)
 		free(ndet_bounds);
+	if ( ret == 0)
+	{
+		old->loglik = 0.0;
+		for ( i = 0; i < old->nstate; i ++) old->prior[i] = 0.0;
+		for ( i = 0; i < old->nstate * old->nstate; i++) old->trans[i] = 0.0;
+		for ( i = 0; i < old->nstate * old->ndet; i++) old->obs[i] = 0.0;
+	}
+	return ret;
 }
