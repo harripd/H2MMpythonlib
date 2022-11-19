@@ -96,7 +96,7 @@ ctypedef struct print_args_struct:
     unsigned long max_iter
 
 #: Version string
-__version__ = '0.9.1'
+__version__ = '1.0.1'
 
 # copy data from a numpy array into an unsigned long array, and return the pointer
 cdef unsigned long* np_copy_ul(np.ndarray arr):
