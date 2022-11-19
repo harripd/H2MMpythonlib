@@ -3,10 +3,10 @@ version: 2
 python:
   version: 3.8
   install:
-    - requierments: docs/source/requirements.txt
+    - requirements: docs/source/requirements.txt
     - method: pip
       path: .
-    system_packages: true
+  system_packages: true
 
 sphinx:
   builder: html
