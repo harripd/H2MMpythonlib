@@ -16,6 +16,8 @@ Data Analysis Functions
 
 .. autofunction:: viterbi_sort
 
+.. autofunction:: path_loglik
+
 Simulation Functions
 --------------------
 
