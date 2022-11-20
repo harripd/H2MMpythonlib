@@ -13,7 +13,6 @@ cimport numpy as np
 from IPython.display import DisplayHandle, Pretty
 import IPython
 import warnings
-from libc.stdlib cimport malloc
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject
 
@@ -2572,7 +2571,7 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
         raise ValueError("Photon out of order")
     cdef lm *limits = <lm*> PyMem_Malloc(sizeof(lm))
     limits.num_cores = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    cdef h2mm_mod *mod_array =  <h2mm_mod*> malloc(mod_size * sizeof(h2mm_mod))
+    cdef h2mm_mod *mod_array =  <h2mm_mod*> PyMem_Malloc(mod_size * sizeof(h2mm_mod))
     cdef h2mm_model h_temp
     for i, h in enumerate(enum_arrays(h_mod)):
         h_temp = h
