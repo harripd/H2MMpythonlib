@@ -286,6 +286,8 @@ unsigned long check_det(unsigned long num_burst, phstream *bursts, h2mm_mod *in_
 
 int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest);
 
+int duplicate_toempty_models(unsigned long num_model, h2mm_mod **source, h2mm_mod **dest);
+
 h2mm_mod* h2mm_model_calc_log(h2mm_mod *source);
 
 int copy_model(h2mm_mod *source, h2mm_mod *dest);

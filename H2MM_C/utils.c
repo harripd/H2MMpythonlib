@@ -125,6 +125,24 @@ int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest)
 	return 1;
 }
 
+int duplicate_toempty_models(unsigned long num_model, h2mm_mod **source, h2mm_mod **dest)
+{
+	unsigned long i;
+	int ret;
+	h2mm_mod *models = (h2mm_mod*) malloc(num_model * sizeof(h2mm_mod));
+	for (i = 0; i < num_model; i++)
+	{
+		ret = duplicate_toempty_model(source[i], &models[i]);
+		if (ret != 1)
+		{
+			free_models(i, models);
+			return ret;
+		}
+	}
+	*dest = models;
+	return ret;
+}
+
 h2mm_mod* h2mm_model_calc_log(h2mm_mod *source)
 {
 	h2mm_mod *dest = (h2mm_mod*) malloc(sizeof(h2mm_mod));

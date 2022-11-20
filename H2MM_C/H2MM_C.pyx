@@ -52,9 +52,9 @@ cdef extern from "C_H2MM.h":
         unsigned long *path
         double *scale
     int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest)
+    int duplicate_toempty_models(unsigned long num_model, h2mm_mod **source, h2mm_mod **dest)
     int copy_model(h2mm_mod *source, h2mm_mod *dest)
     int copy_model_vals(h2mm_mod *source, h2mm_mod *dest)
-    int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest)
     h2mm_mod* allocate_models(const unsigned long n, const unsigned long nstate, const unsigned long ndet, const unsigned long nphot)
     ph_path* allocate_paths(unsigned long num_burst, unsigned long* len_burst, unsigned long nstate)
     int free_paths(unsigned long num_burst, ph_path* paths)
@@ -2571,11 +2571,16 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
         raise ValueError("Photon out of order")
     cdef lm *limits = <lm*> PyMem_Malloc(sizeof(lm))
     limits.num_cores = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    cdef h2mm_mod *mod_array =  <h2mm_mod*> PyMem_Malloc(mod_size * sizeof(h2mm_mod))
+    cdef h2mm_mod **mod_ptr_array =  <h2mm_mod**> PyMem_Malloc(mod_size * sizeof(h2mm_mod*))
     cdef h2mm_model h_temp
     for i, h in enumerate(enum_arrays(h_mod)):
         h_temp = h
-        duplicate_toempty_model(h_temp.model, &mod_array[i])
+        mod_ptr_array[i] = h_temp.model
+    cdef h2mm_mod *mod_array;
+    duplicate_toempty_models(mod_size, mod_ptr_array, &mod_array)
+    if mod_ptr_array is not NULL:
+        PyMem_Free(mod_ptr_array)
+        mod_ptr_array = NULL
     # set up the in and out h2mm_mod variables
     cdef double ***gamma_arr = NULL
     if gamma:
