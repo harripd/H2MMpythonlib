@@ -4,6 +4,7 @@ on:
   push: 
     branches:
       - main
+      - cibuildwheel
   pull_request:
     branches:
       - main
