@@ -14,10 +14,10 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
-      CIBW_SKIP: '*win32* *musllinux* pp*'
+      CIBW_SKIP: "*-win32 *musllinux* pp*"
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019, macOS-10.15]
+        os: [ubuntu-20.04, windows-2019, macOS-12]
 
     steps:
       - uses: actions/checkout@v3
