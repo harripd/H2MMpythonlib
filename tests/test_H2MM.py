@@ -176,6 +176,27 @@ def test_gamma(simple_data_all):
     out, gamma = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10)
     assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
 
+def test_gamma_oop(simple_data_all):
+    """
+    Test optimization returning gamma, using object oriented approach
+    """
+    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=False, max_iter=10)
+    assert isinstance(out, h2.h2mm_model)
+    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=False, max_iter=10)
+    assert isinstance(out, np.ndarray) and out.dtype == object
+    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=True, max_iter=10)
+    assert isinstance(out, h2.h2mm_model) and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
+    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10)
+    assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
+    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=False, max_iter=10, inplace=False)
+    assert isinstance(out, h2.h2mm_model)
+    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=False, max_iter=10, inplace=False)
+    assert isinstance(out, np.ndarray) and out.dtype == object
+    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=True, max_iter=10, inplace=False)
+    assert isinstance(out, h2.h2mm_model) and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
+    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10, inplace=False)
+    assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
+
 @pytest.fixture(scope="module")
 def opt_model():
     dets, times, nphot = data_gen_list()
@@ -221,6 +242,26 @@ def test_H2MM_arr_gamma(model_array,simple_data_all):
     assert true_size(arr_out) == true_size(model_array)
     assert np.allclose([m.loglik for m in true_iter(arr_out)], [m.loglik for m in true_iter(model_array)])
  
+
+def test_evaluate(opt_model, simple_data_tuple):
+    mod = opt_model.copy()
+    dets, times, nphot = simple_data_tuple
+    mod_out = mod.evaluate(dets, times, inplace=False)
+    assert isinstance(mod_out, h2.h2mm_model)
+    assert np.allclose(mod_out.loglik, mod.loglik)
+    mod_out, gamma = mod.evaluate(dets, times, gamma=True, inplace=False)
+    assert isinstance(mod_out, h2.h2mm_model)
+    assert np.allclose(mod_out.loglik, mod.loglik)
+    for g in gamma:
+        assert np.allclose(g.sum(axis=1), 1.0)
+    mod_out = mod.evaluate(dets, times, inplace=True)
+    assert isinstance(mod_out, h2.h2mm_model)
+    assert mod_out.loglik == mod.loglik
+    mod_out, gamma = mod.evaluate(dets, times, gamma=True, inplace=True)
+    assert isinstance(mod_out, h2.h2mm_model)
+    assert mod_out.loglik == mod.loglik
+    for g in gamma:
+        assert np.allclose(g.sum(axis=1), 1.0) 
     
 def test_Viterbi(opt_model,simple_data_all):
     """

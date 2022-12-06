@@ -95,7 +95,7 @@ ctypedef struct print_args_struct:
     unsigned long max_iter
 
 #: Version string
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 # copy data from a numpy array into an unsigned long array, and return the pointer
 cdef unsigned long* np_copy_ul(np.ndarray arr):
@@ -1042,12 +1042,12 @@ cdef class h2mm_model:
                 out_arr = out
             # find the ideal model
             if opt_array:
-                for i in range(out_arr.size, -1, -1):
+                for i in range(out_arr.size-1, -1, -1):
                     if out_arr[i] != 7:
                         out_model = out_arr[i]
                         break
             else:
-                out_model = out
+                out_model = out_arr
             copy_model(out_model.model, self.model)
         return out
     
@@ -1104,12 +1104,11 @@ cdef class h2mm_model:
             sequence.
         """
         cdef h2mm_model out_model
+        out = H2MM_arr(self, indexes, times, gamma=gamma, num_cores=num_cores)
         if gamma:
-            out = H2MM_arr(self, indexes, times, gamma=gamma, num_cores=num_cores)
             out_model, gamma = out
         else:
-            out_model = H2MM_arr(self, indexes, times, gamma=gamma, num_cores=num_cores)
-            out = out_model
+            out_model = out
         if inplace:
             copy_model(out_model.model, self.model)
         
