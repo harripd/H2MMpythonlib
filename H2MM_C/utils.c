@@ -230,13 +230,16 @@ h2mm_mod* allocate_models(const unsigned long n, const unsigned long nstate, con
 
 int free_model(h2mm_mod *model)
 {
-	if (model->prior != NULL)
-		free(model->prior);
-	if (model->trans != NULL)
-		free(model->trans);
-	if (model->obs != NULL)
-		free(model->obs);
-	free(model);
+	if (model != NULL)
+	{
+		if (model->prior != NULL)
+			free(model->prior);
+		if (model->trans != NULL)
+			free(model->trans);
+		if (model->obs != NULL)
+			free(model->obs);
+		free(model);
+	}
 	return 0;
 }
 

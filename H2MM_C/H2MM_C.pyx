@@ -543,7 +543,8 @@ cdef class h2mm_model:
         self.normalize()
         
     def __dealloc__(self):
-        free_models(1, self.model)
+        if self.model is not NULL:
+            free_models(1, self.model)
         
     @staticmethod
     cdef h2mm_model from_ptr(h2mm_mod *model):
@@ -2559,7 +2560,7 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
     burst_check = verify_input(indexes, times, ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
-    if burst_check != ndet - 1:
+    if burst_check != ndet - 1 and mod_size != 0:
         warnings.warn(f"Overdefined models: models have {ndet} photons streams, while data only suggests you have {burst_check + 1} photon streams")
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
