@@ -2545,6 +2545,8 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
     cdef tuple mod_shape = array_size(h_mod)
     for i in mod_shape:
         mod_size *= i
+    if mod_size == 0:
+        return tuple()
     if tp not in (h2mm_model, list, tuple, np.ndarray):
         raise TypeError('First argument must be list or numpy array of h2mm_model objects')
     for i, h in enumerate(enum_arrays(h_mod)):
@@ -2560,7 +2562,7 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
     burst_check = verify_input(indexes, times, ndet)
     if isinstance(burst_check, Exception):
         raise burst_check
-    if burst_check != ndet - 1 and mod_size != 0:
+    if burst_check != ndet - 1:
         warnings.warn(f"Overdefined models: models have {ndet} photons streams, while data only suggests you have {burst_check + 1} photon streams")
     # allocate the memory for the pointer arrays to be submitted to the C function
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
