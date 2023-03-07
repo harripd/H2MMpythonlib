@@ -95,7 +95,7 @@ ctypedef struct print_args_struct:
     unsigned long max_iter
 
 #: Version string
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 
 # copy data from a numpy array into an unsigned long array, and return the pointer
 cdef unsigned long* np_copy_ul(np.ndarray arr):
@@ -486,7 +486,7 @@ cdef class h2mm_model:
     def __cinit__(self, *args, **kwargs):
         self.model = NULL
     
-    def __init__(self, prior, trans, obs, loglik=-np.inf, niter = 0, nphot = 0, is_conv=False):
+    def __init__(self, prior, trans, obs, loglik=-np.inf, niter=0, nphot = 0, is_conv=False):
         # if statements check to confirm first the correct dimensinality of input matrices, then that their shapes match
         cdef unsigned long i, j
         if prior.ndim != 1:
@@ -499,12 +499,18 @@ cdef class h2mm_model:
             raise ValueError("Dim 0 of one of the matrices does not match the others, these represent the number of states, so input matrices do not represent a single model")
         if trans.shape[0] != trans.shape[1]:
             raise ValueError("Trans matrix is not square, and connot be used for a model")
+        if not np.issubdtype(type(niter), np.integer):
+            raise TypeError("niter must be integer")
         if niter < 0:
             raise ValueError("niter must be positive")
         if nphot< 0: 
             raise ValueError("nphot must be positive")
-        if type(is_conv) != bool:
-            raise TypeError("is_conv must be boolean")
+        if not isinstance(is_conv, int):
+            raise TypeError("is_conv must be boolean or int")
+            if isinstance(is_conv, bool):
+                is_conv = 3 if is_conv else 2
+            elif is_conv < 0 or is_conv > 7:
+                raise ValueError("is_conv must be within range of [0, 7]")
         if loglik > 0.0:
             raise ValueError("loglik must be negative")
         elif loglik != -np.inf:
@@ -529,7 +535,7 @@ cdef class h2mm_model:
             self.model.conv = 0
             self.model.loglik = <double> loglik
         else:
-            self.model.conv = 3 if is_conv else 2
+            self.model.conv = is_conv
             self.model.loglik = <double> loglik
         # allocate and copy array values
         for i in range(self.model.nstate):
@@ -595,6 +601,9 @@ cdef class h2mm_model:
             ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
         elif self.model.conv == 6:
             msg = "Optimization stopped after error, "
+            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 7:
+            msg = f"Model after converged, iteration {self.model.niter}, "
             ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
         return msg + f'States={self.model.nstate}, Streams={self.model.ndet}, ' + ll
         
@@ -1027,6 +1036,8 @@ cdef class h2mm_model:
             
         """
         cdef h2mm_model out_model
+        if max_iter is None:
+            max_iter = optimization_limits.max_iter
         if self.model.conv == 4 and self.model.niter >= max_iter:
             max_iter = self.model.niter + max_iter
         out = EM_H2MM_C(self, indexes, times, max_iter=max_iter, 
