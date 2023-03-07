@@ -196,6 +196,8 @@ def test_gamma_oop(simple_data_all):
     assert isinstance(out, h2.h2mm_model) and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
     out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10, inplace=False)
     assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
+    # smoke test for optimizing model where optimization ended by max_iter
+    out.optimize(simple_data_all[0], simple_data_all[1], max_iter=10)
 
 @pytest.fixture(scope="module")
 def opt_model():

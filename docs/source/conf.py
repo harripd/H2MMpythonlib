@@ -26,7 +26,7 @@ copyright = '2022, Paul David Harris'
 author = 'Paul David Harris'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.2'
+release = '1.0.3'
 
 
 # -- General configuration ---------------------------------------------------
