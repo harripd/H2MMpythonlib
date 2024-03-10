@@ -22,11 +22,11 @@ sys.path.insert(0, os.path.abspath('./../../'))
 # -- Project information -----------------------------------------------------
 
 project = 'H2MM_C'
-copyright = '2022, Paul David Harris'
+copyright = '2024, Paul David Harris'
 author = 'Paul David Harris'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.3'
+release = '1.0.4'
 
 
 # -- General configuration ---------------------------------------------------

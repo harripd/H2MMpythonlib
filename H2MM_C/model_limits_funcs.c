@@ -34,12 +34,12 @@ int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, doubl
 			return 1;
 		}
 	}
-	else if (current->niter >= limits->max_iter)
+	else if (current->niter >= limits->max_iter) // reached maximum number of iterations
 	{
 		current->conv = 4;
 		return 2;
 	}
-	else if (total_time > limits->max_time)
+	else if (total_time > limits->max_time) // exceeded time of iteration
 	{
 		current->conv = 5;
 		return 2;
@@ -70,7 +70,7 @@ int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range
 	double off_diff = 0.0;
-	// set the various boolean an other variables for the next loop
+	// set the various boolean and other variables for the next loop
 	var_correct = FALSE;
 	out_count = new->nstate;
 	off_diff = 0.0;

@@ -13,14 +13,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include<time.h>
+#include <time.h>
 #include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
 
-int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
 	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
@@ -132,7 +132,10 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 		{
 			if (print_func != NULL)
 			{
-				print_func(current->niter, new, current, old, t_iter, t_total, print_call);
+				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
+				{
+					conv = -5;
+				}
 			}
 			// cycle arrays
 			mod_temp = old;
@@ -189,7 +192,7 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 	return conv;
 }
 
-int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
 	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
@@ -305,7 +308,10 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 		{
 			if (print_func != NULL)
 			{
-				print_func(current->niter, new, current, old, t_iter, t_total, print_call);
+				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
+				{
+					conv = -5;
+				}
 			}
 			// cycle arrays
 			mod_temp = old;
@@ -420,7 +426,7 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 	return conv;
 }
 
-int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
 	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
@@ -531,7 +537,10 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 		{
 			if (print_func != NULL)
 			{
-				print_func(current->niter, new, current, old, t_iter, t_total, print_call);
+				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
+				{
+					conv = -5;
+				}
 			}
 			// cycle arrays
 			old = current;
@@ -582,7 +591,7 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 	return conv;
 }
 
-int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
 	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
@@ -699,7 +708,10 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 		{
 			if (print_func != NULL)
 			{
-				print_func(current->niter, new, current, old, t_iter, t_total, print_call);
+				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
+				{
+					conv = -5;
+				}
 			}
 			// cycle arrays
 			old = current;

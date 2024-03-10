@@ -37,9 +37,10 @@ unsigned long get_max_delta(unsigned long num_burst, unsigned long *burst_sizes,
 	return max_delta;
 }
 
-void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
+int baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
 {
 	printf("Iteration %ld, Current loglik %f, improvement: %e, iter time: %f, total: %f\n", niter, old->loglik, current->loglik - old->loglik, t_iter, t_total);
+	return 0;
 }
 
 void h2mm_normalize(h2mm_mod *model_params)

@@ -61,12 +61,12 @@ cdef extern from "C_H2MM.h":
     int free_model(h2mm_mod *model)
     int free_models(const unsigned long n, h2mm_mod *model)
     void h2mm_normalize(h2mm_mod *model_params)
-    int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, void (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
+    int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
     unsigned long viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
-    void baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
+    int baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
     int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, lm *limits) nogil
     int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, double ****gamma, lm *limits) nogil
     int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits)
@@ -507,10 +507,10 @@ cdef class h2mm_model:
             raise ValueError("nphot must be positive")
         if not isinstance(is_conv, int):
             raise TypeError("is_conv must be boolean or int")
-            if isinstance(is_conv, bool):
-                is_conv = 3 if is_conv else 2
-            elif is_conv < 0 or is_conv > 7:
-                raise ValueError("is_conv must be within range of [0, 7]")
+        elif isinstance(is_conv, bool):
+            is_conv = 3 if is_conv else 2
+        elif is_conv < 0 or is_conv > 7:
+            raise ValueError("is_conv must be within range of [0, 7]")
         if loglik > 0.0:
             raise ValueError("loglik must be negative")
         elif loglik != -np.inf:
@@ -1698,7 +1698,7 @@ cdef h2mm_model model_copy_from_ptr(h2mm_mod *model):
     copy_model(model, ret_model)
     return h2mm_model.from_ptr(ret_model)
 
-cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, lm* limits, void *lims):
+cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, lm* limits, void *lims) noexcept:
     # initial checks ensuring model does not optimize too long or have loglik error
     if current.niter >= limits.max_iter:
         current.conv = 4
@@ -1806,7 +1806,7 @@ cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, 
 
 
 # The wrapper for the user supplied print function
-cdef void model_print_call(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_call(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_struct *print_in = <print_struct*> func
     cdef object print_func = <object> print_in.func
     cdef object args = <object> print_in.args
@@ -1815,13 +1815,17 @@ cdef void model_print_call(unsigned long niter, h2mm_mod *new, h2mm_mod *current
     cdef h2mm_model old_model = model_copy_from_ptr(old)
     new_model.normalize()
     if niter % args[2] == 0:
-        if len(args) == 4:
-            print_func(niter, new_model, current_model, old_model, t_iter, t_total)
-        else:
-            print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
+        try:
+            if len(args) == 4:
+                print_func(niter, new_model, current_model, old_model, t_iter, t_total)
+            else:
+                print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
+        except:
+            return -1
+    return 0
 
 # The wrapper for the user supplied print function that displays a string
-cdef void model_print_call_str(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_call_str(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_struct *print_in = <print_struct*> func
     cdef object print_func = <object> print_in.func
     cdef object args = <object> print_in.args
@@ -1830,88 +1834,116 @@ cdef void model_print_call_str(unsigned long niter, h2mm_mod *new, h2mm_mod *cur
     cdef h2mm_model old_model = model_copy_from_ptr(old)
     new_model.normalize()
     if niter % args[2] == 0:
-        if len(args) == 4:
-            disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total)
-        else:
-            disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
-        if args[3]:
-            args[1].data += disp_str
-        else:
-            args[1].data = disp_str
-        args[0].update(args[1])
+        try:
+            if len(args) == 4:
+                disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total)
+            else:
+                disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
+            if args[3]:
+                args[1].data += disp_str
+            else:
+                args[1].data = disp_str
+            args[0].update(args[1])
+        except:
+            return -1
+    return 0
 
 # function to hand to the print_func, prints the entire h2mm_model
-cdef void model_print_all(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_all(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef h2mm_model current_model = model_copy_from_ptr(current)
     cdef object disp_txt = <object> print_args.txt
     cdef object disp_handle = <object> print_args.handle
     if niter % print_args.disp_freq == 0:
-        if print_args.keep == 1:
-            disp_txt.data += current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
-        else:
-            disp_txt.data = current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
-        disp_handle.update(disp_txt)
+        try:
+            if print_args.keep == 1:
+                disp_txt.data += current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
+            else:
+                disp_txt.data = current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
+            disp_handle.update(disp_txt)
+        except:
+            return -1
+    return 0
 
 # function to hand to the print_func, prints the current loglik and the improvement
-cdef void model_print_diff(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_diff(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef object disp_txt = <object> print_args.txt
     cdef object disp_handle = <object> print_args.handle
     if niter % print_args.disp_freq == 0:
-        if print_args.keep == 1:
-            disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
-        else:
-            disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
-        disp_handle.update(disp_txt)
+        try:
+            if print_args.keep == 1:
+                disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
+            else:
+                disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
+            disp_handle.update(disp_txt)
+        except:
+            return -1
+    return 0
 
-cdef void model_print_diff_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_diff_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef object disp_txt = <object> print_args.txt
     cdef object disp_handle = <object> print_args.handle
     if niter % print_args.disp_freq == 0:
-        if print_args.keep == 1:
-            disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
-        else:
-            disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
-        disp_handle.update(disp_txt)
+        try:
+            if print_args.keep == 1:
+                disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
+            else:
+                disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
+            disp_handle.update(disp_txt)
+        except:
+            return -1
+    return 0
 
 # function to hand to the print_func, prints current and old loglik
-cdef void model_print_comp(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_comp(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef object disp_txt = <object> print_args.txt
     cdef object disp_handle = <object> print_args.handle
     if niter % print_args.disp_freq == 0:
-        if print_args.keep == 1:
-            disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
-        else:
-            disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
-        disp_handle.update(disp_txt)
+        try:
+            if print_args.keep == 1:
+                disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
+            else:
+                disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
+            disp_handle.update(disp_txt)
+        except:
+            return -1
+    return 0
 
 # function to hand to the print_func, print comparison between current and old loglik, and iteration and total time
-cdef void model_print_comp_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_comp_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef object disp_txt = <object> print_args.txt
     cdef object disp_handle = <object> print_args.handle
     if niter % print_args.disp_freq == 0:
-        if print_args.keep == 1:
-            disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
-        else:
-            disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
-        disp_handle.update(disp_txt)
+        try:
+            if print_args.keep == 1:
+                disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
+            else:
+                disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
+            disp_handle.update(disp_txt)
+        except:
+            return -1
+    return 0
 
 
 # function to hand to the print_func, prints current and old loglik
-cdef void model_print_iter(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func):
+cdef int model_print_iter(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
     cdef print_args_struct *print_args = <print_args_struct*> func
     cdef object disp_txt = <object> print_args.txt if print_args.txt is not NULL else None
     cdef object disp_handle = <object> print_args.handle if print_args.handle is not NULL else None
     if niter % print_args.disp_freq == 0:
-        if print_args.keep == 1:
-            disp_txt.data += f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
-        else:
-            disp_txt.data = f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
-        disp_handle.update(disp_txt)
+        try:
+            if print_args.keep == 1:
+                disp_txt.data += f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
+            else:
+                disp_txt.data = f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
+            disp_handle.update(disp_txt)
+        except:
+            return -1
+    return 0
   
 # function to generate numpy array of 2d numpy double arrays (primarily for returning gamma)
 cdef np.ndarray gen_gamma_numpy(tuple shape, unsigned long* dim1, unsigned long dim2, double** arrays):
@@ -2293,7 +2325,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     limits.max_time = <double> optimization_limits._get_max_time(max_time)
     limits.min_conv = <double> optimization_limits._get_converged_min(converged_min)
     # setup the printing function
-    cdef void (*ptr_print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*)
+    cdef int (*ptr_print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept
     cdef void *ptr_print_call = NULL
     cdef print_args_struct *ptr_print_args = <print_args_struct*> PyMem_Malloc(sizeof(print_args_struct))
     cdef print_struct *ptr_print_struct = <print_struct*> PyMem_Malloc(sizeof(print_struct*))
@@ -2348,7 +2380,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         raise ValueError("Photon out of order")
     # print("Done Allocating C bursts data")
     # if the bounds_func is not None, then setup the bounds arrays
-    cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*)
+    cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*) noexcept
     cdef void *b_ptr
     # cdef h2mm_minmax *bound = <h2mm_minmax*> PyMem_Malloc(sizeof(h2mm_minmax))
     disp_txt.data = "Bounds preparation"
@@ -2436,7 +2468,9 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         raise ValueError('limits function must return model of same shape as inintial model')
     elif res == -4:
         raise TypeError('limits function must return bool, h2mm_model, (h2mm_model, bool) or (h2mm_model, int [0,2])')
-    elif res < -4:
+    elif res == -5:
+        raise Exception("print_func raised an error, terminating optimization")
+    elif res < -5:
         raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
     elif conv == 3:
         out_text = f'The model converged after {niter} iterations'
