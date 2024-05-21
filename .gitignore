@@ -1,5 +1,7 @@
 .ipynb_checkpoints/
 build/
+H2MM_C/H2MM_C.c
+H2MM_C/_version.py
 *.so
 *.egg
 *.egg-info

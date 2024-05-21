@@ -26,7 +26,9 @@ copyright = '2024, Paul David Harris'
 author = 'Paul David Harris'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.4'
+from importlib.metadata import version as get_version
+release: str = get_version("H2MM_C")
+version: str = '.'.join(release.split('.')[:2])
 
 
 # -- General configuration ---------------------------------------------------

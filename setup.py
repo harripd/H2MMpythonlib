@@ -7,7 +7,7 @@ A full C level implementation of H2MM and python wrappers for access in Jupyter 
 """
 from setuptools import setup
 from setuptools import Extension
-from Cython.Distutils import build_ext
+from Cython.Build import cythonize
 
 import numpy as np
 
@@ -18,30 +18,6 @@ for e in ext:
     e.cython_directives = {'embedsignature':True}
 
 
-with open("README.md",'r') as f:
-    long_description = f.read()
-
 setup(name = "H2MM_C",
-      version = "1.0.4",
-      author = "Paul David Harris",
-      author_email = "harripd@gmail.com",
-      maintainer = "Paul David Harris",
-      maintainer_email = "harripd@gmail.com",
-      url = "https://github.com/harripd/H2MMpythonlib",
-      download_url = "https://github.com/harripd/H2MMpythonlib",
-      install_requires = ['numpy>=1.20.1','IPython'],
-      description = "C level implementation of H2MM algorithm by Pirchi. 2016",
-      long_description = long_description,
-      long_description_content_type = 'text/markdown',
-      ext_modules = ext,
-      license = "MIT",
-      keywords = "single-molecule FRET",
-      classifiers=['Intended Audience :: Science/Research',
-                   'Operating System :: OS Independent',
-                   'License :: OSI Approved :: MIT License',
-                   'Programming Language :: Cython',
-                   'Programming Language :: C',
-                   'Topic :: Scientific/Engineering',
-                   ],
-      cmdclass = {'build_ext': build_ext}
+      ext_modules = cythonize(ext),
       )
