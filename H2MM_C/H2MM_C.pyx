@@ -95,11 +95,16 @@ ctypedef struct print_args_struct:
     unsigned long max_iter
 
 #: Version string
-from importlib.metadata import version, PackageNotFoundError
+from sys import version_info as python_version
+if python_version.major > 3 or python_version.minor > 7:
+    from importlib.metadata import version, PackageNotFoundError
+else:
+    from importlib_metadata import version, PackageNotFoundError
 try:
     __version__ = version("H2MM_C")
 except PackageNotFoundError:
     print("cannot find package version")
+del version, PackageNotFoundError, python_version
 
 # copy data from a numpy array into an unsigned long array, and return the pointer
 cdef unsigned long* np_copy_ul(np.ndarray arr):

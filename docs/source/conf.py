@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.abspath('./../../'))
 project = 'H2MM_C'
 copyright = '2024, Paul David Harris'
 author = 'Paul David Harris'
+language = 'en'
 
 # The full version, including alpha/beta/rc tags
 from importlib.metadata import version as get_version

@@ -37,6 +37,7 @@ requires-python = ">= 3.7"
 dependencies = [
     "numpy",
     "IPython",
+    'importlib_metadata;python_version<"3.8"'
     ]
 
 [project.urls]
@@ -52,7 +53,6 @@ include = ['H2MM_C']
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
-write_to = "H2MM_C/_version.py"
 
 
 [tool.cibuildwheel]
