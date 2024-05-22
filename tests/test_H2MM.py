@@ -12,6 +12,8 @@ from itertools import combinations_with_replacement
 import pytest
 import H2MM_C as h2
 
+rnd = np.random.default_rng(seed=15371)
+
 def model_almost_equal(model1,model2):
     """
     Compare two models are essentially the same
@@ -347,7 +349,7 @@ def test_Sim():
     Simulate a trajectory with simulation function, then check if optimization finds
     a model with similar results
     """
-    times = [np.cumsum(np.ceil(np.random.exponential(1000,size=(75)))).astype('L') for i in range(10000)]
+    times = [np.cumsum(np.ceil(rnd.exponential(1000,size=(75)))).astype('L') for i in range(10000)]
     prior_init = np.array([1/3,1/3,1/3])
     trans_init = np.array([[1-1.5e-6,1e-6,5e-7],[1e-6,1-1.5e-6,5e-7],[5e-7,5e-7,1-1e-6]])
     obs_init = np.array([[0.2,0.8],[0.5,0.5],[0.8,0.2]])
