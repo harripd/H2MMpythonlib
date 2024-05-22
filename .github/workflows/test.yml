@@ -30,6 +30,6 @@ jobs:
       - name: Install H2MM_C
         run: python -m pip install .
 
-      - name: test:
+      - name: Test
         run: pytest
 

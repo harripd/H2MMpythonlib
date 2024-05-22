@@ -3,15 +3,12 @@ name: Build Wheels
 on:
   push: 
     branches:
-      - main:
-          tag:
-            - "**"
-      - gitactions_wheel
+      - main
+    tag:
+      - "**"
   pull_request:
-    branches:
-      - main:
-          tag:
-            - "**"
+    tag:
+      - "**"
 
 jobs:
   build_wheels:
