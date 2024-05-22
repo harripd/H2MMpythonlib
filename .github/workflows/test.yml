@@ -1,11 +1,13 @@
 name: Test
 
 on: 
-  - push:
-      branches:
-        - main
-        - gitactions_test
-  - pull_request
+  push:
+    branches:
+      - main
+      - gitactions_test
+  pull_request:
+    branches:
+      - main
 
 jobs:
   test:
