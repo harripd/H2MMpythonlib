@@ -123,7 +123,7 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	HANDLE vit_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
 	// alocate variables
-	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream)); // remember to free all b[n]->delta to prevent memory leak
+	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream));
 	// process burst arrays
 	//~ printf("Getting deltas\n");
 	unsigned long max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 

@@ -144,7 +144,7 @@ typedef struct
 {
 	unsigned long si; // the number of states, also stride of 1st dimension of A
 	unsigned long sT; // stride of 0th dimension of A, gives power of A
-	unsigned long max_phot; // size of larges burst, used for allocating arrays
+	unsigned long max_phot; // size of largest burst, used for allocating arrays
 	double *A; // A array, the powers of the transition probability matrix
 	phstream *phot; // pointer to burst array, part of input
 	ph_path *path; // pointer to viterbi path found by viterbi algorithm

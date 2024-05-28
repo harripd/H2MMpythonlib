@@ -369,7 +369,7 @@ int free_paths(unsigned long num_burst, ph_path* paths)
 	{
 		for (i=0; i < num_burst; i++)
 			free_path_arrs(&paths[i]);
-		//~ free(paths);
+		free(paths);
 		return 0;
 	}
 	else

@@ -1,10 +1,11 @@
 .ipynb_checkpoints/
 build/
+dist/
 H2MM_C/H2MM_C.c
 H2MM_C/_version.py
 *.so
 *.egg
 *.egg-info
 *.whl
-tests/__pycache__
+*/__pycache__
 /docs/build

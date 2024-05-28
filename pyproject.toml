@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "setuptools>=64",
-    "setuptools_scm",
+    "setuptools_scm>=6.0",
     "wheel",
     "cython",
     "IPython",
@@ -22,7 +22,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
      "Operating System :: OS Independent",
      "License :: OSI Approved :: MIT License",
-     "Programming Language :: Python :: 3",
      "Programming Language :: Python :: 3.7",
      "Programming Language :: Python :: 3.8",
      "Programming Language :: Python :: 3.9",
@@ -46,6 +45,8 @@ Documentation = "https://h2mmpythonlib.readthedocs.io/en/latest/"
 Repositories = "https://github.com/harripd/H2MMpythonlib/"
 Issues = "https://github.com/harripd/H2MMpythonlib/issues"
 
+[tool.pytest.ini_options]
+
 
 [tool.setuptools.packages.find]
 include = ['H2MM_C']
@@ -58,3 +59,5 @@ version_scheme = "post-release"
 [tool.cibuildwheel]
 build = "*"
 skip = "*-win32 *musllinux*"
+before-test = "pip install pytest"
+test-command = "pytest {package}/tests"

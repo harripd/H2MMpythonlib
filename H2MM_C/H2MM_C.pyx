@@ -166,6 +166,10 @@ cdef np.ndarray copy_to_np_ul(unsigned long lenp, unsigned long* arr):
     cdef i
     for i in range(lenp):
         out[i] = arr[i]
+    return out
+
+cdef np.ndarray copy_to_np_ul_and_free(unsigned long lenp, unsigned long* arr):
+    cdef np.ndarray out = copy_to_np_ul(lenp, arr)
     PyMem_Free(arr)
     return out
 
@@ -174,6 +178,10 @@ cdef np.ndarray copy_to_np_d(unsigned long lenp, double* arr):
     cdef i
     for i in range(lenp):
         out[i] = arr[i]
+    return out
+
+cdef np.ndarray copy_to_np_d_and_free(unsigned long lenp, double* arr):
+    cdef np.ndarray out = copy_to_np_d(lenp, arr)
     PyMem_Free(arr)
     return out
 
@@ -1962,12 +1970,12 @@ cdef np.ndarray gen_gamma_numpy(tuple shape, unsigned long* dim1, unsigned long 
         size *= i
     cdef np.ndarray[object] out = np.empty(size, dtype=object)
     for i in range(size):
-        out[i] = copy_to_np_d(dim1[i] * dim2, arrays[i]).reshape((dim1[i], dim2))
+        out[i] = copy_to_np_d_and_free(dim1[i] * dim2, arrays[i]).reshape((dim1[i], dim2))
     return out.reshape(shape)
 
  # function to generate list or tuple of 2d numpy double arrays (primarily for returning gamma)
 cdef gen_gamma_py(type tp, tuple shape, unsigned long* dim1, unsigned long dim2, double** arrays):
-    return tp(copy_to_np_d(dim1[i]*dim2, arrays[i]).reshape((dim1[i], dim2)) for i in range(shape[0]))
+    return tp(copy_to_np_d_and_free(dim1[i]*dim2, arrays[i]).reshape((dim1[i], dim2)) for i in range(shape[0]))
 
 # wrapper to choose correct gamma generating function
 cdef gen_gamma(type tp, tuple shape, unsigned long* dim1, unsigned long dim2, double** gamma):
@@ -2026,13 +2034,8 @@ cdef gen_path(type tp, tuple shape, unsigned long* dim1, ph_path* path):
     elif tp in (list, tuple):
         rpath = gen_path_py(tp, shape, dim1, ppath)
         rscale = gen_scale_py(tp, shape, dim1, pscale)
-    if ppath is not NULL:
-        PyMem_Free(ppath)
-        ppath = NULL
-    if pscale is not NULL:
-        PyMem_Free(pscale)
-        pscale = NULL
     return rpath, rscale
+
 
 def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None, 
               print_func='iter', print_args=None, bounds_func=None, 
@@ -2272,9 +2275,11 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef unsigned long num_burst = indexes.size if isinstance(indexes, np.ndarray) else len(indexes)
     cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
     cdef tuple print_strings = (None,'console','all','diff','diff_time','comp','comp_time','iter')
-    cdef object disp_txt = Pretty("Print Func validation")
-    cdef object disp_handle = DisplayHandle()
-    disp_handle.display(disp_txt)
+    cdef int ipy_disp = 0 if print_func in (None, 'console') else 1
+    cdef object disp_txt = Pretty("Print Func validation") if ipy_disp else None
+    cdef object disp_handle = DisplayHandle() if ipy_disp else None
+    if ipy_disp:
+        disp_handle.display(disp_txt)
     cdef h2mm_model h_test_new = h_mod.copy()
     cdef h2mm_model h_test_current = h_mod.copy()
     cdef h2mm_model h_test_old = h_mod.copy()
@@ -2302,8 +2307,9 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     elif callable(print_func):
         print_args = tuple(print_args) if isinstance(print_args, list) else print_args
         try:
-            disp_txt.data += "print_func validation\n"
-            disp_handle.update(disp_txt)
+            if ipy_disp:
+                disp_txt.data += "print_func validation\n"
+                disp_handle.update(disp_txt)
             if print_args is None:
                 print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
                 print_args = (disp_handle,disp_txt,1,False)
@@ -2321,12 +2327,18 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
                 print_args = ((disp_handle, disp_txt, 1, False) + print_args)
             if print_return is not None and not isinstance(print_return,str):
                 raise TypeError(f"print_func must either return nothing, or a str, got {type(print_return)}")
-            disp_txt.data += "print_func validated\n"
-            disp_handle.update(disp_txt)
+            if ipy_disp:
+                disp_txt.data += "print_func validated\n"
+                disp_handle.update(disp_txt)
         except Exception as e:
-            disp_txt.data += "print_func invalid function, must take (niter,new,current,old,t_iter,t_total,*print_args)\n"
-            disp_handle.update(disp_txt)
+            if ipy_disp:
+                disp_txt.data += "print_func invalid function, must take (niter,new,current,old,t_iter,t_total,*print_args)\n"
+                disp_handle.update(disp_txt)
+            else:
+                print("print_func invalid function, must take (niter,new,current,old,t_iter,t_total,*print_args)")
             raise e
+    else:
+        raise NotImplementedError("Coding error, please raise issue on github")
     # set up optimzation min/max limits
     cdef lm limits
     limits.max_iter = <unsigned long> optimization_limits._get_max_iter(max_iter)
@@ -2340,14 +2352,19 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef print_struct *ptr_print_struct = <print_struct*> PyMem_Malloc(sizeof(print_struct*))
     ptr_print_args.keep = 1
     ptr_print_args.max_iter = limits.max_iter
-    disp_txt.data = ""
+    if ipy_disp:
+        disp_txt.data = ""
     if print_func in print_strings:
         ptr_print_args.txt = <void*> disp_txt
         ptr_print_args.handle = <void*> disp_handle
         ptr_print_args.keep = 1 if print_args[1] else 0
         ptr_print_args.disp_freq = <unsigned long> print_args[0]
         ptr_print_call = <void*> ptr_print_args
-        if print_func == 'console':
+        if print_func is None:
+            ptr_print_func = NULL
+            ptr_print_args.keep = 0
+        elif print_func == 'console':
+            print("console")
             ptr_print_func = baseprint
             ptr_print_args.keep = 0
         elif print_func == 'all':
@@ -2368,14 +2385,13 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         ptr_print_struct.func = <void*> print_func
         ptr_print_struct.args = <void*> print_args
         ptr_print_call = <void*> ptr_print_struct
-    elif print_func is None:
-        ptr_print_func = NULL
-        ptr_print_args.keep = 0
-
+    else:
+        raise NotImplementedError("Coding error, please raise issue on github")
     # allocate the memory for the pointer arrays to be submitted to the C function
     # print("Allocating C bursts data")
-    disp_txt.data = "Preparing data"
-    disp_handle.update(disp_txt)
+    if ipy_disp:
+        disp_txt.data = "Preparing data"
+        disp_handle.update(disp_txt)
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
@@ -2392,8 +2408,9 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*) noexcept
     cdef void *b_ptr
     # cdef h2mm_minmax *bound = <h2mm_minmax*> PyMem_Malloc(sizeof(h2mm_minmax))
-    disp_txt.data = "Bounds preparation"
-    disp_handle.update(disp_txt)
+    if ipy_disp:
+        disp_txt.data = "Bounds preparation"
+        disp_handle.update(disp_txt)
     cdef _h2mm_lims bound
     cdef bound_struct *b_struct = <bound_struct*> PyMem_Malloc(sizeof(bound_struct))
     if bounds_func is None:
@@ -2422,8 +2439,9 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef unsigned long i, n
     cdef h2mm_mod *out_arr
     cdef double **gamma_arr = NULL
-    disp_txt.data = "Bounds prepared"
-    disp_handle.update(disp_txt)
+    if ipy_disp:
+        disp_txt.data = "Bounds prepared"
+        disp_handle.update(disp_txt)
     # based on gamma and opt_array kwargs, choose which h2mm optimization to run
     if gamma and opt_array:
         res =  h2mm_optimize_gamma_array(num_burst,burst_sizes,b_delta,b_det, h_mod.model, &out_arr, &gamma_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
@@ -2494,11 +2512,12 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     else:
 
         raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
-    if keep == 1:
+    if keep == 1 and ipy_disp:
         disp_txt.data += out_text
-    else:
+    elif ipy_disp:
         disp_txt.data = out_text
-    disp_handle.update(disp_txt)
+    if ipy_disp:
+        disp_handle.update(disp_txt)
     if gamma:
         return out, gamma_out
     else:
@@ -2727,6 +2746,8 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     cdef unsigned long e_val = viterbi(num_burst, burst_sizes, b_delta, b_det, h_mod.model, path_ret, n_core)
     if e_val == 0:
         path, scale = gen_path(type(indexes), array_size(indexes), burst_sizes, path_ret) 
+    else:
+        free_paths(num_burst, path_ret)
     burst_free(num_burst, b_det, b_delta, burst_sizes)
     if e_val == 1:
         raise ValueError('Bursts photons are out of order, please check your data')
@@ -2740,7 +2761,7 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     if isinstance(indexes, np.ndarray):
         ll = ll.reshape(indexes.shape)
     cdef double icl = ((h_mod.nstate**2 + ((h_mod.ndet - 1) * h_mod.nstate) - 1) * np.log(nphot)) - 2 * loglik
-    PyMem_Free(path_ret)
+    free_paths(num_burst, path_ret)
     return path, scale, ll, icl
     
 
@@ -2990,7 +3011,7 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
     cdef np.ndarray loglik
     cdef list out = list()
     if res == 0:
-        loglik = copy_to_np_d(num_burst, ll).reshape(array_size(indexes))
+        loglik = copy_to_np_d_and_free(num_burst, ll).reshape(array_size(indexes))
         sum_loglik = np.sum(loglik)
         bic = (model.k * np.log(nphot)) - (2*sum_loglik)
     else:
@@ -3063,7 +3084,7 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     if exp != 0:
         PyMem_Free(path_n)
         raise RuntimeError("Unknown error, raise issue on github")
-    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
+    cdef np.ndarray path = copy_to_np_ul_and_free(lenp, path_n)
     return path
 
 
@@ -3113,7 +3134,7 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
         raise ValueError("Out of order photon")
     elif exp != 0:
         raise RuntimeError("Unknown error, raise issue on github")
-    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
+    cdef np.ndarray path = copy_to_np_ul_and_free(lenp, path_n)
     return path
 
 
@@ -3160,7 +3181,7 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
     if exp != 0:
         PyMem_Free(dets_n)
         raise RuntimeError("Unknown error, raise issue on github")
-    cdef np.ndarray dets = copy_to_np_ul(lenp, dets_n)
+    cdef np.ndarray dets = copy_to_np_ul_and_free(lenp, dets_n)
     return dets
 
 
@@ -3222,6 +3243,6 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
         PyMem_Free(path_n)
         PyMem_Free(dets_n)
         raise RuntimeError("Unknown error in phtragen, raise issue on github")
-    cdef np.ndarray path = copy_to_np_ul(lenp, path_n)
-    cdef np.ndarray dets = copy_to_np_ul(lenp, dets_n)
+    cdef np.ndarray path = copy_to_np_ul_and_free(lenp, path_n)
+    cdef np.ndarray dets = copy_to_np_ul_and_free(lenp, dets_n)
     return path , dets

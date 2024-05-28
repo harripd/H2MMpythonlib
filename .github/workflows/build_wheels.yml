@@ -1,14 +1,12 @@
 name: Build Wheels
 
 on:
-  push: 
-    branches:
+  workflow_run:
+    workflow: [test]
+    branches: 
       - main
-    tag:
-      - "**"
-  pull_request:
-    tag:
-      - "**"
+    types:
+      - completed
 
 jobs:
   build_wheels:
