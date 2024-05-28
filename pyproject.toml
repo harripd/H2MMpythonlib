@@ -9,7 +9,6 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
-
 [project]
 name = "H2MM_C"
 dynamic = ["version", ]
@@ -47,10 +46,8 @@ Issues = "https://github.com/harripd/H2MMpythonlib/issues"
 
 [tool.pytest.ini_options]
 
-
 [tool.setuptools.packages.find]
 include = ['H2MM_C']
-
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
