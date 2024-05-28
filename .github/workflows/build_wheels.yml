@@ -1,13 +1,12 @@
 name: Build Wheels
 
 on:
-  workflow_run:
-    workflow: [test]
-    branches: 
-      - main
-    types:
-      - completed
-
+  push:
+    branches:
+      -main
+  pull_request:
+    branches:
+      -main
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
