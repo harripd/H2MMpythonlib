@@ -487,7 +487,21 @@ def test_OOp(simple_data_all):
     assert in_mod.loglik < 0 and not np.isinf(in_mod.loglik)
     assert in_mod.nphot == nphot
     
-    
+def test_hash():
+    m1 = h2.h2mm_model(np.array([0.2,0.5,0.3]), 
+                       np.array([[0.99, 0.005, 0.005],
+                                 [0.001, 0.998, 0.001],
+                                 [0.002, 0.002, 0.996]]),
+                       np.array([[0.5, 0.5],
+                                 [0.3, 0.7],
+                                 [0.7, 0.3]]))
+    with pytest.raises(TypeError):
+        hash(m1)
+    mh1 = m1.sort_states()
+    hash(mh1)
+    assert mh1 == m1
+    m2 = h2.factory_h2mm_model(3,2).sort_states()
+    assert m2 != mh1
 
 if __name__ == '__main__':
     pytest.main(['-x, -v, tests/test_H2MM.py'])

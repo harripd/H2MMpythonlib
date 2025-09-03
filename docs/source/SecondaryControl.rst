@@ -117,4 +117,59 @@ Or as a whole:
 
 | Optimization limits:: num_cores: 2, max_iter: 1000, converged_min: 1e-7, max_time: inf
 
+
+Hashable models *New v2.0*
+--------------------------
+
+Version 2.0 introduced limited abilities to hash and use `h2mm_model`
+objects as keys in dictionaries.
+
+By default, most models cannot be used in this way,
+rather a model must first be put into a canonical form.
+To generate such a model, call the method :meth:`h2mm_model.sort_states`
+on any existing model. The returned model will be hashable.
+
+.. code-block::
+
+    sorted_model_5s3d = model_5s3d.sort_states()
+    hash(sorted_model_5s3d)
+
+| 4835756030495084663
+
+Along with the hash function, :class:`h2mm_model` s can also be compared
+to one another with the equality operator. When two models have
+identical cannonical forms, they will evaluate to :code:`True` in
+equality comparisons.
+
+.. note::
+
+    This comparison is very strict, ie it is **not** an
+    almost equal comparison.
+    This is so that using hashable models as dictionary
+    keys will still function.
+    The floating point numbers in two models must be
+    identical.
+
+.. code-block::
+
+    if sorted_model_5s3d == model_5s3d:
+        print("sorteted model are equivalent to unsroted models")
+    else:
+        print("sorteted model are not equivalent to unsroted models")
+    model_dummy = hm.factory_h2mm_model(4,3)
+    if model_dummy == model_5s3d:
+        print("oops, unsorted models are comparable, and identical")
+    else:
+        print("unsoreted models are comparable, but not identical")
+
+| sorteted model are equivalent to unsroted models
+| unsoreted models are comparable, but not identical
+
+.. note::
+
+    Once a model is sorted so it can be hashed, it is fixed.
+    It can no longer be assigned new :code:`prior` / :code:`trans` / :code:`obs`
+    values, and optimizations must be performed with :code:`inplace=False`
+
+
 .. |H2MM| replace:: H\ :sup:`2`\ MM
