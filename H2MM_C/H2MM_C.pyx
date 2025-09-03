@@ -841,9 +841,11 @@ cdef class h2mm_model:
         out.model.conv = 8
         return out
     
-    def __eq__(self, h2mm_model other):
+    def __eq__(self, other):
+        if not isinstance(other, h2mm_model):
+            return False
         cdef h2mm_model sf = self if self.model.conv == 8 else self.sort_states()
-        cdef h2mm_model ot = other if other.model.conv == 8 else other.sort_states()
+        cdef h2mm_model ot = other if other.conv_code == 8 else other.sort_states()
         if sf.model.nstate != ot.model.nstate or sf.model.ndet != ot.model.ndet:
             return False
         cdef int i
