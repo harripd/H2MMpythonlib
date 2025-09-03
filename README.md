@@ -11,7 +11,7 @@ H2MM_C is a python extension module that implements the H<sup>2</sup>MM algorith
 The API is intended to be user friendly, while still allowing for great flexibility. Suggestions are welcome for ways to improve the code and interface.
 
 ## Full Documentation
-Full codumentation can be found at [h2mmpythonlib.readthedocs.io](https://h2mmpythonlib.readthedocs.io)
+Full dodumentation can be found at [h2mmpythonlib.readthedocs.io](https://h2mmpythonlib.readthedocs.io)
 
 ### See Also
 

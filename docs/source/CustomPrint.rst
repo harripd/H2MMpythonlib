@@ -278,7 +278,7 @@ If you simply pass :code:`print_args = True` then the result of every iteration 
 As you can see, this is very verbose.
 
 Changing the Frequency of Display Updates
-****************************************
+*****************************************
 
 If you would rather have periodic updates, then you can hand :code:`print_args` an integer instead.
 Then the display will update only every x number of iterations.

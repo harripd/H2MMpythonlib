@@ -61,7 +61,7 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 	pthread_mutex_init(h2mm_lock,NULL);
 #elif _WIN32
 	HANDLE* tid = (HANDLE*)calloc(limits->num_cores, sizeof(HANDLE));
-	DWORD  windowsThreadId = 0;
+	DWORD  *windowsThreadId = (DWORD*) calloc(limits->num_cores,sizeof(DWORD));
 	HANDLE h2mm_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
 
@@ -113,7 +113,7 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 		}
 #elif _WIN32
 		for (i = 0; i < limits->num_cores; i++)
-			tid[i] = CreateThread(NULL, 0, fwd_bck_no_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId);
+			tid[i] = CreateThread(NULL, 0, fwd_bck_no_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId[i]);
 		WaitForMultipleObjects((DWORD)limits->num_cores, tid, TRUE, INFINITE); // Wait for all of the threads to finish
 		for (i = 0; i < limits->num_cores; i++)
 		{
@@ -184,6 +184,7 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 	free(tid);
 #elif _WIN32
 	free((void*)tid);
+	free((void*) windowsThreadId);
 	if( h2mm_lock ) 
 		CloseHandle(h2mm_lock);
 #endif
@@ -232,7 +233,7 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 	pthread_mutex_init(h2mm_lock,NULL);
 #elif _WIN32
 	HANDLE* tid = (HANDLE*)calloc(limits->num_cores, sizeof(HANDLE));
-	DWORD  windowsThreadId = 0;
+	DWORD  *windowsThreadId = (DWORD*) calloc(limits->num_cores,sizeof(DWORD));
 	HANDLE h2mm_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
 
@@ -289,7 +290,7 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 		}
 #elif _WIN32
 		for (i = 0; i < limits->num_cores; i++)
-			tid[i] = CreateThread(NULL, 0, fwd_bck_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId);
+			tid[i] = CreateThread(NULL, 0, fwd_bck_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId[i]);
 		WaitForMultipleObjects((DWORD)limits->num_cores, tid, TRUE, INFINITE); // Wait for all of the threads to finish
 		for (i = 0; i < limits->num_cores; i++)
 		{
@@ -418,6 +419,7 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 	free(tid);
 #elif _WIN32
 	free((void*)tid);
+	free((void*) windowsThreadId);
 	if( h2mm_lock ) 
 		CloseHandle(h2mm_lock);
 #endif
@@ -464,7 +466,7 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 	pthread_mutex_init(h2mm_lock,NULL);
 #elif _WIN32
 	HANDLE* tid = (HANDLE*)calloc(limits->num_cores, sizeof(HANDLE));
-	DWORD  windowsThreadId = 0;
+	DWORD  *windowsThreadId = (DWORD*) calloc(limits->num_cores,sizeof(DWORD));
 	HANDLE h2mm_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
 
@@ -517,7 +519,7 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 		}
 #elif _WIN32
 		for (i = 0; i < limits->num_cores; i++)
-			tid[i] = CreateThread(NULL, 0, fwd_bck_no_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId);
+			tid[i] = CreateThread(NULL, 0, fwd_bck_no_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId[i]);
 		WaitForMultipleObjects((DWORD)limits->num_cores, tid, TRUE, INFINITE); // Wait for all of the threads to finish
 		for (i = 0; i < limits->num_cores; i++)
 		{
@@ -583,6 +585,7 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 	free(tid);
 #elif _WIN32
 	free((void*)tid);
+	free((void*) windowsThreadId);
 	if( h2mm_lock ) 
 		CloseHandle(h2mm_lock);
 #endif
@@ -631,7 +634,7 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 	pthread_mutex_init(h2mm_lock,NULL);
 #elif _WIN32
 	HANDLE* tid = (HANDLE*)calloc(limits->num_cores, sizeof(HANDLE));
-	DWORD  windowsThreadId = 0;
+	DWORD  *windowsThreadId = (DWORD*) calloc(limits->num_cores,sizeof(DWORD));
 	HANDLE h2mm_lock = CreateMutex(NULL, FALSE, NULL);
 #endif
 	
@@ -689,7 +692,7 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 		}
 #elif _WIN32
 		for (i = 0; i < limits->num_cores; i++)
-			tid[i] = CreateThread(NULL, 0, fwd_bck_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId);
+			tid[i] = CreateThread(NULL, 0, fwd_bck_gamma, (LPVOID)&burst_submit[i], 0, (LPDWORD)&windowsThreadId[i]);
 		WaitForMultipleObjects((DWORD)limits->num_cores, tid, TRUE, INFINITE); // Wait for all of the threads to finish
 		for (i = 0; i < limits->num_cores; i++)
 		{
@@ -804,6 +807,7 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 	free(tid);
 #elif _WIN32
 	free((void*)tid);
+	free((void*) windowsThreadId);
 	if( h2mm_lock ) 
 		CloseHandle(h2mm_lock);
 #endif

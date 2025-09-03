@@ -90,6 +90,7 @@ The :class:`h2mm_limits` object :code:`us_bounds` prevents any value (except on-
 Bounds Process
 --------------
 When you use a bounds method, each iteration goes through the following steps:
+
 #. Calculate the *loglikelihood* and a new model
 #. Check if the optimization has converged
 #. Analyze the new model, and correct if necessary.
@@ -110,6 +111,7 @@ In all cases, these values can be specified as either a float or an array.
 
 As mentioned in the above outline, you also need to specify the :code:`bounds_func` argument when using :code:`bounds`.
 There are 3 options for this:
+
 #. :code:`'minmax'`: The shallowest correction, sets the out of bounds value to its minimum or maximum
 #. :code:`'revert'`: The preferred method, sets the out of bounds value to the value it was in the previous model
 #. :code:`'revert_old'`: A more extreme form of :code:`'revert'` which goes to the model before the last in the optimization, and sets the out of bounds value to that "older" value.
@@ -149,6 +151,7 @@ There is a final option for specifying bounds: write  your own function and hand
 So how does it work?
 
 The function **must** take 4 input arguments, which will be handed to it ever iteration by :func:`EM_H2MM_C`, these are (in order):
+
 #. :code:`new_model`: The model that will be optimized next, this is the one that should be bounded
 #. :code:`current_model`: The model whose loglikelihood was just calculated, this is the model that :code:`'revert'` uses to reset an out of bounds value
 #. :code:`old_model`: The model that was calculated before the current one, this is the model that :code:`'revert_old'` uses to reste an out of bounds value

@@ -145,6 +145,14 @@ cdef burst_free(unsigned long n, unsigned long** dets, unsigned long** deltas, u
     if dets is not NULL: PyMem_Free(dets)
     if deltas is not NULL: PyMem_Free(deltas)
     if sizes is not NULL: PyMem_Free(sizes)
+    
+cdef burst_free1(unsigned long n, unsigned long** dets, unsigned long** deltas, unsigned long* sizes):
+    cdef unsigned long i
+    for i in range(n):
+        if deltas[i] is not NULL: PyMem_Free(deltas[i])
+    if dets is not NULL: PyMem_Free(dets)
+    if deltas is not NULL: PyMem_Free(deltas)
+    if sizes is not NULL: PyMem_Free(sizes)
 
 # make burst differences and burst times c arrays from lists
 cdef unsigned long* burst_convert(unsigned long num_burst, color, times, unsigned long** b_det, unsigned long** b_delta):
@@ -479,7 +487,7 @@ cdef class h2mm_model:
     -------------------
     .. note::
         
-        These are generally only used when trying to re-create a model from, for
+        These are generally only specified when trying to re-create a model from, for
         instance a previous optimization of a closed notebook.
     
     loglik : float (optional)
@@ -574,7 +582,7 @@ cdef class h2mm_model:
         cdef h2mm_model new = h2mm_model.__new__(h2mm_model)
         new.model = model
         return new
-        
+    
     def __repr__(self):
         cdef unsigned long i, j
         msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {self.model.conv}\n"
@@ -622,6 +630,9 @@ cdef class h2mm_model:
         elif self.model.conv == 7:
             msg = f"Model after converged, iteration {self.model.niter}, "
             ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
+        elif self.model.conv == 8:
+            msg = "Fixed hashable model, "
+            ll = ''
         return msg + f'States={self.model.nstate}, Streams={self.model.ndet}, ' + ll
         
     # a number of property defs so that the values are accesible from python
@@ -632,6 +643,8 @@ cdef class h2mm_model:
     
     @prior.setter
     def prior(self,prior):
+        if self.model.conv == 8:
+            raise AttributeError("Fixed models cannot be altered")
         if prior.ndim != 1:
             raise ValueError("Prior must be 1D numpy floating point array")
         if prior.shape[0] != self.model.nstate:
@@ -652,7 +665,9 @@ cdef class h2mm_model:
         return np.asarray(<double[:self.model.nstate,:self.model.nstate]>self.model.trans).copy()
     
     @trans.setter
-    def trans(self,trans):
+    def trans(self, trans):
+        if self.model.conv == 8:
+            raise AttributeError("Fixed models cannot be altered")
         if trans.ndim != 2:
             raise ValueError("Trans must be a 2D numpy floating point array")
         if trans.shape[0] != trans.shape[1]:
@@ -677,6 +692,8 @@ cdef class h2mm_model:
     
     @obs.setter
     def obs(self,obs):
+        if self.model.conv == 8:
+            raise AttributeError("Fixed models cannot be altered")
         if obs.ndim != 2:
             raise ValueError("Obs must be a 2D numpy floating point array")
         if obs.shape[0] != self.model.nstate:
@@ -738,24 +755,21 @@ cdef class h2mm_model:
         """Whether or not the optimization reached convergence rather than exceeding the maximum iteration/time of optimization"""
         if self.model.conv == 3:
             return True
-        else:
-            return False
+        return False
     
     @property
     def is_opt(self):
         """Whether or not the model has undergone optimization, as opposed to evaluation or being an initial model"""
         if self.model.conv >= 3:
             return True
-        else:
-            return False
+        return False
     
     @property
     def is_calc(self):
         """If model has been optimized/eveluated, vs being an initial model"""
         if np.isnan(self.model.loglik) or self.model.loglik == -np.inf or self.model.loglik == 0 or self.model.nphot == 0:
             return False
-        else:
-            return True
+        return True
     
     @property
     def conv_code(self):
@@ -787,6 +801,8 @@ cdef class h2mm_model:
             return f'Optimization terminated because of reaching floating point NAN on iteration {self.model.niter}, returned the last viable model'
         elif self.model.conv == 7:
             return f'Model after optimal model found {self.model.niter}'
+        elif self.model.conv == 8:
+            return "Fixed hashable model, convergence irrelevant"
     
     @property
     def niter(self):
@@ -795,11 +811,16 @@ cdef class h2mm_model:
     
     @niter.setter
     def niter(self,niter):
+        if self.model.conv in (1, 8):
+            raise AttributeError("Cannot set niter for this type of model")
         if niter <= 0:
             raise ValueError("Cannot have negative iterations")
         self.model.niter = niter
     
-    def set_converged(self,converged):
+    def set_converged(self,converged=True):
+        """Modify model to mark as converged or not"""
+        if self.model.conv == 8:
+            raise AttributeError("cannot change hashed h2mm_model")
         if not isinstance(converged,bool):
             raise ValueError("Input must be True or False")
         if self.model.nphot == 0 or self.model.loglik == 0 or self.model.loglik == np.inf or np.isnan(self.model.loglik):
@@ -808,10 +829,57 @@ cdef class h2mm_model:
             self.model.conv = 3
         elif self.model.conv == 3:
             self.model.conv = 1
+            
+    def sort_states(self):
+        """Return model with states sorted by values in prior, and set as 'hashable'"""
+        srt = np.argsort(self.prior)
+        prior = self.prior[srt]
+        trans = self.trans[srt]
+        trans = trans[:,srt]
+        obs = self.obs[srt]
+        cdef h2mm_model out=  h2mm_model(prior, trans, obs, loglik=self.model.loglik, niter=self.model.niter, nphot=self.model.nphot)
+        out.model.conv = 8
+        return out
+    
+    def __eq__(self, h2mm_model other):
+        cdef h2mm_model sf = self if self.model.conv == 8 else self.sort_states()
+        cdef h2mm_model ot = other if other.model.conv == 8 else other.sort_states()
+        if sf.model.nstate != ot.model.nstate or sf.model.ndet != ot.model.ndet:
+            return False
+        cdef int i
+        cdef int j
+        for i in range(sf.model.nstate):
+            if sf.model.prior[i] != ot.model.prior[i]:
+                return False
+            for j in range(sf.model.nstate):
+                if sf.model.trans[i*sf.model.nstate+j] != ot.model.trans[i*sf.model.nstate+j]:
+                    return False
+            for j in range(sf.model.ndet):
+                if sf.model.obs[j*sf.model.nstate+i] != sf.model.obs[j*sf.model.nstate+i]:
+                    return False
+        return True
+            
+            
     
     def normalize(self):
         """For internal use, ensures all model arrays are row stochastic"""
-        h2mm_normalize(self.model)
+        if self.model.conv != 8:
+            h2mm_normalize(self.model)
+    
+    def copy(self):
+        """ Make a duplicate model in new memory"""
+        return model_copy_from_ptr(self.model)
+    
+    def __copy__(self):
+        return self.copy()
+    
+    def __hash__(self):
+        if self.model.conv != 8:
+            raise TypeError("unhashable model, must sort_states first")
+        p = tuple(self.model.prior[i] for i in range(self.model.nstate))
+        t = tuple(self.model.trans[i] for i in range(self.model.nstate**2))
+        o = tuple(self.model.obs[i] for i in range(self.model.nstate*self.model.ndet))
+        return hash(p+t+o)
     
     def optimize(self, indexes, times, max_iter=None, print_func='iter', 
               print_args = None, bounds=None, bounds_func=None,
@@ -1052,6 +1120,8 @@ cdef class h2mm_model:
             sequence.
             
         """
+        if self.model.conv == 8 and inplace:
+            raise TypeError("cannot inpnlace optimize fixed hashable model")
         cdef h2mm_model out_model
         if max_iter is None:
             max_iter = optimization_limits.max_iter
@@ -1072,7 +1142,7 @@ cdef class h2mm_model:
             # find the ideal model
             if opt_array:
                 for i in range(out_arr.size-1, -1, -1):
-                    if out_arr[i] != 7:
+                    if out_arr[i].conv_code != 7:
                         out_model = out_arr[i]
                         break
             else:
@@ -1143,10 +1213,7 @@ cdef class h2mm_model:
         
         return out
     
-    def copy(self):
-        """ Make a duplicate model in new memory"""
-        return model_copy_from_ptr(self.model)
-
+    
 
 cdef class _h2mm_lims:
     # hidden type for making a C-level h2mm_limits object
@@ -2272,6 +2339,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     if h_mod.model.ndet > burst_check + 1:
         warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {burst_check + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
     # check the bounds_func
+    cdef unsigned long i, n
     cdef unsigned long num_burst = indexes.size if isinstance(indexes, np.ndarray) else len(indexes)
     cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
     cdef tuple print_strings = (None,'console','all','diff','diff_time','comp','comp_time','iter')
@@ -2395,6 +2463,13 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
+    cdef tuple cindex = tuple(np.ascontiguousarray(idx, dtype=np.uint64) for idx in indexes)
+    cdef unsigned long[::1] b_det_temp
+    for i in range(num_burst):
+        b_det_temp = cindex[i]
+        b_det[i] = &b_det_temp[0]
+        b_delta[i] = time_diff(times[i])
+        burst_sizes[i] = cindex[i].shape[0]
     if burst_sizes is NULL:
         if ptr_print_args is not NULL: 
             PyMem_Free(ptr_print_args)
@@ -2416,7 +2491,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     if bounds_func is None:
         bound_func = limit_check_only
         b_ptr = NULL
-    elif bounds_func in ['minmax', 'revert', 'revert_old']:
+    elif bounds_func in ('minmax', 'revert', 'revert_old'):
         bound = bounds._make_model(h_mod)
         b_ptr = <void*> &bound.limits
         if bounds_func == 'minmax':
@@ -2436,7 +2511,6 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         h_mod.model.niter = 0
     # disp_handle.update(disp_txt)
     cdef int res
-    cdef unsigned long i, n
     cdef h2mm_mod *out_arr
     cdef double **gamma_arr = NULL
     if ipy_disp:
@@ -2463,7 +2537,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     if b_struct is not NULL:
         PyMem_Free(b_struct)
         b_struct = NULL
-    burst_free(num_burst, b_det, b_delta, burst_sizes)
+    burst_free1(num_burst, b_det, b_delta, burst_sizes)
     if ptr_print_args is not NULL:
         PyMem_Free(ptr_print_args)
         ptr_print_args = NULL
@@ -2510,7 +2584,6 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     elif conv == 7:
         out_text = f'The model converged after {niter-1} iterations'
     else:
-
         raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
     if keep == 1 and ipy_disp:
         disp_txt.data += out_text

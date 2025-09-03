@@ -2,7 +2,6 @@
 build/
 dist/
 H2MM_C/H2MM_C.c
-H2MM_C/_version.py
 *.so
 *.egg
 *.egg-info

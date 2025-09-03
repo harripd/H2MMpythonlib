@@ -24,6 +24,7 @@ Basic Analysis
 --------------
 
 The base steps of analysis with |H2MM| are:
+
 #. Load data
 #. Make initial model
 #. Optimize model
@@ -213,6 +214,7 @@ This is done using the *Viterbi* algorithm.
 For this ``H2MM_C`` has the :func:`viterbi_path` function.
 This function returns the most likely state path as well as a few other useful values.
 These values are:
+
 - ``path``: The most likely state of each data point
 - ``scale``: the likelihood of each state assignment in ``path``, i.e. the posterior probability
 - ``loglik``: The loglikelihood of each trajectory, returned as a numpy array.
@@ -337,6 +339,7 @@ For this we will start with a simple loop, optimizing for 1 to 4 states (there's
 Now that several models have been calculated, it is important to select the ideal model, so you do not use over- or under-fit models that do not properly represent the data.
 
 There are two primary criterion for this:
+
 #. A statistical discriminator like the *ICL* or *BIC*
 #. Reasonableness of the model based on prior knowledge of the system.
 
