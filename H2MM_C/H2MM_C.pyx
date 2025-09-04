@@ -2465,7 +2465,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
-    cdef tuple cindex = tuple(np.ascontiguousarray(idx, dtype=np.dtypes.ULongDType) for idx in indexes)
+    cdef tuple cindex = tuple(np.ascontiguousarray(idx, dtype=np.uint) for idx in indexes)
     cdef unsigned long[::1] b_det_temp
     for i in range(num_burst):
         b_det_temp = cindex[i]
