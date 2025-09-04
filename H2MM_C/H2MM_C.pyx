@@ -2105,6 +2105,8 @@ cdef gen_path(type tp, tuple shape, unsigned long* dim1, ph_path* path):
         rscale = gen_scale_py(tp, shape, dim1, pscale)
     return rpath, rscale
 
+# needed based on numpy version
+_np_ulong = np.dtypes.ULongDType if hasattr(np, 'dtypes') else np.uint
 
 def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None, 
               print_func='iter', print_args=None, bounds_func=None, 
@@ -2465,7 +2467,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
     cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
-    cdef tuple cindex = tuple(np.ascontiguousarray(idx, dtype=np.uint) for idx in indexes)
+    cdef tuple cindex = tuple(np.ascontiguousarray(idx, dtype=_np_ulong) for idx in indexes)
     cdef unsigned long[::1] b_det_temp
     for i in range(num_burst):
         b_det_temp = cindex[i]
