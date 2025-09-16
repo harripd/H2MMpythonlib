@@ -59,6 +59,6 @@ version_scheme = "post-release"
 
 [tool.cibuildwheel]
 build = "*"
-skip = "-win32 *-manylinux_i686 *musllinux* cp39-win_arm64 cp310-win_arm64"
+skip = ["-win32", "*-manylinux_i686", "*musllinux*", "cp39-win_arm64", " cp310-win_arm64"]
 before-test = "pip install pytest"
 test-command = "pytest {package}/tests"
