@@ -1404,7 +1404,7 @@ cdef class _h2mm_lims:
                   cnp.ndarray[double,ndim=2] min_obs, cnp.ndarray[double,ndim=2] max_obs):
         cdef int64_t i, j
         cdef int64_t nstate = model.model.nstate
-        cdef unsigned long ndet = model.model.ndet
+        cdef int64_t ndet = model.model.ndet
         self.limits.mins = <h2mm_mod*> PyMem_Malloc(sizeof(h2mm_mod))
         self.limits.mins.prior = NULL
         self.limits.mins.trans = NULL
@@ -2284,7 +2284,7 @@ cdef cnp.ndarray[object, ndim=1] make_gamma_arrays(int64_t nbursts, int64_t nsta
             PyMem_Free(data)
             data = NULL
             return out
-        out[i] = temp
+        out[i] = obtemp
         data[i] = <double*> temp.data
     gamma[0] = data
     return out
