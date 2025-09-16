@@ -17,7 +17,6 @@ authors = [{name="Paul David Harris", email="harripd@gmail.com"}, ]
 description = "C level implementation of H2MM algorithm by Pirchi. 2016"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE.txt", ]
 keywords = ["single-molecule FRET", "smFRET", "hidden markov model"]
 classifiers = [
     "Intended Audience :: Science/Research",
