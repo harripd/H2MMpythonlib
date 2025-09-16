@@ -2152,6 +2152,7 @@ cdef object cast_burst_uint8(bursts, str name, int64_t *nbursts, int64_t **len_b
     if err:
         return e
     cdef bint firstarray = len_bursts[0] is NULL
+    cdef object otemp
     cdef cnp.ndarray[uint8_t] temp
     cdef uint8_t **data = <uint8_t**> PyMem_Malloc(nbursts[0]*sizeof(uint8_t*))
     cdef int64_t *lbursts = <int64_t*> PyMem_Malloc(nbursts[0]*sizeof(int64_t)) if firstarray else len_bursts[0]
@@ -2164,7 +2165,8 @@ cdef object cast_burst_uint8(bursts, str name, int64_t *nbursts, int64_t **len_b
         return MemoryError("insufficient memory")
     for i in range(nbursts[0]):
         try:
-            temp = np.ascontiguousarray(bursts[i], dtype=np.uint8)
+            otemp = np.ascontiguousarray(bursts[i], dtype=np.uint8)
+            temp = otemp
         except:
             err = True
         if err:
@@ -2189,7 +2191,7 @@ cdef object cast_burst_uint8(bursts, str name, int64_t *nbursts, int64_t **len_b
                 PyMem_Free(lbursts)
                 lbursts = NULL
             return ValueError(f"burst {i} in {name} has different size from other specified ({temp.shape[0]} vs {lbursts[i]}")
-        out[i] = temp
+        out[i] = otemp
         data[i] = <uint8_t*> temp.data
     if firstarray:
         len_bursts[0] = lbursts
