@@ -69,7 +69,7 @@ def print_read(niter, new, current, old, titer, t_time, *args, **kwargs):
 
 valid_bound = (limit_new, limit_choice_bool, limit_choice_int, limit_choice_new_bool, limit_choice_new_int)
 
-valid_bound_str = ('minmax', 'revert', 'revrt-old')
+valid_bound_str = ('minmax', 'revert', 'revert_old')
 
 valid_print = ('all', 'diff', 'diff_time', 'comp', 'comp_time', 'iter', print_read)
 
@@ -90,6 +90,19 @@ if __name__ == "__main__":
         err = e
     else:
         raise ValueError("limit raise functio did not raise an error")
-    ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3,2), c2, t2, max_iter=100, print_fmt_kwargs={'keep':False})
+    try:
+        mo1 = mi2.optimize(c2, t2, print_func=print_bad)
+    except Exception as e:
+        err = e
+    else:
+        raise ValueError("")
+    for vp in valid_print:
+        ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3,2), c2, t2, max_iter=100, print_func=vp)
+    for vp in valid_bound_str:
+        print(vp)
+        ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3,2), c2, t2, max_iter=100, bounds_func=vp, bounds=bi2)
+    for vp in valid_bound:
+        print(vp, callable(vp))
+        ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3, 2), c2, t2, max_iter=100, bounds_func=vp, bounds_kwargs=dict(conv=1e-8))
     md = [hm.factory_h2mm_model(3,2),  hm.factory_h2mm_model(3,2)]
     out = hm.H2MM_arr(md, c2, t2)

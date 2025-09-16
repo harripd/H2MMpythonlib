@@ -2646,7 +2646,7 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         prnt_strct.kwargs = <PyObject*> print_kwargs
         ptr_print_func = model_print_call
     ########################## process bounds inputs ##########################
-    if bounds_func not in (None, 'none', 'minmax', 'revert', 'revert_old') and not callable(bounds_func):
+    if bounds_func not in (None, 'none', 'minmax', 'revert', 'revert_old', 'revert-old') and not callable(bounds_func):
         raise ValueError("bounds_func must be None, 'minmax', 'revert', or 'revert_old', or or callable")
     cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*) noexcept with gil
     cdef _h2mm_lims bnds
@@ -2658,12 +2658,12 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
     bound.error = NULL
     if bounds_func in (None, 'none'):
         bound_func = limit_check_only
-    if bounds_func in ('minmax', 'revert', 'revert_old'):
+    if bounds_func in ('minmax', 'revert', 'revert_old', 'revert-old'):
         if bounds_func == 'minmax':
             bound_func = limit_minmax
         elif bounds_func == 'revert':
             bound_func = limit_revert
-        elif bounds_func == 'revert_old':
+        elif bounds_func in ('revert_old', 'revert-old'):
             bound_func = limit_revert_old
         if not isinstance(bounds, h2mm_limits):
             raise TypeError(f"standard bounding styles requires bounds argument to be of type h2mm_limits, not {type(bounds)}")
