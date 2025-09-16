@@ -5,29 +5,29 @@
 // Date modified: 13 Nov 2022
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
-#include "C_H2MM.h"
 
 #if defined(__linux__) || defined(__APPLE__)
-#include <unistd.h>
 #include <pthread.h>
 #elif _WIN32
 #include <windows.h>
 #endif
 
+#include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
 
-int pathloglik(unsigned long num_burst, unsigned long *len_burst, unsigned long **deltas, unsigned long ** dets, unsigned long **states, h2mm_mod *model, double *loglik, unsigned long num_cores)
+int pathloglik(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uint8_t ** dets, uint8_t **states, h2mm_mod *model, double *loglik, int64_t num_cores)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long i;
-	unsigned long max_delta = get_max_delta(num_burst, len_burst, deltas, dets, bursts);
+	int64_t i;
+	int32_t max_delta = get_max_delta(num_burst, len_burst, deltas, dets, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long nphot = check_det(num_burst, bursts, model); // verify detectors do not exceed ndet in model
+	int64_t nphot = check_det(num_burst, bursts, model); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
 	// allocate threads/mutexes
@@ -92,7 +92,7 @@ int pathloglik(unsigned long num_burst, unsigned long *len_burst, unsigned long 
 	free((void*)tid);
 	if( h2mm_lock ) CloseHandle(h2mm_lock);
 #endif
-	free_model(log_mod);
+	free_models(1, log_mod);
 	free_trpow(powers);
 	if (burst_submit != NULL)
 	{
@@ -120,7 +120,7 @@ DWORD WINAPI path_ll(void* in)
 #endif
 {
 	pll_vals *D = (pll_vals*) in;
-	unsigned long cur_burst, i , j;
+	int64_t cur_burst, i , j;
 	while ((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
 	{
 		D->ll[cur_burst] = D->model->prior[D->state[cur_burst][0]];

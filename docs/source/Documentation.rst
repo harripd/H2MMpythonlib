@@ -38,3 +38,11 @@ Classes
 .. autoclass:: h2mm_limits
     :members:
 
+.. autoclass:: Printer
+    :members:
+
+.. autoclass:: StdPrinter
+    :members:
+
+.. autoclass:: IPyPrinter
+    :members:

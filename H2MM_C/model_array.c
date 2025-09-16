@@ -4,39 +4,41 @@
 // Created: 24 Oct 2022
 // Modified: 15 Nov 2022
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
 #if defined(__linux__) || defined(__APPLE__)
-#include <unistd.h>
+#include <pthread.h>
 #elif _WIN32
 #include <windows.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
-int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, lm *limits)
+int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, lm *limits)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
+	int32_t max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long i, j;
-	unsigned long multi_state = FALSE;
-	unsigned long multi_det = FALSE;
-	unsigned long max_det = get_max_det(num_burst, bursts);
-	unsigned long nphot = check_det(num_burst, bursts, models); // verify detectors do not exceed ndet in model
+	int64_t i, j;
+	int multi_state = FALSE;
+	int multi_det = FALSE;
+	uint8_t max_det = get_max_det(num_burst, bursts);
+	int64_t nphot = check_det(num_burst, bursts, models); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
-	unsigned long max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
+	int64_t max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
 	for (i=1; i < num_models; i++)
 	{
 		if (models[0].ndet != models[i].ndet)
 		{
 			multi_det = TRUE;
-			if (models[i].ndet < max_det)
+			if (models[i].ndet < (int64_t) max_det)
 			{
 				if (bursts != NULL)
 					free(bursts);
@@ -151,8 +153,7 @@ int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned lon
 		for(j = 0; j < limits->num_cores; j++) 
 		{
 			pthread_join(tid[j],NULL); // wait for all bursts to finish
-			//~ printf("join[%ld] res=%d\n", j, res);
-			
+			//~ printf("join[%ld] res=%d\n", j, res);	
 		}
 #elif _WIN32
 		for (j = 0; j < limits->num_cores; j++)
@@ -166,10 +167,7 @@ int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned lon
 			}
 		}
 #endif
-		if (nphot != models[i].nphot || models[i].conv < 2) // check if model recalculated from new data or non calculated model, if so set converged state to 2
-		{
-			models[i].conv = 2;
-		}
+		models[i].conv |= CONVCODE_LLCOMPUTED;
 		models[i].nphot = nphot;
 		if (multi_state)
 		{
@@ -260,26 +258,26 @@ int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned lon
 }
 
 
-int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, double ****gamma, lm *limits)
+int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double ****gamma, lm *limits)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
+	int32_t max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long i, j;
-	unsigned long multi_state = FALSE;
-	unsigned long multi_det = FALSE;
-	unsigned long max_det = get_max_det(num_burst, bursts);
-	unsigned long nphot = check_det(num_burst, bursts, models); // verify detectors do not exceed ndet in model
+	int64_t i, j;
+	int multi_state = FALSE;
+	int multi_det = FALSE;
+	uint8_t max_det = get_max_det(num_burst, bursts);
+	int64_t nphot = check_det(num_burst, bursts, models); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
-	unsigned long max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
+	int64_t max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
 	for (i=1; i < num_models; i++)
 	{
 		if (models[0].ndet != models[i].ndet)
 		{
 			multi_det = TRUE;
-			if (models[i].ndet < max_det)
+			if (models[i].ndet < (int64_t) max_det)
 			{
 				if (bursts != NULL)
 					free(bursts);
@@ -309,7 +307,7 @@ int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsign
 	burst_lock->num_burst = num_burst;
 	pwrs* powers;
 	fback_vals *burst_submit = (fback_vals*) malloc(limits->num_cores * sizeof(fback_vals));
-	double ***gamma_var = (double***) malloc(num_models * sizeof(double**));
+	double ***gamma_var = (*gamma == NULL) ? (double***) malloc(num_models * sizeof(double**)) : *gamma;
 	h2mm_mod *dummy_model;
 	if (!multi_state) // when not mutli-state, can allocate arrays for alpha/beta/gamma all at once
 	{
@@ -352,10 +350,12 @@ int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsign
 	for (i = 0; i < num_models; i++)
 	{
 		// allocate gamma
-		gamma_var[i] = (double**) malloc(num_burst * sizeof(double*));
-		for (j=0; j < num_burst; j++)
-		{
-			gamma_var[i][j] = (double*) malloc(models[i].nstate * bursts[j].nphot * sizeof(double));
+		if (*gamma == NULL){
+			gamma_var[i] = (double**) malloc(num_burst * sizeof(double*));
+			for (j=0; j < num_burst; j++)
+			{
+				gamma_var[i][j] = (double*) malloc(models[i].nstate * bursts[j].nphot * sizeof(double));
+			}
 		}
 	}
 	for (i = 0; i < num_models; i++)
@@ -422,10 +422,7 @@ int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsign
 			}
 		}
 #endif
-		if (nphot != models[i].nphot || models[i].conv < 2) // check if model recalculated from new data or non calculated model, if so set converged state to 2
-		{
-			models[i].conv = 2;
-		}
+		models[i].conv |= CONVCODE_LLCOMPUTED;
 		models[i].nphot = nphot;
 		// free the necessary variables
 		if (multi_state)
@@ -449,7 +446,7 @@ int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsign
 		}
 		if (multi_det)
 		{
-			free_model(dummy_model);
+			free_models(1, dummy_model);
 			for (j = 0; j < limits->num_cores; j++)
 			{
 				if (burst_submit[j].obs_temp != NULL)
@@ -480,7 +477,7 @@ int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsign
 	}
 	if (!multi_det)
 	{
-		free_model(dummy_model);
+		free_models(1, dummy_model);
 		for (i=0; i < limits->num_cores; i++)
 		{
 			if (burst_submit[i].obs_temp != NULL)

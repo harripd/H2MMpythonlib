@@ -9,35 +9,34 @@ Module for analyzing data with photon by photon hidden Markov moddeling
 
 import os
 import numpy as np
-cimport numpy as np
-from IPython.display import DisplayHandle, Pretty
-import IPython
+cimport numpy as cnp
+
 import warnings
+from collections.abc import Sequence
+import sys
+
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from cpython.ref cimport PyObject
+from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF, Py_XDECREF
+from libc.stdlib cimport malloc, calloc, realloc, free
+from libc.stdint cimport int64_t, int32_t, uint8_t, INT32_MAX
 
-# cdef extern from "rho_calc.c":
-#      pass
-# cdef extern from "fwd_back_photonbyphoton_par.c":
-#      pass
-# cdef extern from "C_H2MM.c":
-#      pass
+cnp.import_array()
 
-cdef extern from "math.h":
+cdef extern from "math.h" nogil:
     bint isnan(double x)
 
-cdef extern from "C_H2MM.h":
+cdef extern from "C_H2MM.h" nogil:
     ctypedef struct lm:
-        unsigned long max_iter
-        unsigned long num_cores
+        int64_t max_iter
+        int64_t num_cores
         double max_time
         double min_conv
     ctypedef struct h2mm_mod:
-        unsigned long nstate
-        unsigned long ndet
-        unsigned long nphot
-        unsigned long niter
-        unsigned long conv
+        int64_t nstate
+        int64_t ndet
+        int64_t nphot
+        int64_t niter
+        int64_t conv
         double *prior
         double *trans
         double *obs
@@ -46,53 +45,72 @@ cdef extern from "C_H2MM.h":
         h2mm_mod *mins
         h2mm_mod *maxs
     ctypedef struct ph_path:
-        unsigned long nphot
-        unsigned long nstate
+        int64_t nphot
+        int64_t nstate
         double loglik
-        unsigned long *path
+        uint8_t *path
         double *scale
-    int duplicate_toempty_model(h2mm_mod *source, h2mm_mod *dest)
-    int duplicate_toempty_models(unsigned long num_model, h2mm_mod **source, h2mm_mod **dest)
+    int print_model(h2mm_mod* model)
     int copy_model(h2mm_mod *source, h2mm_mod *dest)
     int copy_model_vals(h2mm_mod *source, h2mm_mod *dest)
-    h2mm_mod* allocate_models(const unsigned long n, const unsigned long nstate, const unsigned long ndet, const unsigned long nphot)
-    ph_path* allocate_paths(unsigned long num_burst, unsigned long* len_burst, unsigned long nstate)
-    int free_paths(unsigned long num_burst, ph_path* paths)
-    int free_model(h2mm_mod *model)
-    int free_models(const unsigned long n, h2mm_mod *model)
+    int move_model_ptrs(h2mm_mod *source, h2mm_mod *dest)
     void h2mm_normalize(h2mm_mod *model_params)
-    int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call) nogil
-    unsigned long viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores) nogil
-    int baseprint(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
-    int calc_multi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, lm *limits) nogil
-    int calc_multi_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, unsigned long num_models, h2mm_mod *models, double ****gamma, lm *limits) nogil
+    int h2mm_optimize(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *model, ph_path *path_array, int64_t num_cores)
+    int baseprint(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
+    int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, lm *limits)
+    int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double ****gamma, lm *limits)
     int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits)
     int limit_check_only(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
     int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
     int limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
     int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
-    int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed)
-    int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed)
-    int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed)
-    int pathloglik(unsigned long num_burst, unsigned long *len_burst, unsigned long **deltas, unsigned long ** dets, unsigned long **states, h2mm_mod *model, double *loglik, unsigned long num_cores) nogil
+    int statepath(h2mm_mod* model, int64_t lent, uint8_t* path, unsigned int seed)
+    int sparsestatepath(h2mm_mod* model, int64_t lent, int64_t* times, uint8_t* path, unsigned int seed)
+    int phpathgen(h2mm_mod* model, int64_t lent, uint8_t* path, uint8_t* traj, unsigned int seed)
+    int pathloglik(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uint8_t ** dets, uint8_t **states, h2mm_mod *model, double *loglik, int64_t num_cores)
+    
+    int64_t CONVCODE_FROMOPT
+    int64_t CONVCODE_LLCOMPUTED
+    int64_t CONVCODE_OUTPUT
+    int64_t CONVCODE_POSTMODEL
+    int64_t CONVCODE_ERROR
+    int64_t CONVCODE_CONVERGED
+    int64_t CONVCODE_MAXITER
+    int64_t CONVCODE_MAXTIME
+    int64_t CONVCODE_FIXEDMODEL
+    
+    int64_t CONVCODE_OUTPUT_CONVERGED
+    int64_t CONVCODE_OUTPUT_MAXITER
+    int64_t CONVCODE_OUTPUT_MAXTIME
+    int64_t CONVCODE_POST_CONVERGED
+    int64_t CONVCODE_POST_MAXITER
+    int64_t CONVCODE_POST_MAXTIME
+    int64_t CONVCODE_ANYFINAL
 
-ctypedef struct bound_struct:
-    void *func
-    void *limits
 
-ctypedef struct print_struct:
-    void *func
-    void *args
 
-ctypedef struct print_args_struct:
-    void *txt
-    void *handle
-    unsigned long disp_freq
-    unsigned long keep
-    unsigned long max_iter
+ctypedef struct BoundStruct:
+    PyObject *func
+    PyObject *args
+    PyObject *kwargs
+    PyObject *error
+
+
+ctypedef struct PrintStruct:
+    bint keep
+    int64_t disp_freq
+    int64_t max_iter
+    double max_time
+    PyObject *formatter
+    PyObject *func
+    PyObject *args
+    PyObject *kwargs
+    PyObject *error
+
 
 #: Version string
 from sys import version_info as python_version
@@ -106,170 +124,92 @@ except PackageNotFoundError:
     print("cannot find package version")
 del version, PackageNotFoundError, python_version
 
-# copy data from a numpy array into an unsigned long array, and return the pointer
-cdef unsigned long* np_copy_ul(np.ndarray arr):
-    cdef unsigned long* out = <unsigned long*> PyMem_Malloc(arr.shape[0]*sizeof(unsigned long))
-    for i in range(arr.shape[0]):
-        out[i] = <unsigned long> arr[i]
-    return out
 
-# copy data from a numpy array into an unsigned long long array, and return the pointer
-cdef unsigned long long* np_copy_ull(np.ndarray arr):
-    cdef unsigned long long* out = <unsigned long long*> PyMem_Malloc(arr.shape[0]*sizeof(unsigned long long))
-    for i in range(arr.shape[0]):
-        out[i] = <unsigned long long> arr[i]
-    return out
+###############################################################################
+########## Defining printer classes of Optimization Progress Output  ##########
+###############################################################################
+from abc import ABC, abstractmethod
 
-# make the times differences array for h2mm from times array
-cdef unsigned long* time_diff(np.ndarray time):
-    cdef unsigned long* delta = <unsigned long*> PyMem_Malloc(time.shape[0] * sizeof(unsigned long))
-    cdef unsigned long i
-    cdef unsigned long df
-    delta[0] = 0
-    for i in range(1,time.shape[0]):
-        if time[i-1] > time[i]:
-            PyMem_Free(delta)
-            return NULL
-        df = <unsigned long> (time[i] - time[i-1])
-        if df == 0:
-            delta[i] = 0
-        else:
-            delta[i] = df - 1
-    return delta
 
-cdef burst_free(unsigned long n, unsigned long** dets, unsigned long** deltas, unsigned long* sizes):
-    cdef unsigned long i
-    for i in range(n):
-        if dets[i] is not NULL: PyMem_Free(dets[i])
-        if deltas[i] is not NULL: PyMem_Free(deltas[i])
-    if dets is not NULL: PyMem_Free(dets)
-    if deltas is not NULL: PyMem_Free(deltas)
-    if sizes is not NULL: PyMem_Free(sizes)
+class Printer(ABC):
+    """
+    Abstract base class for formatting progress display of optimizations.
+    """
+    @abstractmethod
+    def update(self, text):
+        """
+        Method called to update output each iteration. Accepts output of
+        print_funcion as only argument.
+        """
+        raise NotImplementedError("Must implement update")
     
-cdef burst_free1(unsigned long n, unsigned long** dets, unsigned long** deltas, unsigned long* sizes):
-    cdef unsigned long i
-    for i in range(n):
-        if deltas[i] is not NULL: PyMem_Free(deltas[i])
-    if dets is not NULL: PyMem_Free(dets)
-    if deltas is not NULL: PyMem_Free(deltas)
-    if sizes is not NULL: PyMem_Free(sizes)
+    @abstractmethod
+    def close(self):
+        """
+        Method called at end of :func:`H2MM_C.EM_H2MM_C`, used to terminate the
+        output, for instance adding a newline character to output.
+        """
+        raise NotImplementedError("Must implement close")
+    
+    def __call__(self, *args, **kwargs):
+        return self.update(*args, **kwargs)
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.close()
 
-# make burst differences and burst times c arrays from lists
-cdef unsigned long* burst_convert(unsigned long num_burst, color, times, unsigned long** b_det, unsigned long** b_delta):
-    cdef unsigned long i = 0
-    cdef unsigned long* b_size = <unsigned long*> PyMem_Malloc(num_burst * sizeof(unsigned long))
-    for i, (col, tim) in enumerate(zip(enum_arrays(color), enum_arrays(times))):
-        b_size[i] = col.shape[0]
-        b_det[i] = np_copy_ul(col)
-        b_delta[i] = time_diff(tim)
-        if b_delta[i] is NULL:
-            burst_free(i+1, b_det, b_delta, b_size)
-            return NULL
-        i += 1
-    return b_size
 
-# copy array into numpy
-cdef np.ndarray copy_to_np_ul(unsigned long lenp, unsigned long* arr):
-    cdef np.ndarray out = np.empty(lenp, dtype=np.uint32)
-    cdef i
-    for i in range(lenp):
-        out[i] = arr[i]
-    return out
+class StdPrinter(Printer):
+    __slots__ = ('buffer', 'width', 'keep',)
+    def __init__(self, buffer, keep=False):
+        self.buffer = buffer
+        self.width = 0
+        self.keep = bool(keep)
+    
+    def update(self, text):
+        text = str(text)
+        if self.keep:
+            text = text + '\n'
+        else:
+            ln = len(text)
+            text = '\r' + text + ' '*(self.width - ln)
+            if ln > self.width:
+                self.width = ln
+        self.buffer.write(text)
+        self.buffer.flush()
+    
+    def close(self):
+        self.buffer.write("\n")
 
-cdef np.ndarray copy_to_np_ul_and_free(unsigned long lenp, unsigned long* arr):
-    cdef np.ndarray out = copy_to_np_ul(lenp, arr)
-    PyMem_Free(arr)
-    return out
-
-cdef np.ndarray copy_to_np_d(unsigned long lenp, double* arr):
-    cdef np.ndarray out = np.empty(lenp, dtype=np.float64)
-    cdef i
-    for i in range(lenp):
-        out[i] = arr[i]
-    return out
-
-cdef np.ndarray copy_to_np_d_and_free(unsigned long lenp, double* arr):
-    cdef np.ndarray out = copy_to_np_d(lenp, arr)
-    PyMem_Free(arr)
-    return out
-
-cdef enum_arrays(model_array):
-    if isinstance(model_array, (list, tuple)):
-        return iter(model_array)
-    elif isinstance(model_array, np.ndarray):
-        return iter(model_array.ravel())
-    else:
-        return iter((model_array, ))
-
-def verify_input(indexes, times, ndet):
-    """
-    Check if indexes and times contain any issues making them incompatible for 
-    processing with H2MM
-
-    Parameters
-    ----------
-    indexes : list of numpy arrays
-        The indeces of photons in bursts, 1 array per burst
-    times : list of numpy arrays
-        The tims of photons in bursts, 1 array per burst
-    ndet : int
-        Number of photon streams in the data
-
-    Returns
-    -------
-    int or Exception
-        The maximum index in the data, unless an issue exists, in which case an
-        appropriate exception is returned
-
-    """
-    cdef type indexes_t = type(indexes)
-    if indexes_t not in (list, tuple, np.ndarray):
-        return TypeError(f"Unusable type: indexes and times must be of list, tuple or numpy array of numpy arrays, got {indexes_t}")
-    elif indexes_t != type(times):
-        return TypeError(f"Mismatched types: indexes and times must be same type")
-    elif array_size(indexes) != array_size(times):
-        return ValueError(f"Mismatched bursts: indexes and times must be same size, got {array_size(indexes)} and {array_size(times)}")
-    cdef str burst_errors = str()
-    cdef unsigned long max_ind = 0
-    cdef unsigned long max_temp
-    cdef unsigned long n = indexes.size if indexes_t == np.ndarray else len(indexes)
-    for i, (index, time) in enumerate(zip(enum_arrays(indexes), enum_arrays(times))):
-        if isinstance(index, np.ndarray) and isinstance(time, np.ndarray):
-            if index.ndim != 1 or time.ndim != 1:
-                burst_errors += f"{i}: TypeError: bursts must be 1D numpy arrays, got {type(indexes[i])} and {type(times[i])}\n"
-            elif index.shape[0] != time.shape[0]:
-                burst_errors += f"{i}: Mismatched burst size: indexes has {indexes[i].shape[0]} photons while times has {times[i].shape[0]} photons\n"
-            elif index.shape[0] < 3:
-                burst_errors += f"{i}: Insufficient photons: bursts must be at least 3 photons\n"
-            elif not np.issubdtype(index.dtype, np.integer):
-                burst_errors += f"{i}: TypeError: indexes must integer arrays, got {indexes[i].dtype}\n"
-            elif np.any(index < 0):
-                burst_errors += f"{i}: ValueError: indexes contains negative values, indices must be non-negative\n"
-            elif np.any(np.diff(time) < 0):
-                burst_errors += f"{i}: ValueError: out of order photon\n"
+has_ipython = True
+try:
+    from IPython.display import DisplayHandle, Pretty
+    class IPyPrinter(Printer):
+        def __init__(self, buffer, keep=False):
+            self.buffer = buffer
+            self.keep = bool(keep)
+            self.text = Pretty("")
+            self.buffer.display(self.text)
+        
+        def update(self, text):
+            test = str(text)
+            if self.keep:
+                self.text.data =self.text.data + '\n' + text if self.text.data else text
             else:
-                max_temp = <unsigned long> np.max(index)
-                if max_temp >= ndet:
-                    burst_errors += f"{i}: ValueError: index exceeds model definition\n"
-                if max_temp > max_ind:
-                    max_ind = max_temp
-        else:
-            burst_errors += f"{i}: TypeError: indexes and times must be 1D numpy arrays, got {type(index)} and {type(time)}\n"
-    if burst_errors != str():
-        return ValueError("Incorect type for bursts:\n" + burst_errors)
-    else:
-        return max_ind
-    
+                self.text.data = text
+            self.buffer.update(self.text)
+        
+        def close(self):
+            pass
+except:
+    has_ipython = False
 
-cdef tuple array_size(inp):
-    if isinstance(inp, (list, tuple)):
-        return (len(inp), )
-    elif isinstance(inp, np.ndarray):
-        return inp.shape
-    else:
-        return (1, )
-    
-
+###############################################################################
+############################### Utility Classes ###############################
+###############################################################################
 cdef class opt_lim_const:
     """
     Special class for setting default optimization min/max values.
@@ -281,19 +221,25 @@ cdef class opt_lim_const:
     
     """
     cdef:
-        unsigned long _max_iter
+        int64_t _max_iter
         double _max_time
         double _converged_min
-        unsigned long _num_cores
-    def __cinit__(self, max_iter=3600, max_time=np.inf, converged_min=1e-14, num_cores=os.cpu_count()//2):
+        int64_t _num_cores
+        object _formatter
+        object _outstream
+    def __cinit__(self, max_iter=2046, max_time=np.inf, converged_min=1e-14, 
+                  num_cores=os.cpu_count()//2, formatter=StdPrinter,
+                  outstream=lambda: sys.stdout):
         assert max_iter > 0 and np.issubdtype(type(max_iter), np.integer), ValueError("max_iter must be integer greater than 0")
         assert max_time > 0 and np.issubdtype(type(max_time), np.floating), ValueError("max_time must be float and greater than 0")
         assert converged_min > 0 and np.issubdtype(type(converged_min), np.floating), ValueError("converged_min must be float greater than 0")
         assert num_cores > 0 and np.issubdtype(type(num_cores), np.integer), ValueError("num_cores must be integer greater than 0")
-        self._max_iter = <unsigned long> max_iter
+        self._max_iter = <int64_t> max_iter
         self._max_time = <double> max_time
         self._converged_min = <double> converged_min
-        self._num_cores = <unsigned long> num_cores
+        self._num_cores = <int64_t> num_cores
+        self._formatter = formatter
+        self._outstream = outstream
 
     @property
     def max_iter(self):
@@ -343,6 +289,24 @@ cdef class opt_lim_const:
     def num_cores(self, num_cores):
         assert num_cores > 0 and np.issubdtype(type(num_cores), np.integer), ValueError("num_cores must be int and greater than 0")
         self._num_cores = <unsigned long> num_cores
+    
+    @property
+    def formatter(self):
+        """A :class:`Printer` subclass, used to format result of print_func for display of optimiation progress"""
+        return self._formatter
+    
+    @formatter.setter
+    def formatter(self, formatter):
+        self._formatter = formatter
+
+    @property
+    def outstream(self):
+        """Callable, when called, generates an output stream for where to print displayed progress"""
+        return self._outstream
+    
+    @outstream.setter
+    def outstream(self, outstream):
+        self._outstream = outstream
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -351,7 +315,9 @@ cdef class opt_lim_const:
         setattr(self, key, value)
     
     def __repr__(self):
-        return f'Optimization limits:: num_cores: {self._num_cores}, max_iter: {self._max_iter}, converged_min: {self._converged_min}, max_time: {self._max_time}'
+        return (f'Optimization limits:: num_cores: {self._num_cores}, max_iter: {self._max_iter}, '
+                f'converged_min: {self._converged_min}, max_time: {self._max_time},\n'
+                f'formatter: {self._formatter.__qualname__}, outstream={self._outstream}')
     
     def _get_max_iter(self, max_iter):
         """
@@ -465,10 +431,219 @@ cdef class opt_lim_const:
         else:
             raise ValueError(f"Non-int options for num_cores are 'single' or 'multi', cannot process {num_cores}")
         return n_core
+    
+    def _get_formatter(self, formatter):
+        """
+        Get the formatter based on the value form kwargs.
+
+        Parameters
+        ----------
+        formatter : type | None
+            Value given in keword argument for print_formatter.
+
+        Returns
+        -------
+        type
+            The class of :class:`Printer` to be used for display of output.
+
+        """
+        if formatter is None:
+            return self._formatter
+        return formatter
+    
+    def _get_outstream(self, outstream):
+        """
+        Ge the output stream based on keyword argument to print_stream
+
+        Parameters
+        ----------
+        outstream : Output Stream
+            Stream .
+
+        Returns
+        -------
+        OutputStream
+            DESCRIPTION.
+
+        """
+        if outstream is None:
+            return self._outstream()
+        return outstream
+
+def get_stdout():
+    """Simple callable returns sys.stdout"""
+    return sys.stdout
 
 #: Like rcParams, a place to set defaults for optimization limits
-optimization_limits = opt_lim_const(max_iter=3600, max_time=np.inf, converged_min=1e-14, num_cores=os.cpu_count()//2)
-    
+optimization_limits = opt_lim_const(max_iter=2046, max_time=np.inf, 
+                                    converged_min=1e-14, num_cores=os.cpu_count()//2,
+                                    formatter=StdPrinter, outstream=get_stdout)
+
+cdef class ConvCodes:
+    """Bitmask for conv_code flags"""
+    @property
+    def ll_computed(self):
+        """Model has had loglik computed against some data (either during optimization or singly"""
+        return CONVCODE_LLCOMPUTED
+    @property
+    def from_opt(self):
+        """Model was created during optimization"""
+        return CONVCODE_FROMOPT
+    @property
+    def output(self):
+        """Model is best model during optimization, by some criterion marked by other flags"""
+        return CONVCODE_OUTPUT
+    @property
+    def converged(self):
+        """Model has best logliklihood within converged_min threshold"""
+        return CONVCODE_CONVERGED
+    @property
+    def max_iter(self):
+        """Optimization reached maximum number of iterations"""
+        return CONVCODE_MAXITER
+    @property
+    def max_time(self):
+        """Optimization reach maximum time"""
+        return CONVCODE_MAXTIME
+    @property
+    def error(self):
+        """Error occured during optimization"""
+        return CONVCODE_ERROR
+    @property
+    def post_opt(self):
+        """
+        Model is either the model with poorer loglikelihood between current 
+        and old, or is new and loglik is not calculated
+        """
+        return CONVCODE_POSTMODEL
+    @property
+    def frozen(self): 
+        """Model cannot be modified in place"""
+        return CONVCODE_FIXEDMODEL
+
+convcode = ConvCodes()
+
+
+###############################################################################
+######################## Alloc/Free utility functions  ########################
+###############################################################################
+cdef int Py_free_model_fields(h2mm_mod *model):
+    if model is NULL:
+        return 0
+    if model.prior is not NULL:
+        PyMem_Free(model.prior)
+        model.prior = NULL
+    if model.trans is not NULL:
+        PyMem_Free(model.trans)
+        model.trans = NULL
+    if model.obs is not NULL:
+        PyMem_Free(model.obs)
+        model.obs = NULL
+    model.ndet = 0
+    model.nstate = 0
+    model.nphot = 0
+    model.loglik = 0.0
+    model.conv = 0
+    return 0
+
+
+cdef int Py_free_models(const int64_t nmodels, h2mm_mod *models):
+    if models is NULL:
+        return 0
+    cdef int64_t i
+    for i in range(nmodels):
+        Py_free_model_fields(&models[i])
+    PyMem_Free(models)
+    return 0
+        
+
+cdef h2mm_mod* Py_allocate_models(const int64_t nmodel, const int64_t nstate, const int64_t ndet, const int64_t nphot):
+    cdef h2mm_mod *out = <h2mm_mod*> PyMem_Malloc(nmodel*sizeof(h2mm_mod))
+    if out is NULL:
+        return out
+    cdef int64_t i
+    for i in range(nmodel):
+        out[i].loglik = 0.0
+        out[i].niter = 0
+        out[i].conv = 0
+        out[i].prior = <double*> PyMem_Malloc(nstate*sizeof(double))
+        if out[i].prior is NULL:
+            Py_free_models(i, out)
+            out = NULL
+            return out
+        out[i].trans = <double*> PyMem_Malloc(nstate*nstate*sizeof(double))
+        if out[i].trans is NULL:
+            PyMem_Free(out[i].prior)
+            out[i].prior = NULL
+            Py_free_models(i, out)
+            out = NULL
+            return out
+        out[i].obs = <double*> PyMem_Malloc(nstate*ndet*sizeof(double))
+        if out[i].prior is NULL:
+            PyMem_Free(out[i].prior)
+            out[i].prior = NULL
+            PyMem_Free(out[i].trans)
+            out[i].trans = NULL
+            Py_free_models(i, out)
+            out = NULL
+            return out
+        out[i].nstate = nstate
+        out[i].ndet = ndet
+        out[i].nphot = nphot
+        out[i].niter = 0
+        out[i].loglik = 0.0
+        out[i].conv = 0
+    return out
+
+
+cdef str get_conv_convtype(int64_t conv):
+    cdef str out = str()
+    if conv & CONVCODE_CONVERGED:
+        out += ' converged'
+    if conv & CONVCODE_MAXITER:
+        out += ' maximum iterations'
+    if conv & CONVCODE_MAXTIME:
+        out += ' maximum time'
+    if conv & CONVCODE_ERROR:
+        if conv & CONVCODE_OUTPUT:
+            out += ' error in next iteration' 
+        else:
+            out += ' error in current calculation'
+    return out.strip(' ')
+
+cdef str get_conv_str(int64_t conv):
+    cdef str out = str()
+    if conv & CONVCODE_FROMOPT:
+        if conv & CONVCODE_OUTPUT:
+            return 'final optimized model by ' + get_conv_convtype(conv)    
+        if conv & CONVCODE_POSTMODEL:
+            out = 'post-optimization LL'
+            if not (conv & CONVCODE_LLCOMPUTED):
+                out += 'un-'
+            out += 'copmuted model by ' + get_conv_convtype(conv)
+            return out
+        out = 'mid-optimization '
+        if not (conv & CONVCODE_LLCOMPUTED):
+            out += 'un-'
+        out += 'computed mode'
+        return out
+    if conv & CONVCODE_LLCOMPUTED:
+        out = 'singly-computed'
+        if conv & CONVCODE_ERROR:
+            out += ' with error'
+        return out
+    return 'newly created model'
+
+
+cdef str get_conv_descr(int64_t conv):
+    cdef str out = get_conv_str(conv)
+    if conv & CONVCODE_FIXEDMODEL:
+        if conv & ~(CONVCODE_FIXEDMODEL):
+            return 'hashed ' + out
+        return 'hashed model'
+    return out
+
+
 cdef class h2mm_model:
     """
     The base class for storing objects representing the H2MM model, stores
@@ -483,8 +658,10 @@ cdef class h2mm_model:
         The transition probability matrix, 2D, shape [nstate, nstate]
     obs : numpy.ndarray
         The emission probability matrix, 2D, shape [nstate, ndet]
+        
     Optional Parameters
     -------------------
+    
     .. note::
         
         These are generally only specified when trying to re-create a model from, for
@@ -513,7 +690,7 @@ cdef class h2mm_model:
     
     def __init__(self, prior, trans, obs, loglik=-np.inf, niter=0, nphot = 0, is_conv=False):
         # if statements check to confirm first the correct dimensinality of input matrices, then that their shapes match
-        cdef unsigned long i, j
+        cdef int64_t i, j
         if prior.ndim != 1:
             raise ValueError("Prior matrix must have ndim=1, too many dimensions in prior")
         if trans.ndim != 2:
@@ -533,9 +710,7 @@ cdef class h2mm_model:
         if not isinstance(is_conv, int):
             raise TypeError("is_conv must be boolean or int")
         elif isinstance(is_conv, bool):
-            is_conv = 3 if is_conv else 2
-        elif is_conv < 0 or is_conv > 7:
-            raise ValueError("is_conv must be within range of [0, 7]")
+            is_conv = CONVCODE_OUTPUT_CONVERGED
         if loglik > 0.0:
             raise ValueError("loglik must be negative")
         elif loglik != -np.inf:
@@ -555,7 +730,7 @@ cdef class h2mm_model:
         trans = trans.astype('double')
         obs = obs.astype('double')
         # allocate and copy information over to h2mm_mod pointer
-        self.model = allocate_models(1, obs.shape[0], obs.shape[1], <unsigned long> nphot)
+        self.model = Py_allocate_models(1, obs.shape[0], obs.shape[1], <int64_t> nphot)
         if loglik == -np.inf:
             self.model.conv = 0
             self.model.loglik = <double> loglik
@@ -572,10 +747,10 @@ cdef class h2mm_model:
             for j in range(self.model.nstate):
                 self.model.obs[self.model.nstate * i + j] = obs[j,i]
         self.normalize()
-        
+    
     def __dealloc__(self):
         if self.model is not NULL:
-            free_models(1, self.model)
+            Py_free_models(1, self.model)
         
     @staticmethod
     cdef h2mm_model from_ptr(h2mm_mod *model):
@@ -583,9 +758,19 @@ cdef class h2mm_model:
         new.model = model
         return new
     
+    @staticmethod
+    cdef h2mm_model move_ptr(h2mm_mod *model):
+        cdef h2mm_model new = h2mm_model.__new__(h2mm_model)
+        new.model = <h2mm_mod*> PyMem_Malloc(sizeof(h2mm_mod))
+        new.model.prior = NULL
+        new.model.trans = NULL
+        new.model.obs = NULL
+        move_model_ptrs(model, new.model)
+        return new
+    
     def __repr__(self):
         cdef unsigned long i, j
-        msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {self.model.conv}\n"
+        msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {hex(self.model.conv)}\n"
         msg += "prior:\n"
         for i in range(self.model.nstate):
             msg += f"{self.model.prior[i]}, " if i < self.model.nstate -1 else f"{self.model.prior[i]}\n"
@@ -602,38 +787,10 @@ cdef class h2mm_model:
         return msg
     
     def __str__(self):
-        if self.model.conv == 0:
-            msg = "Initial model, "
-            ll = ', loglik unknown'
-        elif self.model.conv == 1:
-            if self.model.loglik == 0.0:
-                msg = f"Non-calculated optimization model, {self.model.niter} iterations, "
-                ll = f'nphot={self.model.nphot}'
-            else:
-                msg = f"Mid-optimization, {self.model.niter} iterations, "
-                ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 2:
-            msg = "Non-optimzed model, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 3:
-            msg = f"Converged model, {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 4:
-            msg = f"Max iterations {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 5:
-            msg = f"Max time {self.model.niter} iterations, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 6:
-            msg = "Optimization stopped after error, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 7:
-            msg = f"Model after converged, iteration {self.model.niter}, "
-            ll = f'nphot={self.model.nphot}, loglik={self.model.loglik}'
-        elif self.model.conv == 8:
-            msg = "Fixed hashable model, "
-            ll = ''
-        return msg + f'States={self.model.nstate}, Streams={self.model.ndet}, ' + ll
+        out = get_conv_descr(self.model.conv) + f' states={self.model.nstate}, streams={self.model.ndet}'
+        if self.model.conv & CONVCODE_LLCOMPUTED:
+            out += f', loglik: {self.model.loglik}'
+        return out
         
     # a number of property defs so that the values are accesible from python
     @property
@@ -753,15 +910,15 @@ cdef class h2mm_model:
     @property
     def is_conv(self):
         """Whether or not the optimization reached convergence rather than exceeding the maximum iteration/time of optimization"""
-        if self.model.conv == 3:
+        if self.model.conv & CONVCODE_OUTPUT:
             return True
         return False
     
     @property
     def is_opt(self):
         """Whether or not the model has undergone optimization, as opposed to evaluation or being an initial model"""
-        if self.model.conv >= 3:
-            return True
+        if self.model.conv & CONVCODE_FROMOPT:
+            return True if self.model.niter != 0 else False
         return False
     
     @property
@@ -774,35 +931,12 @@ cdef class h2mm_model:
     @property
     def conv_code(self):
         """The convergence code of model, an int"""
-        if self.model.conv == 1 and self.model.loglik == 0:
-            return -1
-        else:
-            return self.model.conv
+        return self.model.conv
     
     @property
     def conv_str(self):
         """String description of how model optimization/calculation ended"""
-        if self.model.conv == 0:
-            return 'Model unoptimized'
-        elif self.model.conv == 1:
-            if self.model.loglik == 0.0:
-                return f'Non-calculated model in optimization, {self.model.niter} iterations'
-            else:
-                return f'Mid-optimization model, {self.model.niter} iterations'
-        elif self.model.conv == 2:
-            return 'Loglik of model calculated without optimization'
-        elif self.model.conv == 3:
-            return f'Model converged after {self.model.niter} iterations'
-        elif self.model.conv == 4:
-            return f'Maxiumum of {self.model.niter} iterations reached'
-        elif self.model.conv == 5:
-            return f'After {self.model.niter} iterations the optimization reached the time limit'
-        elif self.model.conv == 6:
-            return f'Optimization terminated because of reaching floating point NAN on iteration {self.model.niter}, returned the last viable model'
-        elif self.model.conv == 7:
-            return f'Model after optimal model found {self.model.niter}'
-        elif self.model.conv == 8:
-            return "Fixed hashable model, convergence irrelevant"
+        return get_conv_descr(self.model.conv)
     
     @property
     def niter(self):
@@ -819,16 +953,14 @@ cdef class h2mm_model:
     
     def set_converged(self,converged=True):
         """Modify model to mark as converged or not"""
-        if self.model.conv == 8:
-            raise AttributeError("cannot change hashed h2mm_model")
         if not isinstance(converged,bool):
             raise ValueError("Input must be True or False")
         if self.model.nphot == 0 or self.model.loglik == 0 or self.model.loglik == np.inf or np.isnan(self.model.loglik):
             raise Exception("Model uninitialized with data, cannot set converged")
         if converged:
-            self.model.conv = 3
+            self.model.conv |= CONVCODE_OUTPUT_CONVERGED
         elif self.model.conv == 3:
-            self.model.conv = 1
+            self.model.conv &= ~(CONVCODE_OUTPUT|CONVCODE_ANYFINAL)
             
     def sort_states(self):
         """Return model with states sorted by values in prior, and set as 'hashable'"""
@@ -838,7 +970,7 @@ cdef class h2mm_model:
         trans = trans[:,srt]
         obs = self.obs[srt]
         cdef h2mm_model out=  h2mm_model(prior, trans, obs, loglik=self.model.loglik, niter=self.model.niter, nphot=self.model.nphot)
-        out.model.conv = 8
+        out.model.conv |= CONVCODE_FIXEDMODEL
         return out
     
     def __eq__(self, other):
@@ -860,8 +992,6 @@ cdef class h2mm_model:
                 if sf.model.obs[j*sf.model.nstate+i] != sf.model.obs[j*sf.model.nstate+i]:
                     return False
         return True
-            
-            
     
     def normalize(self):
         """For internal use, ensures all model arrays are row stochastic"""
@@ -876,17 +1006,20 @@ cdef class h2mm_model:
         return self.copy()
     
     def __hash__(self):
-        if self.model.conv != 8:
+        if not (self.model.conv & CONVCODE_FIXEDMODEL):
             raise TypeError("unhashable model, must sort_states first")
         p = tuple(self.model.prior[i] for i in range(self.model.nstate))
         t = tuple(self.model.trans[i] for i in range(self.model.nstate**2))
         o = tuple(self.model.obs[i] for i in range(self.model.nstate*self.model.ndet))
         return hash(p+t+o)
     
-    def optimize(self, indexes, times, max_iter=None, print_func='iter', 
-              print_args = None, bounds=None, bounds_func=None,
-              max_time=None, converged_min=None, num_cores=None, 
-              reset_niter=False, gamma = False, opt_array=False, inplace=True):
+    def optimize(self, indexes, times, max_iter=None, 
+                  bounds_func=None, bounds=None, bounds_kwargs=None,
+                  print_func='iter', print_freq=1, print_args=None, print_kwargs=None,
+                  print_stream=None, print_formatter=None,
+                  print_fmt_args=None, print_fmt_kwargs=None,
+                  max_time=np.inf, converged_min=None, num_cores=None, 
+                  reset_niter=True, gamma=False, opt_array=False, inplace=False):
         """
         Optimize the H2MM model for the given set of data.
         
@@ -896,16 +1029,105 @@ cdef class h2mm_model:
     
         Parameters
         ----------
+        model : h2mm_model
+            An initial guess for the H2MM model, just give a general guess, the algorithm
+            will optimize, and generally the algorithm will converge even when the
+            initial guess is very far off
+        
         indexes : list of NUMPY 1D int arrays
             A list of the arrival indexes for each photon in each burst.
             Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
             The indexes list must maintain  1-to-1 correspondence to the times list
+        
         times : list of NUMPY 1D int arrays
             A list of the arrival times for each photon in each burst
             Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
             The times list must maintain  1-to-1 correspondence to the indexes list
+        
+        max_iter : int or None, optional
+            the maximum number of iterations to conduct before returning the current
+            :class:`h2mm_model`, if None (default) use value from optimization_limits. 
+            Default is None
+        
+        bounds_func : str, callable or None, optional
+            function to be evaluated after every iteration of the H2MM algorithm
+            its primary function is to place bounds on :class:`h2mm_model`
+            
+            .. note:: 
+                
+                bounding the :class:`h2mm_model` causes the guarantee of improvement on each
+                iteration until convergence to no longer apply, therefore the results are
+                no longer guaranteed to be the optimal model within bounds.
+            
+            Default is None
+            
+            Acceptable inputs\:
+                
+                C level limits: 'minmax' 'revert' 'revert_old'
+                    prevents the model from having values outside of those defined
+                    by :class:`h2mm_limits` class given to bounds, if an iteration produces
+                    a new model for loglik calculation in the next iteration with 
+                    values that are out of those bounds, the 3 function differ in
+                    how they correct the model when a new model has a value out of
+                    bounds, they are as follows:
+                    
+                    **'minmax'**\: 
+                        
+                        sets the out of bounds value to the min or max value
+                        closer to the original value
+                    
+                    **'revert'**\: 
+                        
+                        sets the out of bounds value to the value from the last
+                        model for which the loglik was calculated
+                    
+                    **'revert_old'**\: 
+                        
+                        similar to revert, but instead reverts to the value
+                        from the model one before the last calculated model
+                
+                Callable: python function that takes 4 inputs and returns :class:`h2mm_model` object
+                    .. warning:: 
+                    
+                        The user takes full responsibility for errors in the results.
+                    
+                    must be a python function that takes the signature
+                    ``bounds_func(new, current, old, *bounds, **bounds_kwargs)``
+                    ``new``, ``current``, and ``old`` are :class:`h2mm_model` objects, 
+                    with ``new`` being the model whose loglik has yet to be calculated
+                    resulting from the latest iteration, ``current`` being the model
+                    whose loglik was just calculated, and ``old`` being the result
+                    of the previous iteration. Be one of the following: :class:`h2mm_model`,
+                    :code:`bool`, :code:`int`, or a 2-tuple of :class:`h2mm_model` and
+                    either :code:`bool` or :code:`int`. In all cases, :code:`int` values
+                    must 0, 1, or 2. :class:`h2mm_model` objects will be used as the
+                    next model to compute the loglik of. :class:`bool` and :code:`int`
+                    objects determine if optimization will continue.
+                    If :code:`True`, then optimization will continue, if :code:`False`,
+                    then optimization will cease, and the ``old`` model will be returned
+                    as the ideal model. If :code:`0`, then optimization will continue,
+                    if :code:`1`, then return ``old`` model as optimal model, if 
+                    :code:`2`, then return ``current`` model as optimizal model.
+        
+        bounds : h2mm_limits, tuple, or None, optional
+            Argument(s) pass to bounds_func function. If bounds_func is a string,
+            then bounds **must** be specified, and **must** be a :class:`h2mm_limits`
+            object.
+            
+            If ``bounds_func`` is callable, and bounds is not None or a tuple, bounds
+            is passed as the 4th argument to bounds_func, ie 
+            :code:`bounds_func(new, current, old, bounds, **bounds_kwargs)`, 
+            if bounds is a tuple, then passed as \*args, 
+            ie :code:`bounds_func(new, current, old, *bounds, **bounds_kwargs)`
+            Default is None
+        
+        bounds_kwargs : dict, or None, optional
+            Only used when ``bounds_func`` is callable, passed as \*\*kwargs to
+            ``bounds_func`` ie ie :code:`bounds_func(new, current, old, *bounds, **bounds_kwargs)`.
+            If :code:`None`
+            The default is None
         
         print_func : None, str or callable, optional
             Specifies how the results of each iteration will be displayed, several 
@@ -916,18 +1138,11 @@ cdef class h2mm_model:
                 
                     causes no printout anywhere of the results of each iteration
                     
-                Str: 'console', 'all', 'diff', 'comp', 'iter'
+                Str: 'all', 'diff', 'comp', 'iter'
                 
-                    **'console'**\: 
-                        
-                        the results will be printed to the terminal/console 
-                        window this is useful to still be able to see the results, 
-                        but not clutter up the output of your Jupyter Notebook, this 
-                        is the default
-                    
                     **'all'**\: 
                         
-                        prints out the full h2mm_model just evaluated, this is very
+                        prints out the full :class:`h2mm_model` just evaluated, this is very
                         verbose, and not generally recommended unless you really want
                         to know every step of the optimization
                     
@@ -959,90 +1174,59 @@ cdef class h2mm_model:
                 Callable: user defined function
                     A python function for printing out a custom output, the function must
                     accept the input of 
-                    (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`,float, float)
-                    as the function will be handed (niter, new, current, old, t_iter, t_total)
-                    from a special Cython wrapper. t_iter and t_total are the times
-                    of the iteration and total time respectively, in seconds, based
-                    on the C level clock function, which is notably inaccurate,
-                    often reporting larger than actual values.
+                    (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`, float, float)
+                    as the function will be handed ``(niter, new, current, old, iter_time, total_time)``
+                    from a special Cython wrapper. iter_time and total_time are the times
+                    of the latest iteration and total time of optimization, respectively.
+                    Note that iter_time and total_time are based on the fast, but
+                    inaccurate C clock function.
         
-        print_args : 2-tuple/list (int, bool) or None, optional
-            Arguments to further customize the printing options. The format is
-            (int bool) where int is how many iterations before updating the display
-            and the bool is True if the printout will concatenate, and False if the
-            display will be kept to one line, The default is None, which is changed
-            into (1, False). If only an int or a bool is specified, then the default
-            value for the other will be used. If a custom printing function is given
-            then this argument will be passed to the function as \*args.
-            Default is None
-        bounds_func : str, callable or None, optional
-            function to be evaluated after every iteration of the H2MM algorithm
-            its primary function is to place bounds on :class:`h2mm_model`
+        print_freq: int, optional
+            Number of iterations between updating display. Default is 1
+        
+        print_args : tuple or None, optional
+            Only used when ``print_func`` is callable. Passed as final argument to
+            ``print_func`` if not :code:`None` or :code:`tuple`, ie
+            ``print_func(niter, new, current, old, iter_time, total_time, print_args, **print_kwargs)``
+            if :code:`tuple`, then passed as \*args, ie
+            ``print_func(niter, new, current, old, iter_time, total_time, *print_args, **print_kwargs)``
+            If :code:`None`, then ignored. The default is :code:`None`.
+        
+        print_kwargs: dict or None, optional
+            Only used when ``print_func`` is callable, passed as \*\*kwargs to ``print_func``
+            ie ``print_func(niter, new, current, old, iter_time, time_total, *print_args, **print_kwargs)``.
+            If :code:`None`, then ignored. The default is :code:`None`.
+        
+        print_stream : OutStream, optional
+            Typically OutStream, the stream where the output will be displayed.
+            Passed as first argument to print_formatter, if :code:`None`, then use
+            stream specified in optimization_limites. Default is None
+        
+        print_formatter : Printer, optional
+            Class object (usually subclass of :class:`Printer`) that formats
+            text for output to ``print_stream``. Instance of ``print_formatter`` class
+            will be created with 
+            ``fmtr = print_formatter(print_stream, *print_fmt_args, **print_fmt_kwargs)``
+            to use for printing. Each print will call ``fmtr.update(text)`` where
+            ``text`` is output of ``print_func`` call. At end of optimization,
+            ``fmtr.close()`` will be called. If ``print_formatter`` is :code:`None`
+            then will use the formatter specified in ``optimization_limits``.
+            The default is :code:`None:.
+        
+        print_fmt_args : tuple, Any or None, optional
+            Additional arguments passed to ``print_formatter``, if None, ignored,
+            if not tuple, then treated as single argument. The default is :code:`None`.
+        
+        print_fmt_kwargs : dict or None, optional
+            Additional  keyword arguments passed to ``print_formatter``, if None, ignored.
+            The default is :code:`None`.
             
-            .. note:: 
-                
-                bounding the :class:`h2mm_model` causes the guarantee of improvement on each
-                iteration until convergence to no longer apply, therefore the results are
-                no longer guaranteed to be the optimal model within bounds.
-            
-            Default is None
-            Acceptable inputs\:
-                
-                C level limits: 'minmax' 'revert' 'revert_old'
-                    prevents the model from having values outside of those defined
-                    by :class:`h2mm_limits` class given to bounds, if an iteration produces
-                    a new model for loglik calculation in the next iteration with 
-                    values that are out of those bounds, the 3 function differ in
-                    how they correct the model when a new model has a value out of
-                    bounds, they are as follows:
-                    
-                    **'minmax'**\: 
-                        
-                        sets the out of bounds value to the min or max value
-                        closer to the original value
-                    
-                    **'revert'**\: 
-                        
-                        sets the out of bounds value to the value from the last
-                        model for which the loglik was calculated
-                    
-                    **'revert_old'**\: 
-                        
-                        similar to revert, but instead reverts to the value
-                        from the model one before the last calculated model
-                
-                Callable: python function that takes 4 inputs and returns :class:`h2mm_model` object
-                    .. warning:: 
-                    
-                        The user takes full responsibility for errors in the results.
-                    
-                    must be a python function that takes 4 arguments, the first 3 are
-                    the :class:`h2mm_model` objects, in this order: new, current, old, 
-                    the fourth is the argument supplied to the bounds keyword argument,
-                    the function must return a single :class:`h2mm_limits` object, the prior, 
-                    trans and obs fields of which will be optimized next, other values 
-                    are ignored.
-        bounds : h2mm_limits, str, 4th input to callable, or None, optional
-            The argument to be passed to the bounds_func function. If bounds_func is
-            None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
-            or 'revert_old' (calling C-level bounding functions), then bounds must be
-            a :class:`h2mm_limits` object, if bounds_func is a callable, bounds must be an
-            acceptable input as the fourth argument to the function passed to bounds_func
-            Default is None
-        max_iter : int or None, optional
-            the maximum number of iterations to conduct before returning the current
-            :class:`h2mm_model`, if None (default) use value from optimization_limits. 
-            Default is None
         max_time : float or None, optional
             The maximum time (in seconds) before returning current model
-            
-            .. note:: 
-                
-                this uses the C clock, which has issues, often the time assessed by
-                C, which is usually longer than the actual time. 
-                
-            If None (default) use value from optimization_limits. 
-            Default is None
+            **NOTE** this uses the inaccurate C clock, which is often longer than the
+            actual time. If :code:`None` (default) use value from optimization_limits. 
+            Default is :code:`None`.
+        
         converged_min : float or None, optional
             The difference between new and current :class:`h2mm_model` to consider the model
             converged, the default setting is close to floating point error, it is
@@ -1073,6 +1257,7 @@ cdef class h2mm_model:
             max_iter, as the optimization will count the previous iterations towards
             the max_iter threshold.
             Default is False
+        
         gamma : bool, optional
             Whether or not to return the gamma array, which gives the probabilities
             of each photon being in a given state.
@@ -1081,22 +1266,16 @@ cdef class h2mm_model:
                 
                 If opt_array is True, then only the gamma arrays for the ideal
                 model are returned.
-                
-            Default is False
-        opt_array : bool
-            Defines how the result is returned, if False (default) then return only
-            the ideal model, if True, then a numpy array is returned containing all
-            models during the optimization.
             
-            .. note::
-                
-                The last model in the array is the model after the convergence criterion
-                have been met. Therefore check the :attr:`h2mm_model.conv_code`, if it
-                is 7, then the second to last model is the ideal model. Still, usually
-                the last model will be so close to ideal that it will not make any 
-                significant difference.
-                
             Default is False
+        
+        opt_array : bool | int, optional
+            Defines how the result is returned, if False (default) (or 0) then return only
+            the ideal model, if True (or 1), then a numpy array is returned containing all
+            models during the optimization, with the last model being the optimial model.
+            If 2 then return all models, including models after converged.
+            Default is False
+        
         inplace : bool, optional
             Whether or not to store the optimized model in the current model object.
             
@@ -1105,7 +1284,7 @@ cdef class h2mm_model:
                 When opt_array is True, then the ideal model is copied into the
                 current model object, while the return value contains all models
                 
-            Default is True
+            Default is False
         
         Returns
         -------
@@ -1122,7 +1301,7 @@ cdef class h2mm_model:
             sequence.
             
         """
-        if self.model.conv == 8 and inplace:
+        if self.model.conv & CONVCODE_FIXEDMODEL and inplace:
             raise TypeError("cannot inpnlace optimize fixed hashable model")
         cdef h2mm_model out_model
         if max_iter is None:
@@ -1130,11 +1309,12 @@ cdef class h2mm_model:
         if self.model.conv == 4 and self.model.niter >= max_iter:
             max_iter = self.model.niter + max_iter
         out = EM_H2MM_C(self, indexes, times, max_iter=max_iter, 
-                        print_func=print_func, print_args = print_args, 
-                        bounds=bounds, bounds_func=bounds_func,  
-                        max_time=max_time, converged_min=converged_min, 
-                        num_cores=num_cores,reset_niter=reset_niter, 
-                        gamma=gamma, opt_array=opt_array)
+                      bounds_func=bounds_func, bounds=bounds, bounds_kwargs=bounds_kwargs,
+                      print_func=print_func, print_freq=print_freq, print_args=print_args, print_kwargs=print_kwargs,
+                      print_stream=print_stream, print_formatter=print_formatter,
+                      print_fmt_args=print_fmt_args, print_fmt_kwargs=print_fmt_kwargs,
+                      max_time=max_time, converged_min=converged_min, num_cores=num_cores, 
+                      reset_niter=reset_niter, gamma=gamma, opt_array=opt_array)
         if inplace:
             # separate the models from gamma
             if gamma:
@@ -1144,7 +1324,7 @@ cdef class h2mm_model:
             # find the ideal model
             if opt_array:
                 for i in range(out_arr.size-1, -1, -1):
-                    if out_arr[i].conv_code != 7:
+                    if out_arr[i].conv_code & CONVCODE_OUTPUT:
                         out_model = out_arr[i]
                         break
             else:
@@ -1212,20 +1392,18 @@ cdef class h2mm_model:
             out_model = out
         if inplace:
             copy_model(out_model.model, self.model)
-        
         return out
-    
     
 
 cdef class _h2mm_lims:
     # hidden type for making a C-level h2mm_limits object
     cdef:
         h2mm_minmax limits
-    def __cinit__(self, h2mm_model model, np.ndarray[double,ndim=1] min_prior, np.ndarray[double,ndim=1] max_prior, 
-                  np.ndarray[double,ndim=2] min_trans, np.ndarray[double,ndim=2] max_trans, 
-                  np.ndarray[double,ndim=2] min_obs, np.ndarray[double,ndim=2] max_obs):
-        cdef unsigned long i, j
-        cdef unsigned long nstate = model.model.nstate
+    def __cinit__(self, h2mm_model model, cnp.ndarray[double,ndim=1] min_prior, cnp.ndarray[double,ndim=1] max_prior, 
+                  cnp.ndarray[double,ndim=2] min_trans, cnp.ndarray[double,ndim=2] max_trans, 
+                  cnp.ndarray[double,ndim=2] min_obs, cnp.ndarray[double,ndim=2] max_obs):
+        cdef int64_t i, j
+        cdef int64_t nstate = model.model.nstate
         cdef unsigned long ndet = model.model.ndet
         self.limits.mins = <h2mm_mod*> PyMem_Malloc(sizeof(h2mm_mod))
         self.limits.mins.prior = NULL
@@ -1353,9 +1531,9 @@ class h2mm_limits:
                     "min_trans":min_trans, "max_trans":max_trans, 
                     "min_obs":min_obs, "max_obs":max_obs}
         for name, param in arg_list.items():
-            if isinstance(param,float) or isinstance(param,np.ndarray):
+            if isinstance(param,float) or isinstance(param, cnp.ndarray):
                 none_kwargs = False
-                if isinstance(param,np.ndarray):
+                if isinstance(param, cnp.ndarray):
                     if nstate == 0:
                         nstate = param.shape[0]
                     elif nstate != param.shape[0]:
@@ -1384,13 +1562,13 @@ class h2mm_limits:
             if isinstance(min_trans,float):
                 if np.any(min_trans > model.trans[np.eye(model.nstate)==0]):
                     raise ValueError("model trans out of range of min/max trans values")
-            elif isinstance(min_trans,np.ndarray):
+            elif isinstance(min_trans, cnp.ndarray):
                 if np.any(min_trans[np.eye(model.nstate)==0] > model.trans[np.eye(model.nstate)==0]):
                     raise ValueError("model trans out of range of min/max trans values")
             if isinstance(max_trans,float):
                 if np.any(max_trans < model.trans[np.eye(model.nstate)==0]):
                     raise ValueError("model trans out of range of min/max trans values")
-            elif isinstance(max_trans,np.ndarray):
+            elif isinstance(max_trans, cnp.ndarray):
                 if np.any(max_trans[np.eye(model.nstate)==0] < model.trans[np.eye(model.nstate)==0]):
                     raise ValueError("model trans out of range of min/max trans values")
             if (min_obs is not None and np.any(min_obs > model.obs)) or (max_obs is not None and np.any(max_obs < model.obs)):
@@ -1411,7 +1589,7 @@ class h2mm_limits:
         self.nstate = nstate
         self.model = model
     
-    def make_model(self,model,warning=True):
+    def make_model(self, model, warning=True):
         """
         Method for checking the limits arrays generated from the input model
         
@@ -1462,15 +1640,15 @@ class h2mm_limits:
             min_prior = np.zeros(nstate).astype('double')
         elif isinstance(self.min_prior,float):
             min_prior = (self.min_prior * np.ones(nstate)).astype('double')
-        elif isinstance(self.min_prior,np.ndarray) and self.min_prior.ndim == 1 and self.min_prior.shape[0] == nstate:
+        elif isinstance(self.min_prior, cnp.ndarray) and self.min_prior.ndim == 1 and self.min_prior.shape[0] == nstate:
             min_prior = self.min_prior.astype('double')
         else:
             raise Exception("Type of min_prior changed")
         if self.max_prior is None:
             max_prior = np.ones(nstate).astype('double')
         elif isinstance(self.min_prior,float):
-            max_prior = (self.max_prior * np.ones(nstate)).astype('double')
-        elif isinstance(self.max_prior,np.ndarray) and self.max_prior.ndim == 1 and self.max_prior.shape[0] == nstate:
+            max_prior = (self.max_prior *np.ones(nstate)).astype('double')
+        elif isinstance(self.max_prior, cnp.ndarray) and self.max_prior.ndim == 1 and self.max_prior.shape[0] == nstate:
             max_prior = self.max_prior.astype('double')
         else:
             raise Exception("Type of max_prior changed")
@@ -1481,7 +1659,7 @@ class h2mm_limits:
         elif isinstance(self.min_trans,float):
             min_trans = (self.min_trans * np.ones((nstate,nstate))).astype('double')
             min_trans[np.eye(nstate)==1] = 0.0
-        elif isinstance(self.min_trans,np.ndarray) and self.min_trans.ndim == 2 and self.min_trans.shape[0] == self.min_trans.shape[1] == nstate:
+        elif isinstance(self.min_trans, cnp.ndarray) and self.min_trans.ndim == 2 and self.min_trans.shape[0] == self.min_trans.shape[1] == nstate:
             min_trans = self.min_trans.astype('double')
         else:
             raise Exception("Type of min_trans changed")
@@ -1492,7 +1670,7 @@ class h2mm_limits:
         elif isinstance(self.max_trans,float):
             max_trans = (self.max_trans * np.ones((nstate,nstate))).astype('double')
             max_trans[np.eye(nstate)==1] = 1.0
-        elif isinstance(self.max_trans,np.ndarray) and self.max_trans.shape[0] == self.max_trans.shape[1] == nstate:
+        elif isinstance(self.max_trans, cnp.ndarray) and self.max_trans.shape[0] == self.max_trans.shape[1] == nstate:
             max_trans = self.max_trans.astype('double')
         else:
             raise Exception("Type of max_trans changed")
@@ -1502,7 +1680,7 @@ class h2mm_limits:
             min_obs = np.zeros((nstate,ndet)).astype('double')
         elif isinstance(self.min_obs,float):
             min_obs = (self.min_obs * np.ones((nstate,ndet))).astype('double')
-        elif isinstance(self.min_obs,np.ndarray) and self.min_obs.ndim == 2 and self.min_obs.shape[0] == nstate and self.min_obs.shape[1] == ndet:
+        elif isinstance(self.min_obs, cnp.ndarray) and self.min_obs.ndim == 2 and self.min_obs.shape[0] == nstate and self.min_obs.shape[1] == ndet:
             min_obs = self.min_obs.astype('double')
         else:
             raise Exception("Type of min_obs changed")
@@ -1512,7 +1690,7 @@ class h2mm_limits:
             min_obs = np.ones((nstate,ndet)).astype('double')
         elif isinstance(self.max_obs,float):
             max_obs = (self.max_obs * np.ones((nstate,ndet))).astype('double')
-        elif isinstance(self.max_obs,np.ndarray) and self.max_obs.ndim == 2 and self.max_obs.shape[0] == nstate and self.max_obs.shape[1] == ndet:
+        elif isinstance(self.max_obs, cnp.ndarray) and self.max_obs.ndim == 2 and self.max_obs.shape[0] == nstate and self.max_obs.shape[1] == ndet:
             max_obs = self.max_obs.astype('double')
         else:
             raise Exception("Type of max_obs changed")
@@ -1528,9 +1706,9 @@ class h2mm_limits:
                 warnings.warn("Initial model out of min/max trans range, will result in undefined behavior")
             if np.any(min_obs > model.obs) or np.any(max_obs < model.obs):
                 warnings.warn("Initial model out of min/max obs range, will result in undefined behavior")
-        return min_prior,max_prior,min_trans,max_trans,min_obs,max_obs
+        return min_prior, max_prior, min_trans, max_trans, min_obs, max_obs
     
-    def _make_model(self,model):
+    def _make_model(self, h2mm_model model):
         """
         Hidden method identical to make_model, except returns the hidden class
         _h2mm_lims, which is a wrapper for the C-level h2mm_minmax structure
@@ -1551,83 +1729,7 @@ class h2mm_limits:
             wrapper for the C-level h2mm_minmax structure that does the limiting
             of the model
         """
-        if not isinstance(model,h2mm_model):
-            raise Exception("Must be h2mm_model")
-        if self.nstate != 0 and self.nstate != model.nstate:
-            raise ValueError(f"Mismatch in states between model ({model.nstate}) and limits object ({self.nstate})")
-        if self.ndet != 0 and self.ndet != model.ndet:
-            raise ValueError(f"Mismatch in photon streams between model ({model.ndet}) and limits object ({self.ndet})")
-        ndet = model.ndet
-        nstate = model.nstate
-        if self.min_prior is None:
-            min_prior = np.zeros(nstate).astype('double')
-        elif isinstance(self.min_prior,float):
-            min_prior = (self.min_prior * np.ones(nstate)).astype('double')
-        elif isinstance(self.min_prior,np.ndarray) and self.min_prior.ndim == 1 and self.min_prior.shape[0] == nstate:
-            min_prior = self.min_prior.astype('double')
-        else:
-            raise Exception("Type of min_prior changed")
-        if self.max_prior is None:
-            max_prior = np.ones(nstate).astype('double')
-        elif isinstance(self.min_prior,float):
-            max_prior = (self.max_prior * np.ones(nstate)).astype('double')
-        elif isinstance(self.max_prior,np.ndarray) and self.max_prior.ndim == 1 and self.max_prior.shape[0] == nstate:
-            max_prior = self.max_prior.astype('double')
-        else:
-            raise Exception("Type of max_prior changed")
-        if np.any(min_prior > max_prior):
-            raise ValueError("min_prior cannot be greater than max_prior")
-        if self.min_trans is None:
-            min_trans = np.zeros((nstate,nstate)).astype('double')
-        elif isinstance(self.min_trans,float):
-            min_trans = (self.min_trans * np.ones((nstate,nstate))).astype('double')
-            min_trans[np.eye(nstate)==1] = 0.0
-        elif isinstance(self.min_trans,np.ndarray) and self.min_trans.ndim == 2 and self.min_trans.shape[0] == self.min_trans.shape[1] == nstate:
-            min_trans = self.min_trans.astype('double')
-        else:
-            raise Exception("Type of min_trans changed")
-        if np.any(min_trans.sum(axis=1) > 1.0):
-            raise Exception("min_trans disallows row stochastic matrix")
-        if self.max_trans is None:
-            max_trans = np.ones((nstate,nstate)).astype('double')
-        elif isinstance(self.max_trans,float):
-            max_trans = (self.max_trans * np.ones((nstate,nstate))).astype('double')
-            max_trans[np.eye(nstate)==1] = 1.0
-        elif isinstance(self.max_trans,np.ndarray) and self.max_trans.shape[0] == self.max_trans.shape[1] == nstate:
-            max_trans = self.max_trans.astype('double')
-        else:
-            raise Exception("Type of max_trans changed")
-        if np.any(min_trans > max_trans):
-            raise ValueError("min_trans cannot be greater than max_trans")
-        if self.min_obs is None:
-            min_obs = np.zeros((nstate,ndet)).astype('double')
-        elif isinstance(self.min_obs,float):
-            min_obs = (self.min_obs * np.ones((nstate,ndet))).astype('double')
-        elif isinstance(self.min_obs,np.ndarray) and self.min_obs.ndim == 2 and self.min_obs.shape[0] == nstate and self.min_obs.shape[1] == ndet:
-            min_obs = self.min_obs.astype('double')
-        else:
-            raise Exception("Type of min_obs changed")
-        if np.any(min_obs.sum(axis=1) > 1.0):
-            raise ValueError("min_obs disallows row stochastic matrix")
-        if self.max_obs is None:
-            min_obs = np.ones((nstate,ndet)).astype('double')
-        elif isinstance(self.max_obs,float):
-            max_obs = (self.max_obs * np.ones((nstate,ndet))).astype('double')
-        elif isinstance(self.max_obs,np.ndarray) and self.max_obs.ndim == 2 and self.max_obs.shape[0] == nstate and self.max_obs.shape[1] == ndet:
-            max_obs = self.max_obs.astype('double')
-        else:
-            raise Exception("Type of max_obs changed")
-        if np.any(max_obs.sum(axis=1) < 1.0):
-            raise ValueError("max_obs dissallows row stochastic matrix")
-        if np.any(min_obs > max_obs):
-            raise ValueError("min_obs cannot be greater than max_obs")
-        if np.any(min_prior > model.prior) or np.any(max_prior < model.prior):
-            warnings.warn("Initial model out of min/max prior range, will result in undefined behavior")
-        if np.any(min_trans > model.trans) or np.any(max_trans < model.trans):
-            warnings.warn("Initial model out of min/max trans range, will result in undefined behavior")
-        if np.any(min_obs > model.obs) or np.any(max_obs < model.obs):
-            warnings.warn("Initial model out of min/max obs range, will result in undefined behavior")
-        return _h2mm_lims(model,min_prior,max_prior,min_trans,max_trans,min_obs,max_obs)
+        return _h2mm_lims(model,  *self.make_model(model))
 
 
 def factory_h2mm_model(nstate, ndet, bounds=None, trans_scale=1e-5, 
@@ -1666,9 +1768,9 @@ def factory_h2mm_model(nstate, ndet, bounds=None, trans_scale=1e-5,
 
     """
     # check all values are useful
-    cdef np.ndarray[double,ndim=1] prior, min_prior, max_prior
-    cdef np.ndarray[double,ndim=2] trans, min_trans, max_trans
-    cdef np.ndarray[double,ndim=2] obs, min_obs, max_obs
+    cdef cnp.ndarray[double,ndim=1] prior, min_prior, max_prior
+    cdef cnp.ndarray[double,ndim=2] trans, min_trans, max_trans
+    cdef cnp.ndarray[double,ndim=2] obs, min_obs, max_obs
     cdef Py_ssize_t i
     if prior_dist not in ['equal', 'random']:
         raise TypeError("prior_dist must be 'equal' or 'random'")
@@ -1752,98 +1854,83 @@ def factory_h2mm_model(nstate, ndet, bounds=None, trans_scale=1e-5,
     return model
 
 
-cdef void model_full_ptr_copy(h2mm_model in_model, h2mm_mod* mod_ptr):
-    # c function for copying an entire Cython h2mm_model into a C level h2mm_mod
-    cdef unsigned long i
-    mod_ptr.ndet = in_model.model.ndet
-    mod_ptr.nstate = in_model.model.nstate
-    mod_ptr.conv = in_model.model.conv
-    mod_ptr.niter = in_model.model.niter
-    mod_ptr.loglik = in_model.model.loglik
-    mod_ptr.nphot = mod_ptr.nphot
-    mod_ptr.prior = <double*> PyMem_Malloc(mod_ptr.nstate * sizeof(double))
-    mod_ptr.trans = <double*> PyMem_Malloc(mod_ptr.nstate**2 * sizeof(double))
-    mod_ptr.obs = <double*> PyMem_Malloc(mod_ptr.nstate * mod_ptr.ndet *sizeof(double))
-    for i in range(in_model.model.nstate):
-        mod_ptr.prior[i] = in_model.model.prior[i]
-    for i in range(in_model.model.nstate**2):
-        mod_ptr.trans[i] = in_model.model.trans[i]
-    for i in range(in_model.model.nstate*in_model.model.ndet):
-        mod_ptr.obs[i] = in_model.model.obs[i]
-
-
-# The wrapper for the user supplied python limits function
-
 cdef h2mm_model model_copy_from_ptr(h2mm_mod *model):
     # function for copying the values h2mm_mod C structure into an new h2mm_model object
     # this is slower that model_from _ptr, but the copy makes sure that changes
     # to the h2mm_model object do not change the original pointer
     # primarily used in the cy_limit function to create the model objects handed
     # to the user supplied python function
-    cdef h2mm_mod *ret_model = allocate_models(1, model.nstate, model.ndet, model.nphot)
+    cdef h2mm_mod *ret_model = Py_allocate_models(1, model.nstate, model.ndet, model.nphot)
     copy_model(model, ret_model)
     return h2mm_model.from_ptr(ret_model)
 
-cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, lm* limits, void *lims) noexcept:
+
+# The wrapper for the user supplied python limits function
+cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, lm* limits, void *instruct) noexcept with gil:
     # initial checks ensuring model does not optimize too long or have loglik error
+    new.niter = current.niter + 1
+    h2mm_normalize(new)
+    if current.conv & CONVCODE_ERROR:
+        old.conv |= CONVCODE_ERROR | CONVCODE_OUTPUT
+        current.conv |= CONVCODE_POSTMODEL
+        new.conv |= CONVCODE_ERROR | CONVCODE_POSTMODEL
+        return 1
     if current.niter >= limits.max_iter:
-        current.conv = 4
+        current.conv |= CONVCODE_OUTPUT_MAXITER
+        new.conv |= CONVCODE_POST_MAXITER
         return 2
     if time > limits.max_time:
-        current.conv = 5
+        current.conv |= CONVCODE_OUTPUT_MAXTIME
+        new.conv |= CONVCODE_POST_MAXTIME
         return 2
-    if isnan(current.loglik):
-        old.conv = 6
-        return 1
     cdef int ret
     cdef h2mm_model limit_model
     cdef h2mm_model old_mod = model_copy_from_ptr(old)
     cdef h2mm_model cur_mod = model_copy_from_ptr(current)
     cdef h2mm_model new_mod = model_copy_from_ptr(new)
-    cdef bound_struct *bound = <bound_struct*> lims
-    cdef unsigned long niter = current.niter
-    cdef object func = <object> bound.func 
-    cdef object py_limits = <object> bound.limits
-    h2mm_normalize(new)
-    new.niter = niter + 1
+    cdef BoundStruct *bound = <BoundStruct*> instruct
+    cdef object func = <object> bound.func
+    cdef object args = <object> bound.args
+    cdef object kwargs = <object> bound.kwargs
     # execute the limit function
     try:
-        limit_res = func(new_mod, cur_mod, old_mod, py_limits)
-    except:
-        current.conv = 6
-        return -4
-    if not isinstance(limit_res, (list, tuple, h2mm_model, np.ndarray, int)):
-        current.conv = 6
+        limit_res = func(new_mod, cur_mod, old_mod, *args, **kwargs)
+    except Exception as e:
+        current.conv |= CONVCODE_ERROR
+        Py_INCREF(e)
+        bound.error = <PyObject*> e
+        return -5
+    if not isinstance(limit_res, (list, tuple, h2mm_model, cnp.ndarray, int)):
+        current.conv |= CONVCODE_ERROR
         return -4
     elif isinstance(limit_res, bool):
         if limit_res:
-            current.conv = 2
-            new.conv = 7
-            return 0
-        else:
-            old.conv = 3
-            current.conv = 7
+            old.conv |= CONVCODE_OUTPUT_CONVERGED
+            current.conv |= CONVCODE_POST_CONVERGED
             return 1
+        else:
+            return 0
     elif isinstance(limit_res, int):
         if limit_res == 0:
-            current.conv = 2
-            new.conv = 1
             return 0
         elif limit_res == 1:
-            old.conv = 3
-            current.conv = 7
+            old.conv |= CONVCODE_OUTPUT_CONVERGED
+            current.conv |= CONVCODE_POST_CONVERGED
+            new.conv |= CONVCODE_POST_CONVERGED
             return 1
         elif limit_res == 2:
-            current.conv = 3
+            current.conv |= CONVCODE_OUTPUT_CONVERGED
+            new.conv |= CONVCODE_POST_CONVERGED
             return 2
         else:
-            old.conv = 6
+            current.conv |= CONVCODE_ERROR
             return -4
     elif isinstance(limit_res, h2mm_model): # when limit function only returns h2mm_model
         limit_model = limit_res
         # check that return model is valid
         if limit_model.model.ndet != current.ndet or limit_model.model.nstate != current.nstate:
-            old.conv = 6
+            current.conv |= CONVCODE_ERROR
+            new.conv |= CONVCODE_ERROR
             return -3
         ret = h2mm_check_converged(new, current, old, time, limits)
         if ret != 0:
@@ -1852,355 +1939,411 @@ cdef int cy_limit(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double time, 
             copy_model_vals(limit_model.model, new)
             return ret
     # if the function returns 2 values, run longer processing code
-    elif isinstance(limit_res, (list, tuple, np.ndarray)):
+    elif isinstance(limit_res, (list, tuple, cnp.ndarray)):
         # check deeper validity of return value
         if len(limit_res) != 2 or not isinstance(limit_res[0], h2mm_model) or not isinstance(limit_res[1], (bool, int)) or limit_res[1] > 2:
-            old.conv = 6
+            current.conv |= CONVCODE_ERROR
+            new.conv |= CONVCODE_ERROR
             return -4
         limit_model = limit_res[0]
         if limit_model.model.ndet != current.ndet or limit_model.model.nstate != current.nstate: # bad return model
-            old.conv = 6
+            current.conv |= CONVCODE_ERROR
+            new.conv |= CONVCODE_ERROR
             return -3
         copy_model_vals(limit_model.model, new)
         if isinstance(limit_res[1], bool):
             if limit_res[1]:
-                current.conv = 2
-                new.conv = 1
                 return 0
             else:
-                old.conv = 3
-                current.conv = 7
+                old.conv |= CONVCODE_OUTPUT_CONVERGED
+                current.conv |= CONVCODE_POST_CONVERGED
                 return 1
         else:
             ret = limit_res[1]
             if ret == 0:
-                current.conv = 2
-                new.conv = 1
+                pass
             elif ret == 1:
-                old.conv = 3
-                current.conv = 7
+                old.conv |= CONVCODE_OUTPUT_CONVERGED
+                current.conv |= CONVCODE_POST_CONVERGED
+                new.conv |= CONVCODE_POST_CONVERGED
             elif ret == 2:
-                current.conv = 3
+                current.conv |= CONVCODE_OUTPUT_CONVERGED
+                new.conv |= CONVCODE_POST_CONVERGED
             else:
-                old.conv = 6
+                current.conv |= CONVCODE_ERROR
+                new.conv |= CONVCODE_ERROR
                 return -3
             return ret
-    else:
-        old.conv = 6
-        return -4
+    # invalid return value of limits func
+    current.conv |= CONVCODE_ERROR
+    new.conv |= CONVCODE_ERROR
+    return -4
 
-
-
-# The wrapper for the user supplied print function
-cdef int model_print_call(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_struct *print_in = <print_struct*> func
-    cdef object print_func = <object> print_in.func
-    cdef object args = <object> print_in.args
-    cdef h2mm_model new_model = model_copy_from_ptr(new)
-    cdef h2mm_model current_model = model_copy_from_ptr(current)
-    cdef h2mm_model old_model = model_copy_from_ptr(old)
-    new_model.normalize()
-    if niter % args[2] == 0:
-        try:
-            if len(args) == 4:
-                print_func(niter, new_model, current_model, old_model, t_iter, t_total)
-            else:
-                print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
-        except:
-            return -1
-    return 0
 
 # The wrapper for the user supplied print function that displays a string
-cdef int model_print_call_str(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_struct *print_in = <print_struct*> func
-    cdef object print_func = <object> print_in.func
-    cdef object args = <object> print_in.args
+cdef int model_print_call(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef object pfunc = <object> prnt_strct.func
+    cdef object pargs = <object> prnt_strct.args
+    cdef object pkwargs = <object> prnt_strct.kwargs
+    cdef int ret = 0
     cdef h2mm_model new_model = model_copy_from_ptr(new)
     cdef h2mm_model current_model = model_copy_from_ptr(current)
     cdef h2mm_model old_model = model_copy_from_ptr(old)
     new_model.normalize()
-    if niter % args[2] == 0:
-        try:
-            if len(args) == 4:
-                disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total)
-            else:
-                disp_str = print_func(niter, new_model, current_model, old_model, t_iter, t_total,*args[4:])
-            if args[3]:
-                args[1].data += disp_str
-            else:
-                args[1].data = disp_str
-            args[0].update(args[1])
-        except:
-            return -1
-    return 0
+    try:
+        formatter.update(pfunc(niter, new_model, current_model, old_model, t_iter, t_total, *pargs, **pkwargs))
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
 
-# function to hand to the print_func, prints the entire h2mm_model
-cdef int model_print_all(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_args_struct *print_args = <print_args_struct*> func
+
+cdef int model_print_all(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef int ret = 0
     cdef h2mm_model current_model = model_copy_from_ptr(current)
-    cdef object disp_txt = <object> print_args.txt
-    cdef object disp_handle = <object> print_args.handle
-    if niter % print_args.disp_freq == 0:
-        try:
-            if print_args.keep == 1:
-                disp_txt.data += current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
-            else:
-                disp_txt.data = current_model.__repr__() + f'\nIteration time:{t_iter}, Total:{t_total}\n'
-            disp_handle.update(disp_txt)
-        except:
-            return -1
+    try:
+        formatter.update(repr(current_model)+f"\nIteration time:{t_iter}, Total:{t_total}")
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
+
+
+cdef int model_print_diff(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef int ret = 0
+    try:
+        formatter.update(f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}')
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
+
+
+cdef int model_print_diff_time(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef int ret = 0
+    try:
+        formatter.update(f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}')
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
+
+
+cdef int model_print_comp(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef int ret = 0
+    try:
+        formatter.update(f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}")
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
+
+
+cdef int model_print_comp_time(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef int ret = 0
+    try:
+        formatter.update(f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}")
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
+
+
+cdef int model_print_iter(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *instruct) noexcept with gil:
+    cdef PrintStruct *prnt_strct = <PrintStruct*> instruct
+    if niter % prnt_strct.disp_freq != 0:
+        return 0
+    cdef object formatter = <object> prnt_strct.formatter
+    cdef int ret = 0
+    try:
+        formatter.update(f"Iteration {niter:5d} (Max:{prnt_strct.max_iter:5d})")
+    except Exception as e:
+        prnt_strct.error = <PyObject*> e
+        Py_INCREF(e)
+        ret = -1
+    return ret
+
+
+###############################################################################
+#################### Casting burst input arrays funcstions ####################
+###############################################################################
+cdef int free_deltas(int64_t nbursts, int32_t **data):
+    if data is NULL:
+        return 0
+    cdef int64_t i
+    for i in range(nbursts):
+        if data[i] is not NULL:
+            PyMem_Free(data[i])
+            data[i] = NULL
+    PyMem_Free(data)
     return 0
 
-# function to hand to the print_func, prints the current loglik and the improvement
-cdef int model_print_diff(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_args_struct *print_args = <print_args_struct*> func
-    cdef object disp_txt = <object> print_args.txt
-    cdef object disp_handle = <object> print_args.handle
-    if niter % print_args.disp_freq == 0:
-        try:
-            if print_args.keep == 1:
-                disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
-            else:
-                disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e}\n'
-            disp_handle.update(disp_txt)
-        except:
-            return -1
+cdef int free_idx_diffs_arrays(int64_t i, int64_t *ilens, uint8_t **iidxs, int32_t **idiffs):
+    free_deltas(i, idiffs)
+    PyMem_Free(iidxs)
+    PyMem_Free(ilens)
     return 0
 
-cdef int model_print_diff_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_args_struct *print_args = <print_args_struct*> func
-    cdef object disp_txt = <object> print_args.txt
-    cdef object disp_handle = <object> print_args.handle
-    if niter % print_args.disp_freq == 0:
+cdef tuple reshape_burst_arrays(burst_array, str name):
+    if not isinstance(burst_array, (cnp.ndarray, Sequence)):
+        return tuple(), tuple(), False, True, TypeError(f"{name} must be readable as sequence or numpy array of 1D arrays")
+    cdef bint single = False
+    if isinstance(burst_array, cnp.ndarray):
+        if burst_array.dtype != np.object_:
+            single = True
+            burst_array = (burst_array, )
+            shape = (1, )
+        else:
+            shape = burst_array.shape
+            burst_array = burst_array.reshape(-1)
+    elif len(burst_array) != 0 and not isinstance(burst_array[0], (cnp.ndarray, Sequence)):
+        single = True
+        burst_array = (burst_array, )
+        shape = (1, )
+    else:
+        shape = (len(burst_array), )
+    return burst_array, shape, single, False, False
+
+
+cdef object cast_burst_uint8(bursts, str name, int64_t *nbursts, int64_t **len_bursts, uint8_t ***dout):
+    cdef int64_t i
+    cdef bint err = False
+    e = None
+    #### check lens are consistent ####
+    if nbursts[0] == 0:
+        nbursts[0] = len(bursts)
+    elif nbursts[0] != len(bursts):
+        return ValueError(f"nubmer of bursts in {name} ({len(bursts)} different from others specified ({nbursts[0]})")
+    cdef cnp.ndarray[object, ndim=1] out 
+    try:
+        out = np.empty(nbursts[0], dtype=np.object_)    
+    except Exception as e:
+        err = True
+    if err:
+        return e
+    cdef bint firstarray = len_bursts[0] is NULL
+    cdef cnp.ndarray[uint8_t] temp
+    cdef uint8_t **data = <uint8_t**> PyMem_Malloc(nbursts[0]*sizeof(uint8_t*))
+    cdef int64_t *lbursts = <int64_t*> PyMem_Malloc(nbursts[0]*sizeof(int64_t)) if firstarray else len_bursts[0]
+    if lbursts is NULL:
+        return MemoryError("insufficient memory")
+    if data is NULL:
+        if firstarray:
+            PyMem_Free(lbursts)
+            lbursts = NULL
+        return MemoryError("insufficient memory")
+    for i in range(nbursts[0]):
         try:
-            if print_args.keep == 1:
-                disp_txt.data += f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
-            else:
-                disp_txt.data = f'Iteration:{niter:5d}, loglik:{current.loglik:12e}, improvement:{current.loglik - old.loglik:6e} iteration time:{t_iter}, total:{t_total}\n'
-            disp_handle.update(disp_txt)
+            temp = np.ascontiguousarray(bursts[i], dtype=np.uint8)
         except:
-            return -1
-    return 0
+            err = True
+        if err:
+            if firstarray:
+                PyMem_Free(lbursts)
+                lbursts = NULL
+            return TypeError(f"burst {i} in {name} cannot be read as 1D uint8 numpy array")
+        if temp.ndim != 1:
+            if firstarray:
+                PyMem_Free(lbursts)
+                lbursts = NULL
+            return ValueError(f"burst {i} in {name} is {temp.ndim}D, must be 1D uint8 array")
+        if firstarray:
+            lbursts[i] = <int64_t> temp.shape[0]
+            if lbursts[i] < 2:
+                if firstarray:
+                    PyMem_Free(lbursts)
+                    lbursts = NULL
+                return ValueError(f"burst {i} in {name} is too short, must have at least 2 photons, got {temp.shape[0]}")
+        elif lbursts[i] != temp.shape[0]:
+            if firstarray:
+                PyMem_Free(lbursts)
+                lbursts = NULL
+            return ValueError(f"burst {i} in {name} has different size from other specified ({temp.shape[0]} vs {lbursts[i]}")
+        out[i] = temp
+        data[i] = <uint8_t*> temp.data
+    if firstarray:
+        len_bursts[0] = lbursts
+    dout[0] = data
+    return out
 
-# function to hand to the print_func, prints current and old loglik
-cdef int model_print_comp(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_args_struct *print_args = <print_args_struct*> func
-    cdef object disp_txt = <object> print_args.txt
-    cdef object disp_handle = <object> print_args.handle
-    if niter % print_args.disp_freq == 0:
+
+cdef object cast_bursts_deltas(bursts, int64_t nbursts, int64_t *lbursts, int32_t ***dout):
+    ### check number of bursts is correct
+    if len(bursts) != nbursts:
+        return ValueError(f"nubmer of bursts in times ({len(bursts)} different from others specified ({nbursts})")
+    ### make out array ###
+    cdef int32_t **data = <int32_t**> PyMem_Malloc(nbursts*sizeof(int32_t*))
+    if data is NULL:
+        return MemoryError('insufficient memory for deltas')
+    cdef cnp.ndarray[int64_t] temp
+    cdef int64_t i, j, jj, delta
+    for i in range(nbursts):
+        temp = np.ascontiguousarray(bursts[i], dtype=np.int64)
+        if temp.ndim != 1 or temp.shape[0] != lbursts[i]:
+            free_deltas(i, data)
+            data = NULL
+            if temp.ndim != 1:
+                return ValueError(f"burst {i} in time is not 1D")
+            else:
+                return ValueError(f"burst {i} in times has different size from other bursts arrays ({temp.shape[0]}, vs {nbursts})")
+        data[i] = <int32_t*> PyMem_Malloc(lbursts[i]*sizeof(int32_t))
+        if data[i] is NULL:
+            free_deltas(i, data)
+            data = NULL
+            return MemoryError("insufficient memory for time deltas")
+        data[i][0] = 0
+        jj = 0
+        for j in range(1, lbursts[i]):
+            delta = temp[j] - temp[jj]
+            if delta < 0 or delta > INT32_MAX:
+                free_deltas(i+1, data)
+                data = NULL
+                if delta < 0:
+                    return ValueError(f"burst {i} photons times {jj} and {j} out of order")
+                return ValueError(f"burst {i} photons times {jj} and {j} difference is too large")
+            if delta != 0:
+                delta -= 1
+            data[i][j] = delta
+            jj = j
+    dout[0] = data
+    return None
+
+
+cdef tuple cast_indexes_times(indexes, times, bint *single, int64_t *nbursts, int64_t **len_bursts, uint8_t ***idxs, int32_t ***deltas):
+    indexes, shape, sngl, haserr, err = reshape_burst_arrays(indexes, "indexes")
+    if haserr:
+        return tuple(), tuple(), err
+    times, _, _, haserr, err = reshape_burst_arrays(times, "times")
+    if haserr:
+        return tuple(), tuple(), err
+    indexes = cast_burst_uint8(indexes, "indexes", nbursts, len_bursts, idxs)
+    if idxs[0] is NULL:
+        return tuple(), tuple(), indexes
+    err = cast_bursts_deltas(times, nbursts[0], len_bursts[0], deltas)
+    if deltas[0] is NULL:
+        PyMem_Free(idxs[0])
+        idxs[0] = NULL
+        return tuple(), tuple(), err
+    single[0] = sngl
+    return shape, indexes, None
+
+
+cdef cnp.ndarray[object, ndim=1] make_gamma_arrays(int64_t nbursts, int64_t nstate, int64_t *burst_sizes, double ***gamma):
+    cdef cnp.ndarray[object, ndim=1] out 
+    cdef bint err = False
+    e = None
+    try:
+        out = np.empty(nbursts, dtype=np.object_)
+    except Exception as e:
+        err = True
+    if err:
+        return np.empty(0, dtype=np.object_)
+    cdef cnp.ndarray[double, ndim=2] temp
+    cdef int64_t i
+    cdef double **data = <double**> PyMem_Malloc(nbursts*sizeof(double*))
+    if data is NULL:
+        return out, MemoryError("insufficient memory for gamma array")
+    for i in range(nbursts):
         try:
-            if print_args.keep == 1:
-                disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
-            else:
-                disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e}\n"
-            disp_handle.update(disp_txt)
-        except:
-            return -1
-    return 0
+            temp = np.empty((burst_sizes[i], nstate), dtype=np.double)
+        except Exception as e:
+            err = True
+        if err:
+            PyMem_Free(data)
+            data = NULL
+            return out
+        out[i] = temp
+        data[i] = <double*> temp.data
+    gamma[0] = data
+    return out
 
-# function to hand to the print_func, print comparison between current and old loglik, and iteration and total time
-cdef int model_print_comp_time(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_args_struct *print_args = <print_args_struct*> func
-    cdef object disp_txt = <object> print_args.txt
-    cdef object disp_handle = <object> print_args.handle
-    if niter % print_args.disp_freq == 0:
+
+cdef cnp.ndarray[object, ndim=1] make_h2mm_out_arrays(int64_t nmodels, h2mm_mod *mods):
+    cdef cnp.ndarray[object, ndim=1] models
+    cdef bint err = False
+    try:
+        models = np.empty(nmodels, dtype=np.object_)
+    except Exception as e:
+        err = True
+        models[0] = e
+    if err:
+        return models
+    for i in range(nmodels):
         try:
-            if print_args.keep == 1:
-                disp_txt.data += f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
-            else:
-                disp_txt.data = f"Iteration:{niter:5d}, loglik:{current.loglik:12e}, previous loglik:{old.loglik:12e} iteration time:{t_iter}, total:{t_total}\n"
-            disp_handle.update(disp_txt)
-        except:
-            return -1
-    return 0
+            models[i] = h2mm_model.move_ptr(&mods[i])
+        except Exception as e:
+            err = True
+            models[i] = e
+        if err:
+            return models
+    return models
 
 
-# function to hand to the print_func, prints current and old loglik
-cdef int model_print_iter(unsigned long niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func) noexcept:
-    cdef print_args_struct *print_args = <print_args_struct*> func
-    cdef object disp_txt = <object> print_args.txt if print_args.txt is not NULL else None
-    cdef object disp_handle = <object> print_args.handle if print_args.handle is not NULL else None
-    if niter % print_args.disp_freq == 0:
-        try:
-            if print_args.keep == 1:
-                disp_txt.data += f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
-            else:
-                disp_txt.data = f"Iteration {niter:5d} (Max:{print_args.max_iter:5d})\n"
-            disp_handle.update(disp_txt)
-        except:
-            return -1
-    return 0
-  
-# function to generate numpy array of 2d numpy double arrays (primarily for returning gamma)
-cdef np.ndarray gen_gamma_numpy(tuple shape, unsigned long* dim1, unsigned long dim2, double** arrays):
-    cdef unsigned long i
-    cdef unsigned long size = 1
-    for i in shape:
-        size *= i
-    cdef np.ndarray[object] out = np.empty(size, dtype=object)
-    for i in range(size):
-        out[i] = copy_to_np_d_and_free(dim1[i] * dim2, arrays[i]).reshape((dim1[i], dim2))
-    return out.reshape(shape)
-
- # function to generate list or tuple of 2d numpy double arrays (primarily for returning gamma)
-cdef gen_gamma_py(type tp, tuple shape, unsigned long* dim1, unsigned long dim2, double** arrays):
-    return tp(copy_to_np_d_and_free(dim1[i]*dim2, arrays[i]).reshape((dim1[i], dim2)) for i in range(shape[0]))
-
-# wrapper to choose correct gamma generating function
-cdef gen_gamma(type tp, tuple shape, unsigned long* dim1, unsigned long dim2, double** gamma):
-    if tp == np.ndarray:
-        return gen_gamma_numpy(shape, dim1, dim2, gamma)
-    elif tp in (list, tuple):
-        return gen_gamma_py(tp, shape, dim1, dim2, gamma)
-
-# function to generate numpy array of 1d numpy unsigned long arrays (primarily for returning path)
-cdef np.ndarray gen_path_numpy(tuple shape, unsigned long* dim1, unsigned long** arrays):
-    cdef unsigned long i
-    cdef unsigned long size = 1
-    for i in shape:
-        size *= i
-    cdef np.ndarray[object] out = np.empty(size, dtype=object)
-    for i in range(size):
-        out[i] = copy_to_np_ul(dim1[i], arrays[i])
-    return out.reshape(shape)
-
- # function to generate list or tuple of 1d numpy unsinged long arrays (primarily for returning path)
-cdef gen_path_py(type tp, tuple shape, unsigned long* dim1, unsigned long** arrays):
-    return tp(copy_to_np_ul(dim1[i], arrays[i]) for i in range(shape[0]))
-
-
-# function to generate numpy array of 1d numpy double arrays (primarily for returning scale)
-cdef np.ndarray gen_scale_numpy(tuple shape, unsigned long* dim1, double** arrays):
-    cdef unsigned long i
-    cdef unsigned long size = 1
-    for i in shape:
-        size *= i
-    cdef np.ndarray[object] out = np.empty(size, dtype=object)
-    for i in range(size):
-        out[i] = copy_to_np_d(dim1[i], arrays[i])
-    return out.reshape(shape)
-
- # function to generate list or tuple of 1d numpy double arrays (primarily for returning scale)
-cdef gen_scale_py(type tp, tuple shape, unsigned long* dim1, double** arrays):
-    return tp(copy_to_np_d(dim1[i], arrays[i]) for i in range(shape[0]))
-
-
-# wrapper to choose correct path generating function
-cdef gen_path(type tp, tuple shape, unsigned long* dim1, ph_path* path):
-    cdef unsigned long i
-    cdef unsigned long size = 1
-    for i in shape:
-        size *= i
-    cdef unsigned long **ppath = <unsigned long**> PyMem_Malloc(size*sizeof(unsigned long*))
-    cdef double **pscale = <double**> PyMem_Malloc(size*sizeof(double*))
-    # build pointer arrays from path and scale
-    for i in range(size):
-        ppath[i] = path[i].path
-        pscale[i] = path[i].scale
-    if tp == np.ndarray:
-        rpath = gen_path_numpy(shape, dim1, ppath)
-        rscale = gen_scale_numpy(shape, dim1, pscale)
-    elif tp in (list, tuple):
-        rpath = gen_path_py(tp, shape, dim1, ppath)
-        rscale = gen_scale_py(tp, shape, dim1, pscale)
-    return rpath, rscale
-
-# needed based on numpy version
-_np_ulong = np.dtypes.ULongDType if hasattr(np, 'dtypes') else np.uint
-
-def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None, 
-              print_func='iter', print_args=None, bounds_func=None, 
-              bounds=None, max_time=np.inf, converged_min=None, 
-              num_cores=None, reset_niter=True, gamma=False, opt_array = False):
+def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None, 
+              bounds_func=None, bounds=None, bounds_kwargs=None,
+              print_func='iter', print_freq=1, print_args=None, print_kwargs=None,
+              print_stream=None, print_formatter=None,
+              print_fmt_args=None, print_fmt_kwargs=None,
+              max_time=np.inf, converged_min=None, num_cores=None, 
+              reset_niter=True, gamma=False, opt_array=False):
     """
     Calculate the most likely model that explains the given set of data. The 
     input model is used as the start of the optimization.
 
     Parameters
     ----------
-    h_model : h2mm_model
+    model : h2mm_model
         An initial guess for the H2MM model, just give a general guess, the algorithm
         will optimize, and generally the algorithm will converge even when the
         initial guess is very far off
+    
     indexes : list of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
         Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
         The indexes list must maintain  1-to-1 correspondence to the times list
+    
     times : list of NUMPY 1D int arrays
         A list of the arrival times for each photon in each burst
         Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
         The times list must maintain  1-to-1 correspondence to the indexes list
     
-    print_func : None, str or callable, optional
-        Specifies how the results of each iteration will be displayed, several 
-        strings specify built-in functions. Default is 'iter'
-        Acceptable inputs: str, Callable or None
-            
-            **None**\:
-            
-                causes no printout anywhere of the results of each iteration
-                
-            Str: 'console', 'all', 'diff', 'comp', 'iter'
-            
-                **'console'**\: 
-                    
-                    the results will be printed to the terminal/console 
-                    window this is useful to still be able to see the results, 
-                    but not clutter up the output of your Jupyter Notebook, this 
-                    is the default
-                
-                **'all'**\: 
-                    
-                    prints out the full :class:`h2mm_model` just evaluated, this is very
-                    verbose, and not generally recommended unless you really want
-                    to know every step of the optimization
-                
-                **'diff'**\: 
-                    
-                    prints the loglik of the iteration, and the difference 
-                    between the current and old loglik, this is the same format
-                    that the 'console' option used, the difference is whether the
-                    print function used is the C printf, or Cython print, which 
-                    changes the destination from the console to the Jupyter notebook
-                    
-                **'diff_time'**\: 
-                    
-                    same as 'diff' but adds the time of the last iteration
-                    and the total optimization time
-                    
-                **'comp'**\: 
-                    
-                    prints out the current and old loglik
-                
-                **'comp_time'**\: 
-                    
-                    same as 'comp'  but with times, like in 'diff_time'
-                
-                **'iter'**\: 
-                    
-                    prints out only the current iteration
-            
-            Callable: user defined function
-                A python function for printing out a custom output, the function must
-                accept the input of 
-                (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`, float, float)
-                as the function will be handed (niter, new, current, old, t_iter, t_total)
-                from a special Cython wrapper. t_iter and t_total are the times
-                of the iteration and total time respectively, in seconds, based
-                on the C level clock function, which is notably inaccurate,
-                often reporting larger than actual values.
-    
-    print_args : 2-tuple/list (int, bool) or None, optional
-        Arguments to further customize the printing options. The format is
-        (int bool) where int is how many iterations before updating the display
-        and the bool is True if the printout will concatenate, and False if the
-        display will be kept to one line, The default is None, which is changed
-        into (1, False). If only an int or a bool is specified, then the default
-        value for the other will be used. If a custom printing function is given
-        then this argument will be passed to the function as \*args.
+    max_iter : int or None, optional
+        the maximum number of iterations to conduct before returning the current
+        :class:`h2mm_model`, if None (default) use value from optimization_limits. 
         Default is None
+    
     bounds_func : str, callable or None, optional
         function to be evaluated after every iteration of the H2MM algorithm
         its primary function is to place bounds on :class:`h2mm_model`
@@ -2243,28 +2386,140 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
                 
                     The user takes full responsibility for errors in the results.
                 
-                must be a python function that takes 4 arguments, the first 3 are
-                the :class:`h2mm_model` objects, in this order: new, current, old, 
-                the fourth is the argument supplied to the bounds keyword argument,
-                the function must return a single :class:`h2mm_limits` object, the prior, 
-                trans and obs fields of which will be optimized next, other values 
-                are ignored.
-    bounds : h2mm_limits, str, 4th input to callable, or None, optional
-        The argument to be passed to the bounds_func function. If bounds_func is
-        None, then bounds will be ignored. If bounds_func is 'minmax', 'revert'
-        or 'revert_old' (calling C-level bounding functions), then bounds must be
-        a :class:`h2mm_limits` object, if bounds_func is a callable, bounds must be an
-        acceptable input as the fourth argument to the function passed to bounds_func
+                must be a python function that takes the signature
+                ``bounds_func(new, current, old, *bounds, **bounds_kwargs)``
+                ``new``, ``current``, and ``old`` are :class:`h2mm_model` objects, 
+                with ``new`` being the model whose loglik has yet to be calculated
+                resulting from the latest iteration, ``current`` being the model
+                whose loglik was just calculated, and ``old`` being the result
+                of the previous iteration. Be one of the following: :class:`h2mm_model`,
+                :code:`bool`, :code:`int`, or a 2-tuple of :class:`h2mm_model` and
+                either :code:`bool` or :code:`int`. In all cases, :code:`int` values
+                must 0, 1, or 2. :class:`h2mm_model` objects will be used as the
+                next model to compute the loglik of. :class:`bool` and :code:`int`
+                objects determine if optimization will continue.
+                If :code:`True`, then optimization will continue, if :code:`False`,
+                then optimization will cease, and the ``old`` model will be returned
+                as the ideal model. If :code:`0`, then optimization will continue,
+                if :code:`1`, then return ``old`` model as optimal model, if 
+                :code:`2`, then return ``current`` model as optimizal model.
+    
+    bounds : h2mm_limits, tuple, or None, optional
+        Argument(s) pass to bounds_func function. If bounds_func is a string,
+        then bounds **must** be specified, and **must** be a :class:`h2mm_limits`
+        object.
+        
+        If ``bounds_func`` is callable, and bounds is not None or a tuple, bounds
+        is passed as the 4th argument to bounds_func, ie 
+        :code:`bounds_func(new, current, old, bounds, **bounds_kwargs)`, 
+        if bounds is a tuple, then passed as \*args, 
+        ie :code:`bounds_func(new, current, old, *bounds, **bounds_kwargs)`
         Default is None
-    max_iter : int or None, optional
-        the maximum number of iterations to conduct before returning the current
-        :class:`h2mm_model`, if None (default) use value from optimization_limits. 
-        Default is None
+    
+    bounds_kwargs : dict, or None, optional
+        Only used when ``bounds_func`` is callable, passed as \*\*kwargs to
+        ``bounds_func`` ie ie :code:`bounds_func(new, current, old, *bounds, **bounds_kwargs)`.
+        If :code:`None`
+        The default is None
+    
+    print_func : None, str or callable, optional
+        Specifies how the results of each iteration will be displayed, several 
+        strings specify built-in functions. Default is 'iter'
+        Acceptable inputs: str, Callable or None
+            
+            **None**\:
+            
+                causes no printout anywhere of the results of each iteration
+                
+            Str: 'all', 'diff', 'comp', 'iter'
+            
+                **'all'**\: 
+                    
+                    prints out the full :class:`h2mm_model` just evaluated, this is very
+                    verbose, and not generally recommended unless you really want
+                    to know every step of the optimization
+                
+                **'diff'**\: 
+                    
+                    prints the loglik of the iteration, and the difference 
+                    between the current and old loglik, this is the same format
+                    that the 'console' option used, the difference is whether the
+                    print function used is the C printf, or Cython print, which 
+                    changes the destination from the console to the Jupyter notebook
+                    
+                **'diff_time'**\: 
+                    
+                    same as 'diff' but adds the time of the last iteration
+                    and the total optimization time
+                    
+                **'comp'**\: 
+                    
+                    prints out the current and old loglik
+                
+                **'comp_time'**\: 
+                    
+                    same as 'comp'  but with times, like in 'diff_time'
+                
+                **'iter'**\: 
+                    
+                    prints out only the current iteration
+            
+            Callable: user defined function
+                A python function for printing out a custom output, the function must
+                accept the input of 
+                (int, :class:`h2mm_model`, :class:`h2mm_model`, :class:`h2mm_model`, float, float)
+                as the function will be handed ``(niter, new, current, old, iter_time, total_time)``
+                from a special Cython wrapper. iter_time and total_time are the times
+                of the latest iteration and total time of optimization, respectively.
+                Note that iter_time and total_time are based on the fast, but
+                inaccurate C clock function.
+    
+    print_freq: int, optional
+        Number of iterations between updating display. Default is 1
+    
+    print_args : tuple or None, optional
+        Only used when ``print_func`` is callable. Passed as final argument to
+        ``print_func`` if not :code:`None` or :code:`tuple`, ie
+        ``print_func(niter, new, current, old, iter_time, total_time, print_args, **print_kwargs)``
+        if :code:`tuple`, then passed as \*args, ie
+        ``print_func(niter, new, current, old, iter_time, total_time, *print_args, **print_kwargs)``
+        If :code:`None`, then ignored. The default is :code:`None`.
+    
+    print_kwargs: dict or None, optional
+        Only used when ``print_func`` is callable, passed as \*\*kwargs to ``print_func``
+        ie ``print_func(niter, new, current, old, iter_time, time_total, *print_args, **print_kwargs)``.
+        If :code:`None`, then ignored. The default is :code:`None`.
+    
+    print_stream : OutStream, optional
+        Typically OutStream, the stream where the output will be displayed.
+        Passed as first argument to print_formatter, if :code:`None`, then use
+        stream specified in optimization_limites. Default is None
+    
+    print_formatter : Printer, optional
+        Class object (usually subclass of :class:`Printer`) that formats
+        text for output to ``print_stream``. Instance of ``print_formatter`` class
+        will be created with 
+        ``fmtr = print_formatter(print_stream, *print_fmt_args, **print_fmt_kwargs)``
+        to use for printing. Each print will call ``fmtr.update(text)`` where
+        ``text`` is output of ``print_func`` call. At end of optimization,
+        ``fmtr.close()`` will be called. If ``print_formatter`` is :code:`None`
+        then will use the formatter specified in ``optimization_limits``.
+        The default is :code:`None:.
+    
+    print_fmt_args : tuple, Any or None, optional
+        Additional arguments passed to ``print_formatter``, if None, ignored,
+        if not tuple, then treated as single argument. The default is :code:`None`.
+    
+    print_fmt_kwargs : dict or None, optional
+        Additional  keyword arguments passed to ``print_formatter``, if None, ignored.
+        The default is :code:`None`.
+        
     max_time : float or None, optional
         The maximum time (in seconds) before returning current model
-        NOTE this uses the C clock, which has issues, often the time assessed by
-        C, which is usually longer than the actual time. If None (default) use
-        value from optimization_limits. Default is None
+        **NOTE** this uses the inaccurate C clock, which is often longer than the
+        actual time. If :code:`None` (default) use value from optimization_limits. 
+        Default is :code:`None`.
+    
     converged_min : float or None, optional
         The difference between new and current :class:`h2mm_model` to consider the model
         converged, the default setting is close to floating point error, it is
@@ -2295,6 +2550,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         max_iter, as the optimization will count the previous iterations towards
         the max_iter threshold.
         Default is False
+    
     gamma : bool, optional
         Whether or not to return the gamma array, which gives the probabilities
         of each photon being in a given state.
@@ -2305,19 +2561,12 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
             model are returned.
         
         Default is False
-    opt_array : bool
-        Defines how the result is returned, if False (default) then return only
-        the ideal model, if True, then a numpy array is returned containing all
-        models during the optimization.
-        
-        .. note::
-            
-            The last model in the array is the model after the convergence criterion
-            have been met. Therefore check the :attr:`h2mm_model.conv_code`, if it
-            is 7, then the second to last model is the ideal model. Still, usually
-            the last model will be so close to ideal that it will not make any 
-            significant difference
-            
+    
+    opt_array : bool | int, optional
+        Defines how the result is returned, if False (default) (or 0) then return only
+        the ideal model, if True (or 1), then a numpy array is returned containing all
+        models during the optimization, with the last model being the optimial model.
+        If 2 then return all models, including models after converged.
         Default is False
     
     Returns
@@ -2328,7 +2577,7 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         maximum iterations reached, maximum time has passed, or an error has occurred
         (usually the result of a nan from a floating point precision error)
         
-    gamma : list, tuple or np.ndarray (optional)
+    gamma : numpy.ndarray (optional)
         If gamma = True, this variable is returned, which contains (as numpy arrays)
         the probabilities of each photon to be in each state, for each burst.
         The arrays are returned in the same order and type as the input indexes,
@@ -2336,110 +2585,46 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         sequence.
         
     """
-    # check inputs are valid
-    burst_check = verify_input(indexes, times, h_mod.model.ndet)
-    if isinstance(burst_check, Exception):
-        raise burst_check
-    if h_mod.model.ndet > burst_check + 1:
-        warnings.warn(f"Overdefined model:\nThe given data has fewer photon streams than initial model\nModel has {h_mod.model.ndet} streams, but data has only {burst_check + 1} streams.\nExtra photon streams in model will have 0 values in emission probability matrix")
-    # check the bounds_func
-    cdef unsigned long i, n
-    cdef unsigned long num_burst = indexes.size if isinstance(indexes, np.ndarray) else len(indexes)
-    cdef tuple bounds_strings = ('minmax', 'revert', 'revert_old')
-    cdef tuple print_strings = (None,'console','all','diff','diff_time','comp','comp_time','iter')
-    cdef int ipy_disp = 0 if print_func in (None, 'console') else 1
-    cdef object disp_txt = Pretty("Print Func validation") if ipy_disp else None
-    cdef object disp_handle = DisplayHandle() if ipy_disp else None
-    if ipy_disp:
-        disp_handle.display(disp_txt)
-    cdef h2mm_model h_test_new = h_mod.copy()
-    cdef h2mm_model h_test_current = h_mod.copy()
-    cdef h2mm_model h_test_old = h_mod.copy()
-    h_test_new.model.niter, h_test_current.model.niter, h_test_old.model.niter = 3, 2, 1
-    h_test_new.model.conv, h_test_current.model.conv, h_test_old.model.conv = 1, 1, 1
-    h_test_new.model.nphot, h_test_current.model.nphot, h_test_old.model.nphot = 1000, 1000, 1000
-    h_test_new.model.loglik, h_test_current.model.loglik, h_test_old.model.loglik = -0.0, -2e-4, -3e-4
-    if print_func not in print_strings and not callable(print_func):
-        raise ValueError("print_func must be None, 'console', 'all', 'diff', or 'comp' or callable")
-    if print_func in print_strings:
-        if not isinstance(print_args, (int, bool, tuple, list)) and print_args is not None:
-            raise TypeError(f"print_args must be None, int, bool, or a 2-tuple or 2-list, got {type(print_args)}")
-        elif isinstance(print_args, (tuple, list)) and len(print_args) != 2:
-            raise TypeError(f"If print args is a tuple or list, it must have length 2, got {len(print_args)}")
-        elif type(print_args) in (tuple,list) and (not isinstance(print_args[0],int) or not isinstance(print_args[1],bool)):
-            raise ValueError("For print_args as 2-tuple or 2-list, but be composed of (int, bool) types, got ({type(print_args[0])}, {type(print_args[0])})")
-        elif isinstance(print_args,int) and not isinstance(print_args,bool) and print_args <= 0:
-            raise ValueError("print_args int values must be positive")
-        if print_args is None:
-            print_args = (1, False)
-        elif isinstance(print_args,int) and not isinstance(print_args,bool):
-            print_args = (print_args, False)
-        elif isinstance(print_args,bool):
-            print_args = (1,print_args)
-    elif callable(print_func):
-        print_args = tuple(print_args) if isinstance(print_args, list) else print_args
-        try:
-            if ipy_disp:
-                disp_txt.data += "print_func validation\n"
-                disp_handle.update(disp_txt)
-            if print_args is None:
-                print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
-                print_args = (disp_handle,disp_txt,1,False)
-            elif isinstance(print_args, int):
-                print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
-                print_args = (disp_handle,disp_txt,1, print_args) if isinstance(print_args,bool) else (disp_handle,disp_txt,print_args, False)
-            elif  isinstance(print_args, tuple) and len(print_args) >= 2 and isinstance(print_args[0],int) and isinstance(print_args[1],bool):
-                if len(print_args) == 2:
-                    print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2)
-                else:
-                    print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2,*print_args[2:])
-                print_args = ((disp_handle,disp_txt) + print_args)
-            else:
-                print_return = print_func(1,h_test_new,h_test_current,h_test_old,0.1,0.2,*print_args)
-                print_args = ((disp_handle, disp_txt, 1, False) + print_args)
-            if print_return is not None and not isinstance(print_return,str):
-                raise TypeError(f"print_func must either return nothing, or a str, got {type(print_return)}")
-            if ipy_disp:
-                disp_txt.data += "print_func validated\n"
-                disp_handle.update(disp_txt)
-        except Exception as e:
-            if ipy_disp:
-                disp_txt.data += "print_func invalid function, must take (niter,new,current,old,t_iter,t_total,*print_args)\n"
-                disp_handle.update(disp_txt)
-            else:
-                print("print_func invalid function, must take (niter,new,current,old,t_iter,t_total,*print_args)")
-            raise e
-    else:
-        raise NotImplementedError("Coding error, please raise issue on github")
-    # set up optimzation min/max limits
+    print_fmt_args = tuple() if print_fmt_args is None else print_fmt_args
+    print_fmt_args = print_fmt_args if isinstance(print_fmt_args, tuple) else (print_fmt_args, )
+    print_fmt_kwargs = dict() if print_fmt_kwargs is None else dict(print_fmt_kwargs)
+    print_args = tuple() if print_args is None else print_args
+    print_args = print_args if isinstance(print_args, tuple) else (print_args, )
+    print_kwargs = dict() if print_kwargs is None else dict(print_kwargs)
+    bounds_kwargs = dict() if bounds_kwargs is None else dict(bounds_kwargs)
+    cdef int64_t i
+    cdef bint gamma_ = bool(gamma)
+    cdef int opt_array_ = int(opt_array)
+    if opt_array_ not in (0, 1, 2):
+        raise ValueError("opt_array must be True, False, 0 (False), 1 (True), or 2 (return all assigned models)")
+    cdef h2mm_model mdl = model_copy_from_ptr(model.model)
+    if reset_niter:
+        mdl.model.niter = 0
+    ######################### get optimization limits #########################
     cdef lm limits
-    limits.max_iter = <unsigned long> optimization_limits._get_max_iter(max_iter)
-    limits.num_cores = <unsigned long> optimization_limits._get_num_cores(num_cores)
+    limits.max_iter = <int64_t> optimization_limits._get_max_iter(max_iter)
+    limits.num_cores = <int64_t> optimization_limits._get_num_cores(num_cores)
     limits.max_time = <double> optimization_limits._get_max_time(max_time)
     limits.min_conv = <double> optimization_limits._get_converged_min(converged_min)
-    # setup the printing function
-    cdef int (*ptr_print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept
-    cdef void *ptr_print_call = NULL
-    cdef print_args_struct *ptr_print_args = <print_args_struct*> PyMem_Malloc(sizeof(print_args_struct))
-    cdef print_struct *ptr_print_struct = <print_struct*> PyMem_Malloc(sizeof(print_struct*))
-    ptr_print_args.keep = 1
-    ptr_print_args.max_iter = limits.max_iter
-    if ipy_disp:
-        disp_txt.data = ""
+    ################# process print_func and print_func args  #################
+    cdef tuple print_strings = (None,'all','diff','diff_time','comp','comp_time','iter')
+    if print_func not in print_strings and not callable(print_func):
+        raise ValueError("print_func must be None, 'all', 'diff', or 'comp' or callable")
+    cdef PrintStruct prnt_strct
+    cdef object print_fmtr = optimization_limits._get_formatter(print_formatter)(optimization_limits._get_outstream(print_stream), 
+                                                                                 *print_fmt_args, **print_fmt_kwargs)
+    cdef int (*ptr_print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil
+    prnt_strct.disp_freq = <int64_t> int(print_freq)
+    prnt_strct.max_iter = limits.max_iter
+    prnt_strct.max_time = limits.max_time
+    prnt_strct.formatter = <PyObject*> print_fmtr
+    prnt_strct.func = NULL
+    prnt_strct.args = NULL
+    prnt_strct.kwargs = NULL
+    prnt_strct.error = NULL
+    ptr_print_func = NULL
     if print_func in print_strings:
-        ptr_print_args.txt = <void*> disp_txt
-        ptr_print_args.handle = <void*> disp_handle
-        ptr_print_args.keep = 1 if print_args[1] else 0
-        ptr_print_args.disp_freq = <unsigned long> print_args[0]
-        ptr_print_call = <void*> ptr_print_args
-        if print_func is None:
-            ptr_print_func = NULL
-            ptr_print_args.keep = 0
-        elif print_func == 'console':
-            print("console")
-            ptr_print_func = baseprint
-            ptr_print_args.keep = 0
-        elif print_func == 'all':
+        if print_func == 'all':
             ptr_print_func = model_print_all
         elif print_func == 'diff':
             ptr_print_func = model_print_diff
@@ -2452,119 +2637,124 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
         elif print_func == 'iter':
             ptr_print_func = model_print_iter
     elif callable(print_func):
-        ptr_print_args.keep = 1 if print_args[3] else 0
-        ptr_print_func = model_print_call_str if isinstance(print_return,str) else model_print_call
-        ptr_print_struct.func = <void*> print_func
-        ptr_print_struct.args = <void*> print_args
-        ptr_print_call = <void*> ptr_print_struct
-    else:
-        raise NotImplementedError("Coding error, please raise issue on github")
-    # allocate the memory for the pointer arrays to be submitted to the C function
-    # print("Allocating C bursts data")
-    if ipy_disp:
-        disp_txt.data = "Preparing data"
-        disp_handle.update(disp_txt)
-    cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
-    cdef tuple cindex = tuple(np.ascontiguousarray(idx, dtype=_np_ulong) for idx in indexes)
-    cdef unsigned long[::1] b_det_temp
-    for i in range(num_burst):
-        b_det_temp = cindex[i]
-        b_det[i] = &b_det_temp[0]
-        b_delta[i] = time_diff(times[i])
-        burst_sizes[i] = cindex[i].shape[0]
-    if burst_sizes is NULL:
-        if ptr_print_args is not NULL: 
-            PyMem_Free(ptr_print_args)
-            ptr_print_args = NULL
-        if ptr_print_struct is not NULL:
-            PyMem_Free(ptr_print_struct)
-            ptr_print_struct = NULL
-        raise ValueError("Photon out of order")
-    # print("Done Allocating C bursts data")
-    # if the bounds_func is not None, then setup the bounds arrays
-    cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*) noexcept
-    cdef void *b_ptr
-    # cdef h2mm_minmax *bound = <h2mm_minmax*> PyMem_Malloc(sizeof(h2mm_minmax))
-    if ipy_disp:
-        disp_txt.data = "Bounds preparation"
-        disp_handle.update(disp_txt)
-    cdef _h2mm_lims bound
-    cdef bound_struct *b_struct = <bound_struct*> PyMem_Malloc(sizeof(bound_struct))
-    if bounds_func is None:
+        prnt_strct.func = <PyObject*> print_func
+        prnt_strct.args = <PyObject*> print_args
+        prnt_strct.kwargs = <PyObject*> print_kwargs
+        ptr_print_func = model_print_call
+    ########################## process bounds inputs ##########################
+    if bounds_func not in (None, 'none', 'minmax', 'revert', 'revert_old') and not callable(bounds_func):
+        raise ValueError("bounds_func must be None, 'minmax', 'revert', or 'revert_old', or or callable")
+    cdef int (*bound_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm* ,void*) noexcept with gil
+    cdef _h2mm_lims bnds
+    cdef BoundStruct bound
+    cdef void *bnd_ptr = NULL
+    bound_func = NULL
+    bound.args = NULL
+    bound.kwargs = NULL
+    bound.error = NULL
+    if bounds_func in (None, 'none'):
         bound_func = limit_check_only
-        b_ptr = NULL
-    elif bounds_func in ('minmax', 'revert', 'revert_old'):
-        bound = bounds._make_model(h_mod)
-        b_ptr = <void*> &bound.limits
+    if bounds_func in ('minmax', 'revert', 'revert_old'):
         if bounds_func == 'minmax':
             bound_func = limit_minmax
         elif bounds_func == 'revert':
             bound_func = limit_revert
         elif bounds_func == 'revert_old':
             bound_func = limit_revert_old
+        if not isinstance(bounds, h2mm_limits):
+            raise TypeError(f"standard bounding styles requires bounds argument to be of type h2mm_limits, not {type(bounds)}")
+        bnds = bounds._make_model(model)
+        bnd_ptr = <void*> &bnds.limits
     elif callable(bounds_func):
-        b_struct.func = <void*> bounds_func
-        b_struct.limits = <void*> bounds
-        b_ptr = b_struct
+        bounds = tuple() if bounds is None else bounds
+        bounds = bounds if isinstance(bounds, tuple) else (bounds, )
         bound_func = cy_limit
-    # set up the in and out h2mm_mod variables
-    cdef unsigned long old_niter = h_mod.model.niter
-    if reset_niter:
-        h_mod.model.niter = 0
-    # disp_handle.update(disp_txt)
-    cdef int res
-    cdef h2mm_mod *out_arr
+        bound.func = <PyObject*> bounds_func
+        bound.args = <PyObject*> bounds
+        bound.kwargs = <PyObject*> bounds_kwargs
+        bnd_ptr = <void*> &bound
+    ############################### cast bursts ###############################
+    # this is last because this requires allocating the most arrays 
+    # (reduces number of frees on errors before this code)
+    cdef bint single = False
+    cdef int64_t nbursts = 0
+    cdef int64_t *burst_sizes = NULL
+    cdef uint8_t **idxs = NULL
+    cdef int32_t **deltas = NULL
+    shape, indxs, err = cast_indexes_times(indexes, times, &single, &nbursts, &burst_sizes, &idxs, &deltas)
+    if err is not None:
+        raise err
+    cdef int64_t nphot = 0
+    for i in range(nbursts):
+        nphot += burst_sizes[i]
+    #################### allocate gamma arrays for output  ####################
     cdef double **gamma_arr = NULL
-    if ipy_disp:
-        disp_txt.data = "Bounds prepared"
-        disp_handle.update(disp_txt)
-    # based on gamma and opt_array kwargs, choose which h2mm optimization to run
-    if gamma and opt_array:
-        res =  h2mm_optimize_gamma_array(num_burst,burst_sizes,b_delta,b_det, h_mod.model, &out_arr, &gamma_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
-    elif gamma:
-        out_arr = allocate_models(1, h_mod.nstate, h_mod.ndet, 0)
-        res =  h2mm_optimize_gamma(num_burst,burst_sizes,b_delta,b_det, h_mod.model, out_arr, &gamma_arr,&limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
-    elif opt_array:
-        res =  h2mm_optimize_array(num_burst,burst_sizes,b_delta,b_det, h_mod.model, &out_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
-    else:
-        out_arr = allocate_models(1, h_mod.nstate, h_mod.ndet, 0)
-        res =  h2mm_optimize(num_burst,burst_sizes,b_delta,b_det, h_mod.model, out_arr, &limits, bound_func, b_ptr, ptr_print_func, ptr_print_call)
-    if gamma and res >= 0:
-        gamma_out = gen_gamma(type(indexes), array_size(indexes), burst_sizes, h_mod.model.nstate, gamma_arr)
-        if gamma_arr is not NULL:
-            PyMem_Free(gamma_arr)
-            gamma_arr = NULL
-    cdef unsigned long keep = ptr_print_args.keep
-    # free pointers
-    if b_struct is not NULL:
-        PyMem_Free(b_struct)
-        b_struct = NULL
-    burst_free1(num_burst, b_det, b_delta, burst_sizes)
-    if ptr_print_args is not NULL:
-        PyMem_Free(ptr_print_args)
-        ptr_print_args = NULL
-    if ptr_print_struct is not NULL:
-        PyMem_Free(ptr_print_struct)
-        ptr_print_struct = NULL
-    h_mod.model.niter = old_niter # restore niter of input model (if reset_niter, this was reset to 0)
-    # post processing, converting
-    cdef unsigned long conv, niter
-    if opt_array and res > 0:
-        n = 0
-        while out_arr[n].conv != 1 and n < limits.max_iter + 2:
-            n += 1
-        n -= 1
-        out = np.array([model_copy_from_ptr(&out_arr[i]) for i in range(n+1)], dtype=object)
-        free_models(limits.max_iter + 2, out_arr)
-        niter = out_arr[n].niter
-        conv = out_arr[n].conv
-    elif res > 0:
-        conv = out_arr.conv
-        niter = out_arr.niter
-        out = h2mm_model.from_ptr(out_arr)
-    # process the return code
+    cdef cnp.ndarray[object, ndim=1] gamma_out
+    cdef int res
+    if gamma_:
+        gamma_out = make_gamma_arrays(nbursts, mdl.model.nstate, burst_sizes, &gamma_arr)
+        if gamma_arr == NULL:
+            free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+            raise MemoryError("insufficient memory for gamma")
+    ######################## make model output arrays  ########################
+    cdef int64_t out_arr_size = limits.max_iter + 2 - mdl.model.niter if opt_array_ else 1
+    cdef h2mm_mod *out_arr = Py_allocate_models(out_arr_size, mdl.model.nstate, mdl.model.ndet, nphot)
+    if out_arr == NULL:
+        free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+        PyMem_Free(gamma_arr)
+        raise MemoryError("insufficient memory for h2mm_model output")
+    ######################## perform h2mm optimization ########################
+    with nogil:
+        if gamma_:
+            if opt_array_:
+                res =  h2mm_optimize_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+            else:
+                res =  h2mm_optimize_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+        else:
+            if opt_array_:
+                res =  h2mm_optimize_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+            else:
+                res =  h2mm_optimize(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+    free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+    if gamma_arr is not NULL:
+        PyMem_Free(gamma_arr)
+        gamma_arr = NULL
+    ############################# Process output  #############################
+    cdef int64_t nout = 0 if opt_array_ else 1
+    cdef int64_t conv = -1
+    cdef int64_t niter
+    if res > 0:
+        if opt_array_ == 0:
+            conv = out_arr[0].conv
+            niter = out_arr[0].niter
+        elif opt_array_ == 1:
+            while nout < out_arr_size and not (out_arr[nout].conv & CONVCODE_OUTPUT):
+                nout += 1
+            if nout == out_arr_size:
+                nout -= 1
+            conv = out_arr[nout].conv
+            niter = out_arr[nout].niter
+            nout += 1
+        elif opt_array_ == 2:
+            while nout < out_arr_size and out_arr[nout].conv != 0:
+                if out_arr[nout].conv & CONVCODE_OUTPUT:
+                    conv = out_arr[nout].conv
+                    niter = out_arr[nout].niter
+                nout += 1
+        out = make_h2mm_out_arrays(nout, out_arr) # note error stored in out, should be impossible, but most likely problem is memory error
+    Py_free_models(out_arr_size, out_arr)
+    out_arr = NULL
+    ############################ check for errors  ############################
+    cdef object print_err = None
+    if prnt_strct.error is not NULL:
+        print_err = <object> prnt_strct.error
+        Py_DECREF(print_err)
+        prnt_strct.error = NULL
+    cdef object bound_err = None
+    if bound.error is not NULL:
+        bound_err = <object> bound.error
+        Py_DECREF(bound_err)
+        bound.error = NULL
     if res == -1:
         raise ValueError('Bad pointer, check cython code')
     elif res == -2:
@@ -2574,74 +2764,151 @@ def EM_H2MM_C(h2mm_model h_mod, indexes, times, max_iter=None,
     elif res == -4:
         raise TypeError('limits function must return bool, h2mm_model, (h2mm_model, bool) or (h2mm_model, int [0,2])')
     elif res == -5:
-        raise Exception("print_func raised an error, terminating optimization")
-    elif res < -5:
-        raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
-    elif conv == 3:
+        raise bound_err
+    elif res == -6:
+        raise print_err
+    elif res < -6:
+        raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}')
+    # next error should be essentially imposible
+    for i in range(out.shape[0]):
+        if isinstance(out[i], Exception):
+            raise out[i]
+    ############################# forming output  #############################
+    if conv & CONVCODE_CONVERGED:
         out_text = f'The model converged after {niter} iterations'
-    elif conv == 4:
+    elif conv & CONVCODE_MAXITER:
         out_text = 'Optimization reached maximum number of iterations'
-    elif conv == 5:
+    elif conv & CONVCODE_MAXTIME:
         out_text = 'Optimization reached maxiumum time'
-    elif conv == 6:
+    elif conv & CONVCODE_ERROR:
         out_text = f'An error occured on iteration {niter}, returning previous model'
-    elif conv == 7:
-        out_text = f'The model converged after {niter-1} iterations'
-    else:
-        raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}, n={n}')
-    if keep == 1 and ipy_disp:
-        disp_txt.data += out_text
-    elif ipy_disp:
-        disp_txt.data = out_text
-    if ipy_disp:
-        disp_handle.update(disp_txt)
-    if gamma:
-        return out, gamma_out
-    else:
-        return out
-
-# function generates output numpy array of h2mm objects
-cdef h2mm_arr_gen(type mod_tp, tuple mod_shape, h2mm_mod* models):
-    cdef unsigned long i
-    cdef unsigned long mod_size = 1
-    for i in mod_shape:
-        mod_size *= i
-    if mod_tp in (list, tuple):
-        out = mod_tp(model_copy_from_ptr(&models[i]) for i in range(mod_size))
-    elif mod_tp ==  np.ndarray:
-        out = np.array(tuple(model_copy_from_ptr(&models[i]) for i in range(mod_size)), dtype=object).reshape(mod_shape)
-    else:
-        out = model_copy_from_ptr(models)
+    elif conv == -1:
+        raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}')
+    if not opt_array_:
+        out = out[0]
+    if ptr_print_func is not NULL:
+        print_fmtr.update(out_text)
+        print_fmtr.close()
+    if gamma_:
+        out = out, gamma_out[0] if single else gamma_out.reshape(shape)
     return out
 
 
-
-cdef all_arr_gen(type mod_tp, type burst_tp, tuple mod_shape, tuple burst_shape, unsigned long* burst_sizes, h2mm_mod* models, double*** gamma):
-    cdef unsigned long mod_size = 1
-    cdef Py_ssize_t i
-    for i in mod_shape:
-        mod_size *= i
-    if mod_tp == np.ndarray:
-        gamma_out = np.empty(mod_size, dtype=object)
-        for i in range(mod_size):
-            gamma_out[i] = gen_gamma(burst_tp, burst_shape, burst_sizes, models[i].nstate, gamma[i])
-        gamma_out = gamma_out.reshape(mod_shape)
-    elif mod_tp in (list, tuple):
-        gamma_out = mod_tp(gen_gamma(burst_tp, burst_shape, burst_sizes, models[i].nstate, gamma[i]) for i in range(mod_size))
+cdef tuple make_h2mm_arr_modptr(models, bint *modelsingle, int64_t *nmodels, h2mm_mod **mod_arr):
+    if isinstance(models, h2mm_model):
+        modelsingle[0] = True
+        models = [models, ]
+    if not isinstance(models, (cnp.ndarray, Sequence)):
+        return tuple(), TypeError("models must be sequence or array of h2mm_model objects")
+    if isinstance(models, cnp.ndarray):
+        shape = models.shape
+        models = models.reshape(-1)
     else:
-        gamma_out = gen_gamma(burst_tp, burst_shape, burst_sizes, models[0].nstate, gamma[0])
-    h2mm_out = h2mm_arr_gen(mod_tp, mod_shape, models)
-    return h2mm_out, gamma_out
+        shape = (len(models), )
+    if any(not isinstance(model, h2mm_model) for model in models):
+        return tuple(), TypeError("all elements of models must be h2mm_model objects")
+    cdef int64_t nmodel = len(models)
+    cdef int64_t i, j
+    cdef h2mm_mod *imod_arr = <h2mm_mod*> PyMem_Malloc(nmodel*sizeof(h2mm_mod))
+    if imod_arr is NULL:
+        return tuple(), MemoryError(f"insufficient memory, cannot allocate {nmodel*sizeof(h2mm_mod)//1024} kb for output models array")
+    cdef h2mm_model temp
+    cdef h2mm_mod *mtemp
+    for i in range(nmodel):
+        temp = models[i]
+        mtemp = temp.model
+        imod_arr[i].prior = <double*> PyMem_Malloc(mtemp.nstate*sizeof(double))
+        if imod_arr[i].prior is NULL:
+            Py_free_models(i, imod_arr)
+            return tuple(), MemoryError(f"insufficient memory, cannot allocate prior array")
+        imod_arr[i].trans = <double*> PyMem_Malloc(mtemp.nstate*mtemp.nstate*sizeof(double))
+        if imod_arr[i].prior is NULL:
+            PyMem_Free(imod_arr[i].prior)
+            imod_arr[i].prior = NULL
+            Py_free_models(i, imod_arr)
+            return tuple(), MemoryError(f"insufficient memory, cannot allocate trans array")
+        imod_arr[i].obs = <double*> PyMem_Malloc(mtemp.ndet*mtemp.nstate*sizeof(double))
+        if imod_arr[i].obs is NULL:
+            PyMem_Free(imod_arr[i].prior)
+            imod_arr[i].prior = NULL
+            PyMem_Free(imod_arr[i].trans)
+            imod_arr[i].trans = NULL
+            Py_free_models(i, imod_arr)
+            return tuple(), MemoryError(f"insufficient memory, cannot allocate prior array")
+        for j in range(mtemp.nstate):
+            imod_arr[i].prior[j] = mtemp.prior[j]
+        for j in range(mtemp.nstate*mtemp.nstate):
+            imod_arr[i].trans[j] = mtemp.trans[j]
+        for j in range(mtemp.nstate*mtemp.ndet):
+            imod_arr[i].obs[j] = mtemp.obs[j]
+        imod_arr[i].nstate = mtemp.nstate
+        imod_arr[i].ndet = mtemp.ndet
+        imod_arr[i].loglik = 0.0
+        imod_arr[i].conv = 0
+        imod_arr[i].nphot = 0
+    mod_arr[0] = imod_arr
+    nmodels[0] = nmodel
+    return shape, False
 
 
-def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
+cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_mod *models, int64_t nbursts, int64_t *burst_sizes, double ****gamma):
+    cdef cnp.ndarray[object, ndim=2] out 
+    cdef bint err = False
+    e = None
+    try:
+        out = np.empty((nmodels, nbursts), dtype=np.object_)
+    except Exception as e:
+        err = True
+    if err:
+        return np.empty(0, dtype=np.object_)
+    cdef cnp.ndarray[double, ndim=2] temp
+    cdef int64_t i, j
+    cdef double ***data = <double***> PyMem_Malloc(nbursts*sizeof(double**))
+    if data is NULL:
+        return out, MemoryError("insufficient memory for gamma array")
+    for i in range(nmodels):
+        data[i] = <double**> PyMem_Malloc(nbursts*sizeof(double*))
+        if data[i] is NULL:
+            free_gammagamma(i, data)
+            data = NULL
+            return out
+        for j in range(nbursts):
+            try:
+                temp = np.empty((burst_sizes[j], models[i].nstate), dtype=np.double)
+            except Exception as e:
+                err = True
+            if err:
+                free_gammagamma(i, data)
+                data = NULL
+                return out
+            
+            out[i,j] = temp
+            data[i][j] = <double*> temp.data
+    gamma[0] = data
+    return out
+
+
+cdef int free_gammagamma(int64_t nmodels, double ***gamma):
+    if gamma is NULL:
+        return 0
+    cdef int64_t i, j
+    if gamma is not NULL:
+        for i in range(nmodels):
+            if gamma[i] is not NULL:
+                PyMem_Free(gamma[i])
+                gamma[i] = NULL
+        PyMem_Free(gamma)
+    return 0
+
+
+def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
     """
     Calculate the logliklihood of every model in a list/array given a set of
     data
 
     Parameters
     ----------
-    h_model : list, tuple, or numpy.ndarray of h2mm_model objects
+    models : list, tuple, or numpy.ndarray of h2mm_model objects
         All of the :class:`h2mm_model` object for which the loglik will be calculated
     indexes : list or tuple of NUMPY 1D int arrays
         A list of the arrival indexes for each photon in each burst.
@@ -2685,83 +2952,96 @@ def H2MM_arr(h_mod, indexes, times, num_cores=None, gamma=False):
         indexes, individual data points organized as [photon, state] within each data
         sequence.
     """
-    cdef unsigned long i = 1
-    cdef unsigned long j
-    cdef type tp = type(h_mod)
-    cdef type btp = type(indexes)
-    cdef unsigned long num_burst = indexes.size if btp == np.ndarray else len(indexes)
-    cdef unsigned long ndet
-    cdef unsigned long mod_size = 1
-    cdef tuple mod_shape = array_size(h_mod)
-    for i in mod_shape:
-        mod_size *= i
-    if mod_size == 0:
-        return tuple()
-    if tp not in (h2mm_model, list, tuple, np.ndarray):
-        raise TypeError('First argument must be list or numpy array of h2mm_model objects')
-    for i, h in enumerate(enum_arrays(h_mod)):
-        if not isinstance(h, h2mm_model):
-            raise TypeError(f'All elements of first argument must of type h2mm_model, element {i} is not')
-        if i == 0:
-            ndet = h.ndet
-        if h.ndet != ndet:
-            raise ValueError("All models must have same number of photon streams")
-    # check bursts of correct type
-    burst_shape = array_size(indexes)
-    # if statements verify that the data is valid, ie matched lengths and dimensions for times and indexes in all bursts
-    burst_check = verify_input(indexes, times, ndet)
-    if isinstance(burst_check, Exception):
-        raise burst_check
-    if burst_check != ndet - 1:
-        warnings.warn(f"Overdefined models: models have {ndet} photons streams, while data only suggests you have {burst_check + 1} photon streams")
-    # allocate the memory for the pointer arrays to be submitted to the C function
-    cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
-    cdef int e_val
-    if burst_sizes is NULL:
-        raise ValueError("Photon out of order")
-    cdef lm *limits = <lm*> PyMem_Malloc(sizeof(lm))
-    limits.num_cores = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    cdef h2mm_mod **mod_ptr_array =  <h2mm_mod**> PyMem_Malloc(mod_size * sizeof(h2mm_mod*))
-    cdef h2mm_model h_temp
-    for i, h in enumerate(enum_arrays(h_mod)):
-        h_temp = h
-        mod_ptr_array[i] = h_temp.model
-    cdef h2mm_mod *mod_array;
-    duplicate_toempty_models(mod_size, mod_ptr_array, &mod_array)
-    if mod_ptr_array is not NULL:
-        PyMem_Free(mod_ptr_array)
-        mod_ptr_array = NULL
-    # set up the in and out h2mm_mod variables
+    cdef bint gamma_ = bool(gamma)
+    cdef lm limits
+    limits.num_cores = <int64_t> optimization_limits._get_num_cores(num_cores)
+    ########################## process input bursts  ##########################
+    cdef bint burstsingle
+    cdef int64_t nbursts = 0
+    cdef int64_t *burst_sizes = NULL
+    cdef uint8_t **idxs = NULL
+    cdef int32_t **deltas = NULL
+    burstshape, indxs, err = cast_indexes_times(indexes, times, &burstsingle, &nbursts, &burst_sizes, &idxs, &deltas)
+    if err is not None:
+        raise err
+    ############################ Cast models array ############################
+    cdef bint modelsingle = False
+    cdef int64_t nmodels = 0
+    cdef h2mm_mod *out_mod = NULL
+    modelshape, err = make_h2mm_arr_modptr(models, &modelsingle, &nmodels, &out_mod)
+    if not modelshape:
+        free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+        raise err
+    ############################# allocate for gamma ##########################
+    cdef cnp.ndarray[object, ndim=2] gamma_out
     cdef double ***gamma_arr = NULL
-    if gamma:
-        e_val = calc_multi_gamma(num_burst, burst_sizes, b_delta, b_det, mod_size, mod_array, &gamma_arr, limits)
-    else:
-        e_val = calc_multi(num_burst, burst_sizes, b_delta, b_det, mod_size, mod_array, limits)
-    if gamma and e_val==0:
-        # out = h2mm_arr_gen(tp, mod_shape, mod_array)
-        out = all_arr_gen(tp, btp, mod_shape, burst_shape, burst_sizes, mod_array, gamma_arr)
-        for i in range(mod_size):
-            if gamma_arr[i] is not NULL:
-                PyMem_Free(gamma_arr[i])
-                gamma_arr[i] = NULL
-        if gamma_arr is not NULL:
-            PyMem_Free(gamma_arr)
-            gamma_arr = NULL
-    elif e_val == 0:
-        out = h2mm_arr_gen(tp, mod_shape, mod_array)
-    # free the limts arrays
-    burst_free(num_burst, b_det, b_delta, burst_sizes)
-    free_models(mod_size, mod_array)
-    PyMem_Free(limits)
-    if e_val == 1:
+    if gamma_:
+        gamma_out = make_gamma_gamma_arrays(nmodels, out_mod, nbursts, burst_sizes, &gamma_arr)
+        if gamma_arr is NULL:
+            free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+            Py_free_models(nmodels, out_mod)
+            raise MemoryError("insufficient memory for gamma")
+    ############################ main calculation  ############################
+    cdef int res
+    with nogil:
+        if gamma_:
+            res = calc_multi_gamma(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, &gamma_arr, &limits)
+        else:
+            res = calc_multi(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, &limits)
+    free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+    if gamma_:
+        free_gammagamma(nmodels, gamma_arr)
+    ############################# check for error #############################
+    if res == 0:
+        out = make_h2mm_out_arrays(nmodels, out_mod).reshape(modelshape)
+        if modelsingle:
+            out = out[0]    
+    Py_free_models(nmodels, out_mod)
+    out_mod = NULL
+    if res == 1:
         raise ValueError('Bursts photons are out of order, please check your data')
-    elif e_val == 2:
+    elif res == 2:
         raise ValueError('Too many photon streams in data for one or more H2MM models')
+    if gamma_:
+        if modelsingle and burstsingle:
+            out = (out, gamma_out[0])
+        elif modelsingle:
+            out = (out, gamma_out.reshape(burstshape))
+        elif burstsingle:
+            out = (out, gamma_out.reshape(modelshape))
+        else:
+            out = (out, gamma_out.reshape(modelshape+burstshape))
     return out
 
+
 # viterbi function
+cdef tuple make_ph_path_arrays(int64_t nbursts, int64_t *burst_sizes, int64_t nstate, ph_path **paths):
+    cdef cnp.ndarray[object, ndim=1] state_paths = np.empty(nbursts, dtype=np.object_)
+    cdef cnp.ndarray[object, ndim=1] scale_paths = np.empty(nbursts, dtype=np.object_)
+    cdef ph_path *cpaths = <ph_path*> PyMem_Malloc(nbursts*sizeof(ph_path))
+    cdef cnp.ndarray[uint8_t, ndim=1] statetemp
+    cdef cnp.ndarray[double, ndim=1] scaletemp
+    cdef i
+    for i in range(nbursts):
+        try:
+            statetemp = np.empty(burst_sizes[i], dtype=np.uint8)
+        except:
+            PyMem_Free(cpaths)
+            return state_paths, scale_paths
+        try:
+            scaletemp = np.empty(burst_sizes[i], dtype=np.double)
+        except:
+            PyMem_Free(cpaths)
+            return state_paths, scale_paths
+        state_paths[i] = statetemp
+        scale_paths[i] = scaletemp
+        cpaths[i].path = <uint8_t*> statetemp.data
+        cpaths[i].scale = <double*> scaletemp.data
+        cpaths[i].nstate = nstate
+        cpaths[i].nphot = burst_sizes[i]
+    paths[0] = cpaths
+    return state_paths, scale_paths
+
 
 def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     """
@@ -2803,44 +3083,45 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     icl : float
         Integrated complete likelihood, essentially the BIC for the *Viterbi* path
     """
-    # assert statements to verify that the data is valid, ie matched lengths and dimensions for times and indexes in all bursts
-    burst_check = verify_input(indexes, times, h_mod.model.ndet)
-    if isinstance(burst_check, Exception):
-        raise burst_check
-    cdef unsigned long i
-    cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
+    cdef bint single = False
+    cdef int64_t nbursts = 0
+    cdef int64_t *burst_sizes = NULL
+    cdef uint8_t **idxs = NULL
+    cdef int32_t **deltas = NULL
+    shape, indxs, err = cast_indexes_times(indexes, times, &single, &nbursts, &burst_sizes, &idxs, &deltas)
+    if err is not None:
+        raise err
+    cdef int64_t i
+    cdef int64_t nphot = 0
+    for i in range(nbursts):
+        nphot += burst_sizes[i]
+    cdef int64_t n_core = <int64_t> optimization_limits._get_num_cores(num_cores)
+    cdef ph_path *cpaths = NULL
+    cdef cnp.ndarray[object,ndim=1] paths
+    cdef cnp.ndarray[object,ndim=1] scale
+    paths, scale = make_ph_path_arrays(nbursts, burst_sizes, h_mod.model.nstate, &cpaths)
+    if cpaths == NULL:
+        raise MemoryError("insufficent memory to allocate path arrays")
+    cdef int ret
+    with nogil:
+        ret = viterbi(nbursts, burst_sizes, deltas, idxs, h_mod.model, cpaths, n_core)
+    free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+    cdef cnp.ndarray[double] ll
+    try:
+        ll = np.empty(nbursts, dtype=np.double)
+    except:
+        PyMem_Free(cpaths)
+        raise MemoryError("insufficient memory to allocate loglik array")
     
-    # allocate the memory for the pointer arrays to be submitted to the C function
-    cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
-    if burst_sizes is NULL:
-        raise ValueError("Photon out of order")
-    cdef unsigned long nphot = sum(burst_sizes[i] for i in range(num_burst))
-    cdef ph_path *path_ret = allocate_paths(num_burst, burst_sizes, h_mod.model.nstate)
-    cdef n_core = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    # set up the in and out h2mm_mod variables
-    cdef unsigned long e_val = viterbi(num_burst, burst_sizes, b_delta, b_det, h_mod.model, path_ret, n_core)
-    if e_val == 0:
-        path, scale = gen_path(type(indexes), array_size(indexes), burst_sizes, path_ret) 
-    else:
-        free_paths(num_burst, path_ret)
-    burst_free(num_burst, b_det, b_delta, burst_sizes)
-    if e_val == 1:
-        raise ValueError('Bursts photons are out of order, please check your data')
-    elif e_val == 2:
-        raise ValueError('Too many photon streams in data for H2MM model')
     cdef double loglik = 0.0
-    cdef np.ndarray[double] ll = np.zeros(num_burst)
-    for i in range(num_burst):
-        loglik += path_ret[i].loglik
-        ll[i] = path_ret[i].loglik
-    if isinstance(indexes, np.ndarray):
-        ll = ll.reshape(indexes.shape)
+    for i in range(nbursts):
+        loglik += cpaths[i].loglik
+        ll[i] = cpaths[i].loglik
+    PyMem_Free(cpaths)
     cdef double icl = ((h_mod.nstate**2 + ((h_mod.ndet - 1) * h_mod.nstate) - 1) * np.log(nphot)) - 2 * loglik
-    free_paths(num_burst, path_ret)
-    return path, scale, ll, icl
-    
+    out = paths[0] if single else paths.reshape(shape), scale[0] if single else scale.reshape(shape), ll[0] if single else ll.reshape(shape), icl
+    return out
+
 
 def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     """
@@ -2938,12 +3219,12 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     # use viterbi to find most likely path based on posterior probability through all bursts
     cdef Py_ssize_t i, b, e, st
     cdef list paths, scale
-    cdef np.ndarray[double,ndim=1] ll
+    cdef cnp.ndarray[double,ndim=1] ll
     cdef double icl
     paths, scale, ll, icl = viterbi_path(hmod,indexes,times,num_cores=num_cores)
     
     # sorting bursts based on which dwells occur in them
-    cdef np.ndarray[long, ndim=1] burst_type = np.zeros(len(indexes),dtype=int)
+    cdef cnp.ndarray[int, ndim=1] burst_type = np.zeros(len(indexes),dtype=int)
     for i in range(len(indexes)):
         # determine the "type" of burst it is, the index represents if a state is present, using binary, minus 1 because there are no bursts with no dwells
         burst_type_temp = 0
@@ -2961,8 +3242,8 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     cdef list ph_end = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
     cdef list ph_burst = [np.zeros((0,hmod.ndet),dtype=int) for i in range(hmod.nstate)]
     cdef list ph_counts = [np.zeros((0,hmod.ndet),dtype=int) for i in range(hmod.nstate)]
-    cdef np.ndarray time, index, state
-    cdef np.ndarray[long,ndim=2] ph_counts_temp = np.zeros((1,hmod.ndet),dtype=int)
+    cdef cnp.ndarray time, index, state
+    cdef cnp.ndarray[long,ndim=2] ph_counts_temp = np.zeros((1,hmod.ndet),dtype=int)
     #sorts the dwells into dwell times and photon counts
     for time, index, state in zip(times, indexes, paths):
         demar = np.append(1,np.diff(state))
@@ -2993,6 +3274,46 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
     return icl, paths, scale, ll, burst_type, dwell_mid, dwell_beg, dwell_end, dwell_burst, ph_counts, ph_mid, ph_beg, ph_end, ph_burst
 
 
+#########################################
+### Function specifically for path_loglik
+#########################################
+cdef int free_idx_diffs_path_arrays(int64_t i, int64_t *ilens, uint8_t **iidxs, int32_t **idiffs, uint8_t **ist_path):
+    free_deltas(i, idiffs)
+    PyMem_Free(iidxs)
+    PyMem_Free(ilens)
+    PyMem_Free(ist_path)
+    return 0
+
+
+cdef tuple cast_indexes_times_paths(indexes, times, paths, bint *single, int64_t *nbursts, int64_t **len_bursts, uint8_t ***idxs, int32_t ***deltas, uint8_t ***stpath):
+    indexes, shape, sngl, haserr, err = reshape_burst_arrays(indexes, "indexes")
+    if haserr:
+        return tuple(), tuple(), tuple(), err
+    times, _, _, haserr, err = reshape_burst_arrays(times, "times")
+    if haserr:
+        return tuple(), tuple(), tuple(), err
+    paths, _, _, haserr, err = reshape_burst_arrays(paths, "state_path")
+    if haserr:
+        return tuple(), tuple(), err
+    indexes = cast_burst_uint8(indexes, "indexes", nbursts, len_bursts, idxs)
+    if idxs[0] is NULL:
+        return tuple(), tuple(), tuple(), indexes
+    paths = cast_burst_uint8(paths, "state_path", nbursts, len_bursts, stpath)
+    if stpath[0] is NULL:
+        PyMem_Free(idxs[0])
+        idxs[0] = NULL
+        return tuple(), tuple(), tuple(), paths
+    err = cast_bursts_deltas(times, nbursts[0], len_bursts[0], deltas)
+    if deltas[0] is NULL:
+        PyMem_Free(stpath[0])
+        stpath[0] = NULL
+        PyMem_Free(idxs[0])
+        idxs[0] = NULL
+        return tuple(), tuple(), err
+    single[0] = sngl
+    return shape, indexes, paths, None
+    
+
 def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None, 
                 BIC=True, total_loglik=False, loglikarray=False):
     """
@@ -3004,13 +3325,14 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
     Parameters
     ----------
     model : h2mm_model
-        DESCRIPTION.
+        :class:`h2mm_model` for which to calculate the loglik of the path.
     indexes : list[numpy.ndarray], tuple[numpy.ndarray] or numpy.ndarray[numpy.ndarray]
-        DESCRIPTION.
+        Indexes of photons in bursts in data (simulated or real).
     times : list, tuple, or numpy.ndarray of integer numpy.ndarray
-        DESCRIPTION.
+        Arrival times of photons in bursts in (simulated or real).
     state_path : list, tuple, or numpy.ndarray of integer numpy.ndarray
-        DESCRIPTION.
+        state for each photon in bursts in data (must be infered through
+        viterbi or other algorithm).
     num_cores : int, optional
         Number of cores to use in calculation, if None, then use value in 
         optimization_limits. The default is None.
@@ -3039,92 +3361,50 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
         Bayes information criterion of entire data set and path.
     loglik : float
         Log likelihood of entire dataset
-    loglik_array : np.ndarray
+    loglik_array : numpy.ndarray
         Loglikelihood of each burst separately
 
     """
-    burst_check = verify_input(indexes, times, model.model.ndet)
-    cdef unsigned long i
-    cdef str burst_errors = ""
-    if isinstance(burst_check, Exception):
-        raise burst_check
-    elif type(indexes) != type(state_path):
-        raise TypeError(f"Mismatched types: indexes and state_path must be same type")
-    elif array_size(indexes) != array_size(state_path):
-        raise ValueError("Mismatched sizes: indexes and state_path must be same size, got {array_size(indexes)} and {array_size(state_path)}")
-    else:
-        for i, path in enumerate(enum_arrays(state_path)):
-            if not isinstance(path, np.ndarray):
-                burst_errors += f"{i}: TypeError: state_path elements must be 1D numpy arrays, got {type(path)}"
-            elif path.ndim != 1:
-                burst_errors += f"{i}: TypeError: state path elements must be 1D numpy arrays, got {type(path)} and {type(path)}\n"
-            elif indexes[i].shape[0] != path.shape[0]:
-                burst_errors += f"{i}: Mismatched burst size: indexes has {indexes[i].shape[0]} photons while state_path has {path.shape[0]} photons\n"
-            elif not np.issubdtype(path.dtype, np.integer):
-                burst_errors += f"{i}: TypeError: state path arrays must integer arrays, got {path.dtype}"
-            elif np.any(path < 0):
-                burst_errors += f"{i}: ValueError: states cannot be negative"
-            elif np.any(path >= model.model.nstate):
-                burst_errors += f"{i}: ValueError: too many states in path for model"
-        if burst_errors != "":
-            raise ValueError("Incorrect data for state_path\n" + burst_errors)
-    # get burst size, could also calculate with array_size, but this is shorter
-    cdef unsigned long num_burst = indexes.size if type(indexes) == np.ndarray else len(indexes)
-    # allocate the memory for the pointer arrays to be submitted to the C function
-    cdef unsigned long **b_det = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long **b_delta = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    cdef unsigned long *burst_sizes = burst_convert(num_burst, indexes, times, b_det, b_delta)
-    if burst_sizes is NULL:
-        raise ValueError("Photon out of order")
-    cdef unsigned long **state = <unsigned long**> PyMem_Malloc(num_burst * sizeof(unsigned long*))
-    for i, path in enumerate(enum_arrays(state_path)):
-        state[i] = np_copy_ul(path)
-    cdef unsigned long nphot = sum(burst_sizes[i] for i in range(num_burst))
-    cdef n_core = <unsigned long> optimization_limits._get_num_cores(num_cores)
-    cdef double *ll = <double*> PyMem_Malloc(num_burst * sizeof(double))
-    cdef res = pathloglik(num_burst, burst_sizes, b_delta, b_det, state, model.model, ll, n_core)
-    # process values
-    cdef double sum_loglik, bic
-    cdef np.ndarray loglik
-    cdef list out = list()
-    if res == 0:
-        loglik = copy_to_np_d_and_free(num_burst, ll).reshape(array_size(indexes))
-        sum_loglik = np.sum(loglik)
-        bic = (model.k * np.log(nphot)) - (2*sum_loglik)
-    else:
-        if ll is not NULL:
-            PyMem_Free(ll)
-            ll = NULL
-    for i in range(num_burst):
-        if state[i] is not NULL:
-            PyMem_Free(state[i])
-            state[i] = NULL
-    if state is not NULL:
-        PyMem_Free(state)
-        state = NULL
-    burst_free(num_burst, b_det, b_delta, burst_sizes)
+    cdef int64_t ncore = <int64_t> optimization_limits._get_num_cores(num_cores)
+    cdef bint single
+    cdef int64_t nbursts = 0
+    cdef int64_t *burst_sizes = NULL
+    cdef int32_t **cdeltas = NULL
+    cdef uint8_t **cindexes = NULL
+    cdef uint8_t **cstate_path = NULL
+    shape, indexes, state_path, err = cast_indexes_times_paths(indexes, times, state_path, &single, &nbursts, &burst_sizes, &cindexes, &cdeltas, &cstate_path)
+    if err is not None:
+        raise err
+    cdef int64_t i
+    cdef int64_t nphot = sum(burst_sizes[i] for i in range(nbursts))
+    cdef cnp.ndarray[double, ndim=1] loglik = np.empty(nbursts, dtype=np.double)
+    cdef double *ll = <double*> loglik.data
+    cdef res = pathloglik(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model.model, ll, ncore)
+    free_idx_diffs_path_arrays(nbursts, burst_sizes, cindexes, cdeltas, cstate_path)
+    # catch errors
     if res == -2:
         raise ValueError("Detector indexes out of range")
     elif res == -1:
         raise ValueError("Empty or null array, raise issue on github")
     elif res < -2:
         raise RuntimeError("Uknown error, raise issue on github")
+    # build output
+    out = list()
+    cdef double sum_loglik = np.sum(loglik)
     if BIC:
-        out += [bic]
+        out.append((model.k * np.log(nphot)) - (2*sum_loglik))
     if total_loglik:
-        out += [sum_loglik]
+        out.append(sum_loglik)
     if loglikarray:
-        out += [loglik]
-    if len(out) == 0:
-        return None
-    elif len(out) == 1:
-        return out[0]
+        out.append(loglik.reshape(shape))
+    if len(out) == 1:
+        out = out[0]
     else:
-        return tuple(out)
+        out = tuple(out)
+    return out
 
 
 # simulation functions
-
 def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     """
     A function to generate a dense statepath (HMM as opposed to H2MM) of length lenp
@@ -3153,19 +3433,18 @@ def sim_statepath(h2mm_model hmod, int lenp, seed=None):
     """
     if lenp < 2:
         raise ValueError("Length must be at least 3")
-    cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
+    cdef cnp.ndarray[uint8_t, ndim=1] path = np.empty(lenp, dtype=np.uint8)
+    cdef uint8_t* path_n = <uint8_t*> path.data
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
     cdef int exp = statepath(hmod.model, lenp, path_n, seedp)
     if exp != 0:
-        PyMem_Free(path_n)
         raise RuntimeError("Unknown error, raise issue on github")
-    cdef np.ndarray path = copy_to_np_ul_and_free(lenp, path_n)
     return path
 
 
-def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
+def sim_sparsestatepath(h2mm_model hmod, times, seed=None):
     """
     Generate a state path from a model and a sparse set of arrival times
 
@@ -3195,27 +3474,28 @@ def sim_sparsestatepath(h2mm_model hmod, np.ndarray times, seed=None):
         A randomly generated statepath based on the input model and times
 
     """
+    times = np.ascontiguousarray(times, dtype=np.int64)
     if times.ndim != 1:
         raise TypeError("times array must be 1D")
     if times.shape[0] < 3:
         raise ValueError("Must have at least 3 times")
-    cdef unsigned long long* times_n = np_copy_ull(times)
-    cdef unsigned long lenp = <unsigned long> times.shape[0]
-    cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
+    cdef cnp.ndarray[int64_t, ndim=1] times_arr = times
+    cdef int64_t lenp = <int64_t> times_arr.shape[0]
+    cdef int64_t* times_n = <int64_t*> times_arr.data
+    cdef cnp.ndarray[uint8_t, ndim=1] path = np.empty(lenp, dtype=np.uint8)
+    cdef uint8_t* path_n = <uint8_t*> path.data
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
     cdef int exp = sparsestatepath(hmod.model, lenp, times_n, path_n, seedp)
-    PyMem_Free(times_n)
     if exp == 1:
         raise ValueError("Out of order photon")
     elif exp != 0:
         raise RuntimeError("Unknown error, raise issue on github")
-    cdef np.ndarray path = copy_to_np_ul_and_free(lenp, path_n)
     return path
 
 
-def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
+def sim_phtraj_from_state(h2mm_model hmod, states, seed=None):
     """
     Generate a photon trajectory from a h2mm model and state trajectory
 
@@ -3243,26 +3523,26 @@ def sim_phtraj_from_state(h2mm_model hmod, np.ndarray states, seed=None):
         The random photon stream indexes based on model and statepath
 
     """
+    states = np.ascontiguousarray(states, dtype=np.uint8)
     if states.ndim != 1:
         raise TypeError("Times must be 1D")
     if states.shape[0] < 3:
         raise ValueError("Must have at least 3 time points")
-    cdef unsigned long lenp = states.shape[0]
-    cdef unsigned long* states_n = np_copy_ul(states)
-    cdef unsigned long* dets_n =  <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
+    cdef cnp.ndarray[uint8_t, ndim=1] states_arr = states
+    cdef int64_t lenp = states_arr.shape[0]
+    cdef uint8_t* states_n = <uint8_t*> states_arr.data
+    cdef cnp.ndarray[uint8_t, ndim=1] dets = np.empty(lenp, dtype=np.uint8)
+    cdef uint8_t* dets_n =  <uint8_t*> dets.data
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
     cdef int exp = phpathgen(hmod.model, lenp, states_n, dets_n, seedp)
-    PyMem_Free(states_n)
     if exp != 0:
-        PyMem_Free(dets_n)
         raise RuntimeError("Unknown error, raise issue on github")
-    cdef np.ndarray dets = copy_to_np_ul_and_free(lenp, dets_n)
     return dets
 
 
-def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
+def sim_phtraj_from_times(h2mm_model hmod, times, seed=None):
     """
     Generate a state path and photon trajectory for a given set of times
 
@@ -3294,32 +3574,27 @@ def sim_phtraj_from_times(h2mm_model hmod, np.ndarray times, seed=None):
         stream trajectory generate for the input times, derived from path
 
     """
+    times = np.ascontiguousarray(times, dtype=np.int64)
     if times.ndim != 1:
         raise TypeError("times array must be 1D")
     if times.shape[0] < 2:
-        raise ValueError("Must have at least 3 times")
-    cdef unsigned long lenp = times.shape[0]
-    cdef unsigned long long* times_n = np_copy_ull(times)
+        raise ValueError("Must have at least 2 times")
+    cdef cnp.ndarray[int64_t, ndim=1] ctimes = times
+    cdef int64_t lenp = times.shape[0]
+    cdef int64_t* times_n = <int64_t*> ctimes.data
+    cdef cnp.ndarray[uint8_t, ndim=1] path = np.empty(lenp, dtype=np.uint8)
+    cdef uint8_t* path_n = <uint8_t*> path.data
     cdef unsigned int seedp = 0
     if seed is not None:
         seedp = <unsigned int> seed
-    cdef unsigned long* path_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
     cdef int exp = sparsestatepath(hmod.model, lenp, times_n, path_n, seedp)
     if exp == 1:
-        PyMem_Free(times_n)
-        PyMem_Free(path_n)
         raise ValueError("Out of order photon")
     elif exp != 0:
-        PyMem_Free(times_n)
-        PyMem_Free(path_n)
         raise RuntimeError("Unknown error in sparsestatepath, raise issue on github")
-    cdef unsigned long* dets_n = <unsigned long*> PyMem_Malloc(lenp * sizeof(unsigned long))
+    cdef cnp.ndarray[uint8_t, ndim=1] dets = np.empty(lenp, dtype=np.uint8)
+    cdef uint8_t* dets_n = <uint8_t*> dets.data
     exp = phpathgen(hmod.model, lenp, path_n, dets_n, seedp)
-    PyMem_Free(times_n)
     if exp != 0:
-        PyMem_Free(path_n)
-        PyMem_Free(dets_n)
         raise RuntimeError("Unknown error in phtragen, raise issue on github")
-    cdef np.ndarray path = copy_to_np_ul_and_free(lenp, path_n)
-    cdef np.ndarray dets = copy_to_np_ul_and_free(lenp, dets_n)
     return path , dets

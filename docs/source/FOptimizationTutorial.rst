@@ -46,22 +46,18 @@ Now that the data is imported, we can start to perform the basic analysis of |H2
     # if you are using a software package such as FRETBursts, a different
     # function (for FRETBursts, look at our other Jupyter Notebooks, it is
     # the data_sort function)
-    color2 = list()
-    times2 = list()
-   
-    i = 0
-    # load the data
-    with open('sample_data_2det.txt', 'r') as f:
-        for line in f: # this reads each line one at a time
-            if i % 2 == 0: # even lines are times
-                times2.append(np.array([int(x) for x in line.split()],dtype='Q'))
-            else: # odd lines are color
-                color2.append(np.array([int(x) for x in line.split()],dtype='L'))
-            i += 1
-    print("Done loading data")
-
-
-| Done loading data
+    def load_txtdata(filename):
+        color = list()
+        times = list()
+        with open(filename,'r') as f:
+            for i, line in enumerate(f):
+                if i % 2 == 0:
+                    times.append(np.array([int(x) for x in line.split()],dtype=np.int64))
+                else:
+                    color.append(np.array([int(x) for x in line.split()],dtype=np.uint8))
+        return color, times
+    
+    color2, times2 = load_txtdata('sample_data_2det.txt')
 
 
 Data Organization
@@ -161,7 +157,7 @@ So let's optimize the model:
 
 | The model converged after 2846 iterations
 
-| nstate: 3, ndet: 2, nphot: 239701, niter: 2846, loglik: -120029.31040593554 converged state: 3
+| nstate: 3, ndet: 2, nphot: 239701, niter: 2846, loglik: -120029.31040593554 converged state: 0x27
 | prior:
 | 0.2272268169697541, 0.3356458088268423, 0.43712737420340364
 | trans:
@@ -254,18 +250,7 @@ We will also now use a data set with 3 detectors, so that we can see how differe
 
 .. code-block::
 
-    # load the data
-    color3 = list()
-    times3 = list()
-
-    i = 0
-    with open('sample_data_3det.txt','r') as f:
-        for line in f:
-            if i % 2 == 0:
-                times3.append(np.array([int(x) for x in line.split()],dtype='Q'))
-            else:
-                color3.append(np.array([int(x) for x in line.split()],dtype='L'))
-            i += 1
+    color3, times3 = load_txtdata('sample_data_3det.txt')
 
 For this we will start with a simple loop, optimizing for 1 to 4 states (there's no such thing as a 0 state model)
 
@@ -303,14 +288,14 @@ For this we will start with a simple loop, optimizing for 1 to 4 states (there's
 |
 | Optimization reached maximum number of iterations
 
-| [nstate: 1, ndet: 3, nphot: 436084, niter: 2, loglik: -436870.2664181456 converged state: 3
+| [nstate: 1, ndet: 3, nphot: 436084, niter: 2, loglik: -436870.2664181456 converged state: 0x27
 |  prior:
 |  1.0
 |  trans:
 |  1.0
 |  obs:
 |  0.40807734289723996, 0.14158969372873118, 0.45033296337402884,
-|  nstate: 2, ndet: 3, nphot: 436084, niter: 83, loglik: -416808.46054400457 converged state: 3
+|  nstate: 2, ndet: 3, nphot: 436084, niter: 83, loglik: -416808.46054400457 converged state: 0x27
 |  prior:
 |  0.28420054140898077, 0.7157994585910192
 |  trans:
@@ -319,7 +304,7 @@ For this we will start with a simple loop, optimizing for 1 to 4 states (there's
 |  obs:
 |  0.15584402506221606, 0.2649819949425368, 0.579173979995247
 |  0.5300103898756764, 0.08194016213702787, 0.38804944798729574,
-|  nstate: 3, ndet: 3, nphot: 436084, niter: 191, loglik: -409379.1470199655 converged state: 3
+|  nstate: 3, ndet: 3, nphot: 436084, niter: 191, loglik: -409379.1470199655 converged state: 0x27
 |  prior:
 |  0.25991614498503546, 0.4943766688551101, 0.2457071861598543
 |  trans:
@@ -330,7 +315,7 @@ For this we will start with a simple loop, optimizing for 1 to 4 states (there's
 |  0.14570425274135482, 0.2934431598919638, 0.5608525873666814
 |  0.44173952215070467, 0.08763105601610255, 0.47062942183319284
 |  0.8414287299383637, 0.07852868414074801, 0.08004258592088825,
-|  nstate: 4, ndet: 3, nphot: 436084, niter: 3600, loglik: -408229.8870830556 converged state: 4
+|  nstate: 4, ndet: 3, nphot: 436084, niter: 3600, loglik: -408229.8870830556 converged state: 0x47
 |  prior:
 |  0.6260350194522536, 0.03065208094489406, 0.19098128141081058, 0.15233161819204177
 |  trans:
@@ -423,7 +408,7 @@ Indeed, it looks like the 4 state model is the ideal model, so let's examine it:
 
     models[3]
 
-| nstate: 4, ndet: 3, nphot: 436084, niter: 3600, loglik: -408229.8870830556 converged state: 4
+| nstate: 4, ndet: 3, nphot: 436084, niter: 3600, loglik: -408229.8870830556 converged state: 47
 | prior:
 | 0.6260350194522536, 0.03065208094489406, 0.19098128141081058, 0.15233161819204177
 | trans:
@@ -462,7 +447,7 @@ We can optimize this just as before:
     model_user
 
 
-| nstate: 2, ndet: 3, nphot: 436084, niter: 86, loglik: -416808.4605439878 converged state: 3
+| nstate: 2, ndet: 3, nphot: 436084, niter: 86, loglik: -416808.4605439878 converged state: 0x27
 | prior:
 | 0.2842005858570078, 0.7157994141429922
 | trans:

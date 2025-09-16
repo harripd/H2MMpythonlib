@@ -6,52 +6,56 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <time.h>
 #include <math.h>
+
 #include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
+
 int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits)
 {
-	if ( isnan(current->loglik) ) // error
+	h2mm_normalize(new);
+	new->niter = current->niter + 1;	
+	if ( (current->conv & CONVCODE_ERROR) ) // error
 	{
-		old->conv = 6;
+		old->conv |= CONVCODE_ERROR | CONVCODE_OUTPUT; // 
+		current->conv |= CONVCODE_POSTMODEL; // model created error
+		new->conv |= CONVCODE_ERROR | CONVCODE_POSTMODEL;
 		return 1;
 	}
 	else if ( (current->loglik - old->loglik) <  limits->min_conv) // model converged
 	{
 		if (current->loglik > old->loglik) // current model is still "improved" from previous, so use current model
 		{
-			current->conv = 3;
+			current->conv |= CONVCODE_OUTPUT_CONVERGED;
+			new->conv |= CONVCODE_POST_CONVERGED;
 			return  2;
 		}
 		else // the old model had a better loglik, so use it
 		{
-			old->conv = 3;
-			current->conv = 7;
+			old->conv |= CONVCODE_OUTPUT_CONVERGED;
+			current->conv |= CONVCODE_POST_CONVERGED;
+			new->conv |= CONVCODE_POSTMODEL;
 			return 1;
 		}
 	}
 	else if (current->niter >= limits->max_iter) // reached maximum number of iterations
 	{
-		current->conv = 4;
+		current->conv |= CONVCODE_OUTPUT_MAXITER;
+		new->conv |= CONVCODE_POST_MAXITER;
 		return 2;
 	}
 	else if (total_time > limits->max_time) // exceeded time of iteration
 	{
-		current->conv = 5;
+		current->conv |= CONVCODE_OUTPUT_MAXTIME;
+		new->conv |= CONVCODE_POST_MAXTIME;
 		return 2;
 	}
-	else
-	{
-		current->conv = 2;
-		new->conv = 1;
-		new->niter = current->niter + 1;
-		h2mm_normalize(new);
-		return 0;
-	}
+	return 0;
 }
 
 int limit_check_only(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
@@ -63,9 +67,9 @@ int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 {
 	int ret = h2mm_check_converged(new, current, old, total_time, limit);
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
-	unsigned long i, j; // basic iterator variables
-	unsigned long ind; // for storing the pre-calculated index
-	unsigned long out_count = 0; // counts the number of values that are out of the range
+	int64_t i, j; // basic iterator variables
+	int64_t ind; // for storing the pre-calculated index
+	int64_t out_count = 0; // counts the number of values that are out of the range
 	int var_correct = FALSE; // boolean for whether a 
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range
@@ -165,9 +169,9 @@ int limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double tot
 {
 	int ret = h2mm_check_converged(new, current, old, total_time, limit);
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
-	unsigned long i, j; // basic iterator variables
-	unsigned long ind; // for storing the pre-calculated index
-	unsigned long out_count = 0; // counts the number of values that are out of the range
+	int64_t i, j; // basic iterator variables
+	int64_t ind; // for storing the pre-calculated index
+	int64_t out_count = 0; // counts the number of values that are out of the range
 	int var_correct = FALSE; // boolean for whether a 
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range
@@ -274,9 +278,9 @@ int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 {
 	int ret = h2mm_check_converged(new, current, old, total_time, limit);
 	h2mm_minmax *limits = (h2mm_minmax*) lims;
-	unsigned long i, j; // basic iterator variables
-	unsigned long ind; // for storing the pre-calculated index
-	unsigned long out_count = 0; // counts the number of values that are out of the range
+	int64_t i, j; // basic iterator variables
+	int64_t ind; // for storing the pre-calculated index
+	int64_t out_count = 0; // counts the number of values that are out of the range
 	int var_correct = FALSE; // boolean for whether a 
 	int *nstate_bounds = malloc(current->nstate*sizeof(int)); // boolean for which prior or trans elements are out of range
 	int *ndet_bounds = malloc(current->nstate * current->ndet * sizeof(int)); // boolean array for which obs elements are out of range

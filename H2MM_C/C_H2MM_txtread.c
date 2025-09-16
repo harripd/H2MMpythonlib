@@ -10,29 +10,31 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 #include "C_H2MM.h"
 
 #define BFRSIZ 1000000                        // Buffer size for buffer passed to fgets()
 
-temps* burst_read(char *fname, unsigned long *n)
+temps* burst_read(char *fname, int64_t *n)
 {
 	FILE *fid;
-	unsigned long i; // iterator
-	unsigned long num_burst = 0;
+	int64_t i; // iterator
+	int64_t num_burst = 0;
 	char *lptr_t = NULL; // pointer to string containing a line of arrival times
 	char *lptr_d = NULL; // pointer to a string containt a line of detector
 	char *np_t, *np_d;
 	char *curptr_t, *curptr_d;
-	unsigned long long *t_temp;
-	unsigned long *d_temp;
-	unsigned long n_t = 0;
-	unsigned long n_d = 0;
-	unsigned long len_burst = 0;
-	long num_t, num_d;
+	int64_t *t_temp;
+	uint8_t *d_temp;
+	int64_t n_t = 0;
+	int64_t n_d = 0;
+	int64_t len_burst = 0;
+	int64_t num_t;
+	uint8_t num_d;
 	//
 #if defined(__linux__) || defined(__APPLE__)
-	unsigned long len_t, len_d;
+	int64_t len_t, len_d;
 #elif _WIN32
 	int len_t, len_d;
 	lptr_t = (char*)malloc((unsigned long)BFRSIZ);
@@ -78,8 +80,8 @@ temps* burst_read(char *fname, unsigned long *n)
 			num_burst++;
 			for( curptr_t = lptr_t, curptr_d = lptr_d; *curptr_t != '\n' && curptr_t - lptr_t < len_t; curptr_t++, curptr_d++)
 			{
-				num_t = (long)strtoull(curptr_t,&np_t,10);
-				num_d = strtol(curptr_d,&np_d,10);
+				num_t = (int64_t) strtoll(curptr_t,&np_t,10);
+				num_d = (uint8_t) strtol(curptr_d,&np_d,10);
 				if (curptr_t != np_t && curptr_d != np_t)
 				{
 					len_burst++;
@@ -87,14 +89,14 @@ temps* burst_read(char *fname, unsigned long *n)
 					curptr_d = np_d;
 				}
 			}
-			t_temp = (unsigned long long*) malloc(len_burst*sizeof(unsigned long long));
-			d_temp = (long*) malloc(len_burst*sizeof(long));
+			t_temp = (int64_t*) malloc(len_burst*sizeof(int64_t));
+			d_temp = (uint8_t*) malloc(len_burst*sizeof(uint8_t));
 			curptr_t = lptr_t;
 			curptr_d = lptr_d;
 			for(i = 0 ; i < len_burst; i++)
 			{
-				t_temp[i] = strtoull(curptr_t,&np_t,10);
-				d_temp[i] = strtol(curptr_d,&np_d,10);
+				t_temp[i] = (int64_t) strtoll(curptr_t,&np_t,10);
+				d_temp[i] = (uint8_t) strtol (curptr_d,&np_d,10);
 				curptr_t = np_t;
 				curptr_d = np_d;
 				//~ printf("%ld  %d\n",t_temp[i], d_temp[i]);
@@ -156,17 +158,17 @@ h2mm_mod* h2mm_read(char *fname)
 	h2mm_mod *mod = (h2mm_mod*) calloc(1,sizeof(h2mm_mod));
 	char *lptr = NULL;
 	char *cptr, *eptr;
-	unsigned long n = 0;
-	unsigned long len, i, j;
+	int64_t n = 0;
+	int64_t len, i, j;
 	//unsigned long ndet;                                                                                                     // unreferenced??
 	//double *trans;                                                                                                 // unreferenced??
 	//double *obs;                                                                                                   // unreferenced??
 	//double *prior;                                                                                                 // unreferenced??
 	len = getline(&lptr,&n,fid);
 	cptr = lptr;
-	mod->nstate = (unsigned long) strtol(cptr,&eptr,10);
+	mod->nstate = (int64_t) strtoll(cptr,&eptr,10);
 	cptr = eptr + 1;
-	mod->ndet = (unsigned long) strtol(cptr,&eptr,10);
+	mod->ndet = (int64_t) strtoll(cptr,&eptr,10);
 	free(lptr);
 	n = 0;
 	len = getline(&lptr,&n,fid);
@@ -228,8 +230,8 @@ h2mm_mod* h2mm_read(char* fname)
 	h2mm_mod* mod = (h2mm_mod*)calloc(1, sizeof(h2mm_mod));
 	char* lptr = NULL;
 	char* cptr, * eptr;
-	unsigned long n = 0;
-	unsigned long len, i, j;
+	int64_t n = 0;
+	int64_t len, i, j;
 	lptr = (char*)malloc((unsigned long)BFRSIZ);
 	if (lptr == NULL)
 	{
@@ -240,9 +242,9 @@ h2mm_mod* h2mm_read(char* fname)
 	fgets(lptr, (int)BFRSIZ, fid);
 	len = strlen(lptr);
 	cptr = lptr;
-	mod->nstate = (unsigned long)strtol(cptr, &eptr, 10);
+	mod->nstate = (int64_t)strtol(cptr, &eptr, 10);
 	cptr = eptr + 1;
-	mod->ndet = (unsigned long)strtol(cptr, &eptr, 10);
+	mod->ndet = (int64_t)strtol(cptr, &eptr, 10);
 	//free(lptr);
 	n = 0;
 	//len = getline(&lptr, &n, fid);

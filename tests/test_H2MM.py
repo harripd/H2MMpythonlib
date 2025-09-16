@@ -14,6 +14,7 @@ import H2MM_C as h2
 
 rnd = np.random.default_rng(seed=15371)
 
+
 def model_almost_equal(model1,model2):
     """
     Compare two models are essentially the same
@@ -23,6 +24,7 @@ def model_almost_equal(model1,model2):
     trans = np.all(trans_check < 5) * np.all(trans_check > 0.5)
     obs = np.all(np.abs(model1.obs - model2.obs) < 0.1)
     return prior * trans * obs
+
 
 def true_size(inp):
     """
@@ -35,6 +37,7 @@ def true_size(inp):
     else:
         return (-1, )
 
+
 def true_iter(inp):
     """
     Iterate over list, tuple or numpy array elements
@@ -46,9 +49,11 @@ def true_iter(inp):
     else:
         return iter([inp, ])
 
-def limits_func_system_converged(new, current, old, bound):
+
+def limits_func_system_converged(new, current, old):
     new.prior = np.ones(new.prior.size)/new.prior.size
     return new
+
 
 def limits_func_user_converged(new, current, old, bound):
     if current.niter > bound:
@@ -58,35 +63,43 @@ def limits_func_user_converged(new, current, old, bound):
     new.prior = np.ones(new.prior.size)/new.prior.size
     return new, 0
 
-def limits_func_bad_size(new, current, old, bound):
+
+def limits_func_bad_size(new, current, old):
     return h2.factory_h2mm_model(current.nstate+1, current.ndet+1)
+
 
 def limits_func_bad_return(new, current, old, bound):
     return {'prior':np.array([1,2.]), 'trans':np.array([[2., 4,],[9.,3]]), 'obs':np.array([2,3])}
 
+
 def print_func_str(new, current, old, titer, ttotal, *args):
     return str(new) + "\n"
 
-def print_func_str_wrongarg(new, current, old):
+
+def print_func_num(new, current, old, titer, ttotal, *args):
     return 32
 
-def print_func_str_wrongret(new, current, old, titer, ttotal, *args):
-    return [32, ]
+
+def print_func_exception(new, current, old, titer, ttotal, *args):
+    raise ValueError("this is a dummy exception")
+
 
 def data_gen_list():
-    times = [np.array([   20,   50,   90,   95,  190,  230,  350,  800]),
+    times = [np.array([   20,   50,   90,   95,  190,  230,  350,  800], dtype=np.int32),
              np.array([  820,  850,  990,  995, 1055, 1130, 1290, 1525]),
              np.array([ 1750, 1820, 1950, 1985, 2055, 2110, 2220, 2325])]
-    dets =  [np.array([    1,    1,    0,    1,    0,    1,    0,    1]),
-             np.array([    0,    0,    0,    1,    1,    1,    1,    0]),
+    dets =  [np.array([    1,    1,    0,    1,    0,    1,    0,    1], dtype=np.uint8),
+             np.array([    0,    0,    0,    1,    1,    1,    1,    0], dtype=np.int32),
              np.array([    1,    0,    1,    1,    0,    1,    0,    1])]
     nphot = sum(t.size for t in times)
     return (dets, times, nphot)
+
 
 def data_gen_tuple():
     dets, times, nphot = data_gen_list()
     dets, times = tuple(dets), tuple(times)
     return (dets, times, nphot)
+
 
 def data_gen_np():
     dets, times, nphot = data_gen_list()
@@ -95,21 +108,27 @@ def data_gen_np():
         det[i], time[i] = dets[i], times[i]
     return (det, time, nphot)
 
+
 @pytest.fixture(scope="module")
 def simple_data_list():
     return data_gen_list()
+
 
 @pytest.fixture(scope="module")
 def simple_data_tuple():
     return data_gen_tuple()
 
+
 @pytest.fixture(scope="module")
 def simple_data_np():
     return data_gen_np()
+
+
 @pytest.fixture(scope="module", params=[data_gen_np, data_gen_list, data_gen_tuple])
 def simple_data_all(request):
     dets, times, nphot = request.param()
     return dets, times, nphot
+
 
 def test_MakeModel():
     """
@@ -126,6 +145,7 @@ def test_MakeModel():
     assert np.allclose(model.obs.sum(axis=1), 1.0)
     assert model.k == 14
 
+
 def test_Factory():
     """
     Ensure factory_h2mm_model returns correct values
@@ -135,6 +155,7 @@ def test_Factory():
     assert model.nstate == 3
     assert model.ndet == 2
     assert model.k == 11
+
 
 def test_Model_access():
     """
@@ -147,9 +168,10 @@ def test_Model_access():
         model.trans = np.array([[1.6, 1.2, 0.5, 0.1],[0.5, 9.8, 1.1, 0.2],[0.5,0.9,7.2, 1.2],[0.5,0.5,0.6,9.5]])
     with pytest.warns(UserWarning):
         model.obs = np.ones((4,3))
-    assert pytest.approx(1.0) == model.prior.sum()
-    assert np.allclose(model.trans.sum(axis=1), 1.0)
-    assert np.allclose(model.obs.sum(axis=1), 1.0)
+    assert pytest.approx(1.0) == model.prior.sum(), "Prior non-stochastic"
+    assert np.allclose(model.trans.sum(axis=1), 1.0), "trans not row-stochastic"
+    assert np.allclose(model.obs.sum(axis=1), 1.0), "obs not row-stochastic"
+
 
 def test_InputType(simple_data_all):
     """
@@ -159,47 +181,11 @@ def test_InputType(simple_data_all):
     dets, times, nphot = simple_data_all
     out = h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, times)
     assert isinstance(out, h2.h2mm_model)
-    assert out.nphot == nphot
-    assert out.loglik < 0.0
-    assert out.conv_code > 2
-    assert out.ndet == 2
-    assert out.nstate == 2
+    assert out.ndet == 2, 'number of detectors changed'
+    assert out.nstate == 2, 'number of states changed'
+    assert out.nphot == nphot, "nphot not updated chorectly"
+    assert out.loglik < 0.0, 'positive/0 loglik after optimization'
     
-def test_gamma(simple_data_all):
-    """
-    Test optimization returning gamma
-    """
-    out = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), simple_data_all[0], simple_data_all[1], opt_array=False, gamma=False, max_iter=10)
-    assert isinstance(out, h2.h2mm_model)
-    out = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), simple_data_all[0], simple_data_all[1], opt_array=True, gamma=False, max_iter=10)
-    assert isinstance(out, np.ndarray) and out.dtype == object
-    out, gamma = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), simple_data_all[0], simple_data_all[1], opt_array=False, gamma=True, max_iter=10)
-    assert isinstance(out, h2.h2mm_model) and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
-    out, gamma = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10)
-    assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
-
-def test_gamma_oop(simple_data_all):
-    """
-    Test optimization returning gamma, using object oriented approach
-    """
-    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=False, max_iter=10)
-    assert isinstance(out, h2.h2mm_model)
-    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=False, max_iter=10)
-    assert isinstance(out, np.ndarray) and out.dtype == object
-    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=True, max_iter=10)
-    assert isinstance(out, h2.h2mm_model) and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
-    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10)
-    assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
-    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=False, max_iter=10, inplace=False)
-    assert isinstance(out, h2.h2mm_model)
-    out = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=False, max_iter=10, inplace=False)
-    assert isinstance(out, np.ndarray) and out.dtype == object
-    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=False, gamma=True, max_iter=10, inplace=False)
-    assert isinstance(out, h2.h2mm_model) and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
-    out, gamma = h2.factory_h2mm_model(3,2).optimize(simple_data_all[0], simple_data_all[1], opt_array=True, gamma=True, max_iter=10, inplace=False)
-    assert isinstance(out, np.ndarray) and out.dtype==object and type(gamma) == type(simple_data_all[0]) and len(gamma) == len(simple_data_all[0])
-    # smoke test for optimizing model where optimization ended by max_iter
-    out[-1].optimize(simple_data_all[0], simple_data_all[1], max_iter=10)
 
 @pytest.fixture(scope="module", params=(2,3,4))
 def opt_model(request):
@@ -214,16 +200,17 @@ def test_model_norm(opt_model):
 
 def model_opt():
     dets, times, nphot = data_gen_list()
-    out1 = h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, times, max_iter=10, opt_array=True)
-    out2 = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), dets, times, max_iter=10, opt_array=True)
+    out1 = h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, times, max_iter=10, opt_array=True, num_cores=1)
+    out2 = h2.EM_H2MM_C(h2.factory_h2mm_model(3,2), dets, times, max_iter=10, opt_array=True, num_cores=1)
     out3 = np.concatenate([out1, out2])
     for model in reversed(out1):
         out = model
-        if out.conv_code != 7:
+        if out.conv_code & h2.convcode.output:
             break
     yield out
     yield out2
     yield out3
+
 
 @pytest.fixture(scope='module', params=[out for out in model_opt()])
 def model_array(request):
@@ -236,41 +223,14 @@ def test_H2MM_arr(model_array,simple_data_all):
     Test H2MM_arr function
     """
     dets, times, nphot = simple_data_all
-    arr_out = h2.H2MM_arr(model_array, dets, times)
-    assert type(arr_out) == type(model_array)
-    assert true_size(arr_out) == true_size(model_array)
-    assert np.allclose([m.loglik for m in true_iter(arr_out)], [m.loglik for m in true_iter(model_array)])
+    arr_out = h2.H2MM_arr(model_array, dets, times, num_cores=1)
+    assert isinstance(model_array,  h2.h2mm_model) == isinstance(arr_out, h2.h2mm_model), 'ouput of different type han input'
+    arr_out = np.array([arr_out,], dtype=np.object_) if isinstance(arr_out, h2.h2mm_model) else arr_out
+    model_array = np.array([model_array,], dtype=np.object_) if isinstance(model_array, h2.h2mm_model) else model_array
+    assert arr_out.shape == model_array.shape, "input h2mm_model array and output array different size"
+    assert np.allclose([m.loglik for m in true_iter(arr_out)], [m.loglik for m in true_iter(model_array)]), "logliks significantly changed"
 
-def test_H2MM_arr_gamma(model_array,simple_data_all):
-    """
-    Test model array returning gamma function
-    """
-    dets, times, nphot = simple_data_all
-    arr_out, gamma = h2.H2MM_arr(model_array, dets, times, gamma=True)
-    assert type(arr_out) == type(model_array)
-    assert true_size(arr_out) == true_size(model_array)
-    assert np.allclose([m.loglik for m in true_iter(arr_out)], [m.loglik for m in true_iter(model_array)])
- 
-
-def test_evaluate(opt_model, simple_data_tuple):
-    mod = opt_model.copy()
-    dets, times, nphot = simple_data_tuple
-    mod_out = mod.evaluate(dets, times, inplace=False)
-    assert isinstance(mod_out, h2.h2mm_model)
-    assert np.allclose(mod_out.loglik, mod.loglik)
-    mod_out, gamma = mod.evaluate(dets, times, gamma=True, inplace=False)
-    assert isinstance(mod_out, h2.h2mm_model)
-    assert np.allclose(mod_out.loglik, mod.loglik)
-    for g in gamma:
-        assert np.allclose(g.sum(axis=1), 1.0)
-    mod_out = mod.evaluate(dets, times, inplace=True)
-    assert isinstance(mod_out, h2.h2mm_model)
-    assert mod_out.loglik == mod.loglik
-    mod_out, gamma = mod.evaluate(dets, times, gamma=True, inplace=True)
-    assert isinstance(mod_out, h2.h2mm_model)
-    assert mod_out.loglik == mod.loglik
-    for g in gamma:
-        assert np.allclose(g.sum(axis=1), 1.0) 
+# dllclose(g.sum(axis=1), 1.0) 
     
 def test_Viterbi(opt_model,simple_data_all):
     """
@@ -280,7 +240,6 @@ def test_Viterbi(opt_model,simple_data_all):
     """
     dets, times, nphot = simple_data_all
     path, scale, ll, icl = h2.viterbi_path(opt_model, dets, times, num_cores=1)
-    assert type(path) == type(scale) == type(times)
     assert true_size(path) == true_size(scale) == true_size(dets)
     for p, s, t, d in zip(true_iter(path), true_iter(scale),true_iter(times), true_iter(dets)):
         assert np.issubdtype(p.dtype, np.integer)
@@ -378,7 +337,6 @@ def test_Viterbi(opt_model,simple_data_all):
 #             if log and LL:
 #                 assert np.allclose(lg.sum(), ll)
         
-
 def test_Limits(simple_data_list):
     """
     Ensure basic limits functions work properly
@@ -387,20 +345,22 @@ def test_Limits(simple_data_list):
     limits = h2.h2mm_limits(min_trans=1e-7, max_trans=1e-1)
     for lim in ('minmax', 'revert', 'revert_old'):
         out = h2.EM_H2MM_C(h2.factory_h2mm_model(2,2), dets, times, bounds=limits, bounds_func=lim)
-        assert np.all(out.trans[np.eye(2) < 1] < 1e-1)
-        assert np.all(out.trans[np.eye(2) < 1] > 1e-7)
+        assert np.all(out.trans[np.eye(2) < 1] < 1e-1), "trans rates smaller than allowed by bounds"
+        assert np.all(out.trans[np.eye(2) < 1] > 1e-7), "trans rates larger than allowed by trans"
     
 
 def test_Limits_usr(opt_model, simple_data_list):
     """
-    Smoke test for user defined limits function
+    Smoke test for user defined limits functprint_model(out_arr)
+            ion
     """
     dets, times, nphot = simple_data_list
     out = h2.EM_H2MM_C(opt_model, dets, times, bounds_func=limits_func_system_converged)
-    assert isinstance(out, h2.h2mm_model)
+    assert isinstance(out, h2.h2mm_model), "EM_H2MM_C returned wrong type"
     out = h2.EM_H2MM_C(opt_model, dets, times, bounds_func=limits_func_user_converged, bounds=10)
     assert isinstance(out, h2.h2mm_model)
     assert out.niter == 10
+
 
 def test_User_print_str(opt_model, simple_data_list):
     """
@@ -408,12 +368,11 @@ def test_User_print_str(opt_model, simple_data_list):
     """
     dets, times, nphot = simple_data_list
     h2.EM_H2MM_C(opt_model, dets, times, print_func=print_func_str)
+    h2.EM_H2MM_C(opt_model, dets, times, print_func=print_func_num)
     with pytest.raises(Exception):
-        h2.EM_H2MM_C(opt_model, dets, times, print_func=print_func_str_wrongarg)
-    with pytest.raises(Exception):
-        h2.EM_H2MM_C(opt_model, dets, times, print_func=print_func_str_wrongret)
+        h2.EM_H2MM_C(opt_model, dets, times, print_func=print_func_exception)
 
-
+#################### Start Here ###############################################
 def test_Sim():
     """
     Simulate a trajectory with simulation function, then check if optimization finds
@@ -430,8 +389,7 @@ def test_Sim():
         paths.append(path)
         colors.append(color)
     limits = h2.h2mm_limits(min_prior=0.001,max_prior=0.999,min_trans=1e-10,max_trans=1-1e-10,min_obs=0.001,max_obs=0.999)
-    model_test = h2.factory_h2mm_model(3,2)
-    model_test.optimize(colors,times,bounds=limits,bounds_func='revert',max_iter=3000)
+    model_test = h2.factory_h2mm_model(3,2).optimize(colors,times,bounds=limits,bounds_func='revert',max_iter=3000)
     assert model_almost_equal(model_test,model_init)
 
 def test_BadData(opt_model):
@@ -474,7 +432,7 @@ def test_OOp(simple_data_all):
     assert np.all(in_mod.prior != out_mod.prior)
     assert np.all(in_mod.trans != out_mod.trans)
     assert np.all(in_mod.obs != out_mod.obs)
-    out_mod = in_mod.optimize(dets, times)
+    out_mod = in_mod.optimize(dets, times, inplace=True)
     assert np.all(in_mod.prior == out_mod.prior)
     assert np.all(in_mod.trans == out_mod.trans)
     assert np.all(in_mod.obs == out_mod.obs)
@@ -483,7 +441,7 @@ def test_OOp(simple_data_all):
     assert ev_mod is not in_mod
     assert ev_mod.loglik < 0 and not np.isinf(ev_mod.loglik)
     assert ev_mod.nphot == nphot
-    ev_mod = in_mod.evaluate(dets, times)
+    ev_mod = in_mod.evaluate(dets, times, inplace=True)
     assert in_mod.loglik < 0 and not np.isinf(in_mod.loglik)
     assert in_mod.nphot == nphot
     

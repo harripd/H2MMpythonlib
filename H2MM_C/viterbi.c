@@ -4,16 +4,17 @@
 // Date created: 1 April 2021
 // Date modified: 06 Nov 2022
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <math.h>
+
 #if defined(__linux__) || defined(__APPLE__)
-#include <unistd.h>
 #include <pthread.h>
 #elif _WIN32
 #include <windows.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
 #include "C_H2MM.h"
 
 
@@ -29,10 +30,11 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 {
 	// initial pointer and variable assignment
 	vit_vals *D = (vit_vals*) in_vals;
-	unsigned long i, j, k, t;
-	unsigned long omegaT, omegaTp, transT, transTshift, bT; // variables to store offsets (strides) for values indexed in nested for loops
-	unsigned long cur_burst;
-	unsigned long *psi = (unsigned long*) calloc(D->si*D->max_phot,sizeof(unsigned long));
+	uint8_t i, j, k;
+	int64_t t;
+	int64_t omegaT, omegaTp, transT, transTshift, bT; // variables to store offsets (strides) for values indexed in nested for loops
+	int64_t cur_burst;
+	uint8_t *psi = (uint8_t*) calloc(D->si*D->max_phot,sizeof(uint8_t)); // forward state assignment
 	double runsum = 0.0;
 	double *omega = (double*) calloc(D->si*D->max_phot,sizeof(double));
 	double omegamax;
@@ -108,9 +110,9 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 #endif
 }
 
-int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *model, ph_path *path_array, unsigned long num_cores)
+int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *model, ph_path *path_array, int64_t num_cores)
 {
-	unsigned long i, j;
+	int64_t i, j;
 	if ( num_cores > num_burst ) 
 		num_cores = num_burst;
 #if defined(__linux__) || defined(__APPLE__)
@@ -126,7 +128,7 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream));
 	// process burst arrays
 	//~ printf("Getting deltas\n");
-	unsigned long max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 
+	int32_t max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 
 	//~ printf("Got max delta\n");
 	if (max_delta == 0)
 	{
@@ -148,7 +150,7 @@ int viterbi(unsigned long num_burst, unsigned long *burst_sizes, unsigned long *
 			}
 		}
 	}
-	unsigned long max_phot = get_max_phot(num_burst, b);
+	int64_t max_phot = get_max_phot(num_burst, b);
 	brst_mutex *burst_lock = malloc(sizeof(brst_mutex));
 	burst_lock->burst_mutex = vit_lock;
 	burst_lock->cur_burst = 0;

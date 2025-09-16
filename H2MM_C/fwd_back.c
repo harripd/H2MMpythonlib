@@ -3,24 +3,25 @@
 // Purpose: Calculate forward and backward probabilities
 // Date Created: 20 Oct 2022
 // Date Modified: 29 Oct 2022
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <math.h>
 
 #if defined(__linux__) || defined(__APPLE__)
-#include <unistd.h>
 #include <pthread.h>
 #elif _WIN32
 #include <windows.h>
 #endif
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
+
 #include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
-void fwd_calc(fback_vals* D, unsigned long cur_burst, unsigned long recursion_size, unsigned long recursion_stride)
+void fwd_calc(fback_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride)
 {
-	unsigned long i, k, t, salphad, salphadi, salphao, sA, sAi, sobs;
+	int64_t i, k, t, salphad, salphadi, salphao, sA, sAi, sobs;
 	double runsumalpha = 0.0;
 	double* alpha = D->alpha;
 	for ( i = 0; i < D->sk; i++)
@@ -77,12 +78,12 @@ void fwd_calc(fback_vals* D, unsigned long cur_burst, unsigned long recursion_si
 	}
 }
 // Beginning of backward algorithm
-void bck_calc(fback_vals* D, unsigned long cur_burst, unsigned long recursion_size, unsigned long recursion_stride, double* gamma)
+void bck_calc(fback_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma)
 {
 	// beta initiation
-	unsigned long i, k;
-	unsigned long sobs, sbetad, sbetadi,sbetao, sA,sAi, sRho, sRhoi,sxi;
-	unsigned long t = D->phot[cur_burst].nphot;
+	int64_t i, k;
+	int64_t sobs, sbetad, sbetadi,sbetao, sA,sAi, sRho, sRhoi,sxi;
+	int64_t t = D->phot[cur_burst].nphot;
 	double runsumbeta, runsumgamma, runsumxi;
 	double* beta = D->beta;
 	double* alpha = D->alpha;
@@ -180,8 +181,10 @@ void thread_update_h2mm_loglik(fback_vals* D)
 	pthread_mutex_lock(D->burst_lock->burst_mutex);
 	if (!D->llerror && !isnan(D->current->loglik))
 		D->current->loglik += D->loglik;
-	else if ( D->llerror )
+	else if ( D->llerror ){
 		D->current->loglik = NAN;
+		D->current->conv |= CONVCODE_ERROR;
+	}
 	//~ printf("\n");
 	pthread_mutex_unlock(D->burst_lock->burst_mutex);
 #elif _WIN32
@@ -199,7 +202,7 @@ void thread_update_h2mm_loglik(fback_vals* D)
 
 void thread_update_h2mm_arrays(fback_vals* D)
 {
-	unsigned long i;
+	int64_t i;
 // update the h2mm_model
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_mutex_lock(D->burst_lock->burst_mutex);

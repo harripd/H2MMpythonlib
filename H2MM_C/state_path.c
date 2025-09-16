@@ -6,7 +6,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <time.h>
+
 #include "C_H2MM.h"
 
 #define TRUE 1
@@ -16,26 +18,26 @@ time_t tm = 0;
 unsigned int randcalled = 0;
 
 // function generates the cumulative sum of an array along dimenstion 1
-void cumsum(unsigned long len, double* arr, double* dest)
+void cumsum(int64_t len, double* arr, double* dest)
 {
-	unsigned long i;
+	int64_t i;
 	dest[0] = arr[0];
 	for ( i = 1; i < len; i++)
 		dest[i] = dest[i-1] + arr[i];
 }
 
 // chooses the state and/or photon from a cumulative sum array
-unsigned long randchoice(unsigned long len, double* arr)
+uint8_t randchoice(int64_t len, double* arr)
 {
-	unsigned long i = 0;
+	uint8_t i = 0;
 	double r = (double)rand() / (double)RAND_MAX;
 	len = len - 1;
-	while( (r >= arr[i]) & (i < len)) i ++;
+	while((r >= arr[i]) && (i < len) && (i < UINT8_MAX)) i ++;
 	return i;
 }
 
 // generates dense (even time distribution) statepath of length len based on H2MM model
-int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned int seed)
+int statepath(h2mm_mod* model, int64_t lent, uint8_t* path, unsigned int seed)
 {
 	if ((seed != 0))
 	{
@@ -48,7 +50,7 @@ int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 		srand((unsigned) tm);
 		randcalled = TRUE;
 	}
-	unsigned long i;
+	int64_t i;
 	double* priorsum = (double*) malloc(model->nstate*sizeof(double));
 	cumsum(model->nstate,model->prior,priorsum);
 	double* transsum = (double*) malloc(model->nstate*model->nstate*sizeof(double));
@@ -66,7 +68,7 @@ int statepath(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 
 
 // generate a set of states based on a set of arrival times, sparsely distributed
-int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* times, unsigned long* path, unsigned int seed)
+int sparsestatepath(h2mm_mod* model, int64_t lent, int64_t* times, uint8_t* path, unsigned int seed)
 {
 	if ((seed != 0))
 	{
@@ -79,19 +81,18 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 		srand((unsigned) tm);
 		randcalled = TRUE;
 	}
-	unsigned long t, i, tstride, tistride;
-	unsigned long* dif = (unsigned long*) malloc(lent * sizeof(unsigned long));
+	int64_t t, i, tstride, tistride;
+	int32_t* dif = (int32_t*) malloc(lent * sizeof(int32_t));
 	double* priorsum = (double*) malloc(model->nstate * sizeof(double));
 	cumsum(model->nstate,model->prior,priorsum);
-	unsigned long diftemp = 0;
-	unsigned long maxdif = 0;
+	int64_t diftemp = 0;
+	int32_t maxdif = 0;
 	dif[0] = 0;
 	// find the maximum difference between 
 	for( i = 1; i < lent; i++ )
 	{
-		if( times[i] >= times[i-1] )
-			diftemp = (unsigned long) (times[i] - times[i-1]);
-		else
+		diftemp = (times[i] - times[i-1]);
+		if( diftemp < 0 )
 		{
 			free(priorsum);
 			free(dif);
@@ -102,7 +103,7 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 		if( diftemp == 0 )
 			dif[i] = 0;
 		else
-			dif[i] = diftemp - 1;
+			dif[i] = (int32_t) diftemp - 1;
 	}
 	// build the powers of trans matrix, and built the cumulative sum
 	trpow* powers = transpow(model->nstate ,maxdif, model->trans);
@@ -135,7 +136,7 @@ int sparsestatepath(h2mm_mod* model, unsigned long lent, unsigned long long* tim
 }
 
 // take a set of states, and assign detectors to them
-int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned long* traj, unsigned int seed)
+int phpathgen(h2mm_mod* model, int64_t lent, uint8_t* path, uint8_t* traj, unsigned int seed)
 {
 	if ((seed != 0))
 	{
@@ -145,10 +146,10 @@ int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 	else if (!randcalled)
 	{
 		tm = time(NULL);
-		srand((unsigned) tm);
+		srand((unsigned int) tm);
 		randcalled = TRUE;
 	}
-	unsigned long i, j;
+	int64_t i, j;
 	double* obssum = (double*) malloc(model->nstate*model->ndet*sizeof(double));
 	for( i = 0; i < model->nstate; i++)
 	{
@@ -156,8 +157,8 @@ int phpathgen(h2mm_mod* model, unsigned long lent, unsigned long* path, unsigned
 			obssum[model->ndet*i + j] = model->obs[model->nstate*j + i];
 	}
 	for (i = 0; i < model->nstate; i++)
-		cumsum(model->ndet,obssum+ (i*model->ndet),obssum + (i*model->ndet));
+		cumsum(model->ndet, obssum + (i*model->ndet), obssum + (i*model->ndet));
 	for ( i = 0; i < lent; i++)
-		traj[i] = randchoice(model->ndet,obssum + (path[i]*model->ndet));
+		traj[i] = randchoice(model->ndet, obssum + (path[i]*model->ndet));
 	return 0;
 }

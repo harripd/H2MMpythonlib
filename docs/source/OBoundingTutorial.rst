@@ -21,17 +21,18 @@ Let's get our obligatory imports in order, this time we'll start with the 3 dete
     import H2MM_C as hm
 
     # load the data
-    color3 = list()
-    times3 = list()
-
-    i = 0
-    with open('sample_data_3det.txt','r') as f:
-        for line in f:
-            if i % 2 == 0:
-                times3.append(np.array([int(x) for x in line.split()],dtype='Q'))
-            else:
-                color3.append(np.array([int(x) for x in line.split()],dtype='L'))
-            i += 1
+    def load_txtdata(filename):
+        color = list()
+        times = list()
+        with open(filename,'r') as f:
+            for i, line in enumerate(f):
+                if i % 2 == 0:
+                    times.append(np.array([int(x) for x in line.split()],dtype=np.int64))
+                else:
+                    color.append(np.array([int(x) for x in line.split()],dtype=np.uint8))
+        return color, times
+    
+    color3, times3 = load_txtdata('sample_data_3det.txt')
 
 
 Bounding Parameter Values
@@ -63,13 +64,13 @@ When this is specified, it is also necessary to specify another keyword argument
 
     us_opt_model4 = hm.h2mm_model(prior, trans, obs)
 
-    us_opt_model4.optimize(times3, bounds_func='revert', bounds=us_bounds)
+    us_opt_model4.optimize(color3, times3, bounds_func='revert', bounds=us_bounds)
     us_opt_model4
 
 
 | The model converged after 631 iterations
 
-| nstate: 4, ndet: 3, nphot: 436084, niter: 631, loglik: -408203.01780807425 converged state: 3
+| nstate: 4, ndet: 3, nphot: 436084, niter: 631, loglik: -408203.01780807425 converged state: 0x27
 | prior:
 | 0.19742522045704233, 0.5611254558625469, 0.24144932368041058, 7.251074733815892e-42
 | trans:

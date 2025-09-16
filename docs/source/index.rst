@@ -40,6 +40,7 @@ H2MM_C
    Tutorial
    HowTo
    Documentation
+   ChangeNotes
 
 Indices and tables
 ==================

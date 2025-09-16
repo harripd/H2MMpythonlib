@@ -2,35 +2,36 @@
 // Author: Paul David Harris
 // Purpose: main wrapping functions to take burst data and submit to central H2MM algorithm
 // Date created: 20 Oct 2022
-// Date modified: 06 Nov 2022
+// Date modified: 13 Sep 2025
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <math.h>
+#include <time.h>
 
 #if defined(__linux__) || defined(__APPLE__)
-#include <unistd.h>
+#include <pthread.h>
 #elif _WIN32
 #include <windows.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <time.h>
 #include "C_H2MM.h"
 
 #define TRUE 1
 #define FALSE 0
 
 
-int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
+	int32_t max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long i;
-	unsigned long nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
+	int64_t i;
+	int64_t nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
-	unsigned long max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
+	int64_t max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
 	int conv = 0;
 	// initiate varaibles
 	clock_t t_start, t_current, t_new;
@@ -126,6 +127,8 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 		t_new = clock();
 		t_iter = (double) (t_new - t_current) / CLOCKS_PER_SEC;
 		t_total =  (double) (t_new - t_start) / CLOCKS_PER_SEC;
+		current->conv |= CONVCODE_LLCOMPUTED;
+		new->conv |= CONVCODE_FROMOPT;
 		// check if converged
 		conv = model_limits_func(new, current, old, t_total, limits, model_limits);
 		if (conv == 0) // did not converge, so clean up for next iteration
@@ -134,7 +137,7 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 			{
 				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
 				{
-					conv = -5;
+					conv = -6;
 				}
 			}
 			// cycle arrays
@@ -154,10 +157,12 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 		t_current = t_new;
 	}
 	// copy optimized model to out_model
-	if (conv == 1)
+	if (conv == 1){
 		copy_model(old, out_model);
-	else
+	}
+	else{
 		copy_model(current, out_model);
+	}
 	// free everything
 	// free burst submit
 	for (i = 0; i < limits->num_cores; i++)
@@ -193,17 +198,17 @@ int h2mm_optimize(unsigned long num_burst, unsigned long *burst_sizes, unsigned 
 	return conv;
 }
 
-int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
+	int32_t max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long i;
-	unsigned long nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
+	int64_t i;
+	int64_t nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
-	unsigned long max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
+	int64_t max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
 	int conv = 0;
 	// initiate varaibles
 	clock_t t_start, t_current, t_new;
@@ -244,12 +249,14 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 	burst_lock->num_burst = num_burst;
 	fback_vals *burst_submit = (fback_vals*) calloc(limits->num_cores,sizeof(fback_vals));
 	double **gamma_old = (double**) malloc(num_burst * sizeof(double*));
-	double **gamma_cur = (double**) malloc(num_burst * sizeof(double*));
+	double **gamma_cur = (*gamma == NULL) ? (double**) malloc(num_burst * sizeof(double*)) : *gamma;
 	double **gamma_temp;
 	for (i=0; i < num_burst; i++)
-		gamma_old[i] = (double*) malloc(max_phot * in_model->nstate * sizeof(double));
-	for (i=0; i < num_burst; i++)
-		gamma_cur[i] = (double*) malloc(max_phot * in_model->nstate * sizeof(double));
+		gamma_old[i] = (double*) malloc(burst_sizes[i] * in_model->nstate * sizeof(double));
+	if (*gamma == NULL){
+		for (i=0; i < num_burst; i++)
+			gamma_cur[i] = (double*) malloc(burst_sizes[i] * in_model->nstate * sizeof(double));
+	}
 	for ( i=0; i < limits->num_cores; i++)
 	{
 		burst_submit[i].phot = bursts;
@@ -303,6 +310,8 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 		t_new = clock();
 		t_iter = (double) (t_new - t_current) / CLOCKS_PER_SEC;
 		t_total =  (double) (t_new - t_start) / CLOCKS_PER_SEC;
+		current->conv |= CONVCODE_LLCOMPUTED;
+		new->conv |= CONVCODE_FROMOPT;
 		// idea for new code:
 		conv = model_limits_func(new, current, old, t_total, limits, model_limits);
 		if (conv == 0)
@@ -311,7 +320,7 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 			{
 				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
 				{
-					conv = -5;
+					conv = -6;
 				}
 			}
 			// cycle arrays
@@ -334,70 +343,34 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 		}
 		t_current = t_new;
 	}
-	// copy optimized model to out_model
+	// copy optimized model to out_model, and gamma
 	if (conv == 1)
 	{
 		copy_model(old, out_model);
-		*gamma = gamma_old;
-		for (i = 0; i < num_burst; i++)
-		{
-			if (gamma_cur[i] != NULL)
-			{
-				free(gamma_cur[i]);
-				gamma_cur[i] = NULL;
-			}
-		}
-		if (gamma_cur[i] != NULL)
-		{
-			free(gamma_cur);
-			gamma_cur = NULL;
-		}
+		if (*gamma == NULL)
+			*gamma = gamma_old;
+		else if  (*gamma != gamma_old)
+			transfer_gamma(num_burst, burst_sizes, gamma_old, *gamma);
 	}
 	else if (conv == 2)
 	{
 		copy_model(current, out_model);
-		*gamma = gamma_cur;
-		for (i = 0; i < num_burst; i++)
-		{
-			if (gamma_old[i] != NULL)
-			{
-				free(gamma_old[i]);
-				gamma_old[i] = NULL;
-			}
-		}
-		if (gamma_old != NULL)
-		{
-			free(gamma_old);
-			gamma_old = NULL;
-		}
-	}
-	else
-	{
-		for (i = 0; i < num_burst; i++)
-		{
-			if (gamma_old[i] != NULL)
-			{
-				free(gamma_old[i]);
-				gamma_old[i] = NULL;
-			}
-			if (gamma_cur[i] != NULL)
-			{
-				free(gamma_cur[i]);
-				gamma_cur[i] = NULL;
-			}
-		}
-		if (gamma_old != NULL)
-		{
-			free(gamma_old);
-			gamma_old = NULL;
-		}
-		if (gamma_cur != NULL)
-		{
-			free(gamma_cur);
-			gamma_cur = NULL;
-		}
+		if (*gamma == NULL)
+			*gamma = gamma_cur;
+		else if (*gamma != gamma_cur)
+			transfer_gamma(num_burst, burst_sizes, gamma_cur, *gamma);
 	}
 	// free everything
+	if (*gamma != gamma_old)
+	{
+		free_gamma(num_burst, gamma_old);
+		gamma_old = NULL;
+	}
+	if (*gamma != gamma_cur)
+	{
+		free_gamma(num_burst, gamma_cur);
+		gamma_old = NULL;
+	}
 	for (i = 0; i < limits->num_cores; i++)
 	{
 		free(burst_submit[i].alpha);
@@ -428,17 +401,17 @@ int h2mm_optimize_gamma(unsigned long num_burst, unsigned long *burst_sizes, uns
 	return conv;
 }
 
-int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
+	int32_t max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long i;
-	unsigned long nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
+	int64_t i;
+	int64_t nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
-	unsigned long max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
+	int64_t max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
 	int conv = 0;
 	// initiate varaibles
 	clock_t t_start, t_current, t_new;
@@ -449,7 +422,7 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 		limits->num_cores = num_burst;
 	
 	// Allocate old, current, and new h2mm_mod
-	h2mm_mod* models = allocate_models(limits->max_iter + 2 - in_model->niter, in_model->nstate, in_model->ndet, nphot); // initial array, makes easier to free later
+	h2mm_mod* models = (*out_models == NULL) ? allocate_models(limits->max_iter + 2 - in_model->niter, in_model->nstate, in_model->ndet, nphot) : *out_models; // initial array, makes easier to free later
 	h2mm_mod* current = models;
 	h2mm_mod* new = models + 1;
 	h2mm_mod* old = allocate_models(1, in_model->nstate, in_model->ndet, nphot);
@@ -532,8 +505,8 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 		t_new = clock();
 		t_iter = (double) (t_new - t_current) / CLOCKS_PER_SEC;
 		t_total =  (double) (t_new - t_start) / CLOCKS_PER_SEC;
-		
-		// idea for new code:
+		current->conv |= CONVCODE_LLCOMPUTED;
+		new->conv |= CONVCODE_FROMOPT;
 		conv = model_limits_func(new, current, old, t_total, limits, model_limits);
 		if (conv == 0)
 		{
@@ -541,7 +514,7 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 			{
 				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
 				{
-					conv = -5;
+					conv = -6;
 				}
 			}
 			// cycle arrays
@@ -594,17 +567,17 @@ int h2mm_optimize_array(unsigned long num_burst, unsigned long *burst_sizes, uns
 	return conv;
 }
 
-int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_sizes, unsigned long **burst_deltas, unsigned long **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(unsigned long,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
+int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
-	unsigned long max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
+	int32_t max_delta = get_max_delta(num_burst, burst_sizes, burst_deltas, burst_det, bursts);
 	if ( max_delta == 0) // bad pointer in the data
 		return -1;
-	unsigned long i;
-	unsigned long nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
+	int64_t i;
+	int64_t nphot = check_det(num_burst, bursts, in_model); // verify detectors do not exceed ndet in model
 	if (nphot == 0) 
 		return -2;
-	unsigned long max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
+	int64_t max_phot = get_max_phot(num_burst, bursts); // deterermine size of largest burst
 	int conv = 0;
 	// initiate varaibles
 	clock_t t_start, t_current, t_new;
@@ -615,7 +588,7 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 		limits->num_cores = num_burst;
 	
 	// Allocate old, current, and new h2mm_mod
-	h2mm_mod* models = allocate_models(limits->max_iter + 2 - in_model->niter, in_model->nstate, in_model->ndet, nphot); // initial array, makes easier to free later
+	h2mm_mod* models = (*out_models == NULL) ? allocate_models(limits->max_iter + 2 - in_model->niter, in_model->nstate, in_model->ndet, nphot) : *out_models; // initial array, makes easier to free later
 	h2mm_mod* current = models;
 	h2mm_mod* new = models + 1;
 	h2mm_mod* old = allocate_models(1, in_model->nstate, in_model->ndet, nphot);
@@ -645,12 +618,14 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 	burst_lock->num_burst = num_burst;
 	fback_vals *burst_submit = (fback_vals*) malloc(limits->num_cores * sizeof(fback_vals));
 	double **gamma_old = (double**) malloc(num_burst * sizeof(double*));
-	double **gamma_cur = (double**) malloc(num_burst * sizeof(double*));
+	double **gamma_cur = (*gamma == NULL) ? (double**) malloc(num_burst * sizeof(double*)) : *gamma;
 	double **gamma_temp;
 	for (i=0; i < num_burst; i++)
-		gamma_old[i] = (double*) malloc(max_phot * in_model->nstate * sizeof(double));
-	for (i=0; i < num_burst; i++)
-		gamma_cur[i] = (double*) malloc(max_phot * in_model->nstate * sizeof(double));
+		gamma_old[i] = (double*) malloc(burst_sizes[i] * in_model->nstate * sizeof(double));
+	if (*gamma == NULL){
+		for (i=0; i < num_burst; i++)
+			gamma_cur[i] = (double*) malloc(burst_sizes[i] * in_model->nstate * sizeof(double));
+	}
 	for ( i=0; i < limits->num_cores; i++)
 	{
 		burst_submit[i].phot = bursts;
@@ -705,7 +680,8 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 		t_new = clock();
 		t_iter = (double) (t_new - t_current) / CLOCKS_PER_SEC;
 		t_total =  (double) (t_new - t_start) / CLOCKS_PER_SEC;
-		// idea for new code:
+		current->conv |= CONVCODE_LLCOMPUTED;
+		new->conv |= CONVCODE_FROMOPT;
 		conv = model_limits_func(new, current, old, t_total, limits, model_limits);
 		if (conv == 0)
 		{
@@ -713,7 +689,7 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 			{
 				if (print_func(current->niter, new, current, old, t_iter, t_total, print_call) == -1)
 				{
-					conv = -5;
+					conv = -6;
 				}
 			}
 			// cycle arrays
@@ -737,37 +713,17 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 	*out_models = models;
 	if (conv == 1)
 	{
-		*gamma = gamma_old;
-		for (i = 0; i < num_burst; i++)
-		{
-			if (gamma_cur[i] != NULL)
-			{
-				free(gamma_cur[i]);
-				gamma_cur[i] = NULL;
-			}
-		}
-		if (gamma_cur[i] != NULL)
-		{
-			free(gamma_cur);
-			gamma_cur = NULL;
-		}
+		if (*gamma == NULL)
+			*gamma = gamma_old;
+		else if (*gamma != gamma_old)
+			transfer_gamma(num_burst, burst_sizes, gamma_old, *gamma);
 	}
 	else if (conv == 2)
 	{
-		*gamma = gamma_cur;
-		for (i = 0; i < num_burst; i++)
-		{
-			if (gamma_old[i] != NULL)
-			{
-				free(gamma_old[i]);
-				gamma_old[i] = NULL;
-			}
-		}
-		if (gamma_old != NULL)
-		{
-			free(gamma_old);
-			gamma_old = NULL;
-		}
+		if (*gamma == NULL)
+			*gamma = gamma_cur;
+		else if (*gamma != gamma_cur)
+			transfer_gamma(num_burst, burst_sizes, gamma_cur, *gamma);
 	}
 	else
 	{
@@ -786,6 +742,16 @@ int h2mm_optimize_gamma_array(unsigned long num_burst, unsigned long *burst_size
 		}
 	}
 	// free everything
+	if (*gamma != gamma_old)
+	{
+		free_gamma(num_burst, gamma_old);
+		gamma_old = NULL;
+	}
+	if (*gamma != gamma_cur)
+	{
+		free_gamma(num_burst, gamma_cur);
+		gamma_cur = NULL;
+	}
 	for (i = 0; i < limits->num_cores; i++)
 	{
 		free(burst_submit[i].alpha);

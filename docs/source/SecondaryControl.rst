@@ -21,17 +21,19 @@ First, our obligatory imports and loading of 3 detector data:
     import H2MM_C as hm
 
     # load the data
-    color3 = list()
-    times3 = list()
+    def load_txtdata(filename):
+        color = list()
+        times = list()
+        with open(filename,'r') as f:
+            for i, line in enumerate(f):
+                if i % 2 == 0:
+                    times.append(np.array([int(x) for x in line.split()],dtype=np.int64))
+                else:
+                    color.append(np.array([int(x) for x in line.split()],dtype=np.uint8))
+        return color, times
 
-    i = 0
-    with open('sample_data_3det.txt','r') as f:
-        for line in f:
-            if i % 2 == 0:
-                times3.append(np.array([int(x) for x in line.split()],dtype='Q'))
-            else:
-                color3.append(np.array([int(x) for x in line.split()],dtype='L'))
-            i += 1
+
+    color3, times3 = load_txtdata('sample_data_3det.txt')
 
 Optimization Control
 --------------------
@@ -46,6 +48,13 @@ There are 4 of these "limits":
 #. :code:`converged_min` The threshold of improvement required to continue optimizing, i.e. if the new model improves the loglikelihood by less than this value, the optimization will stop.
 #. :code:`max_time` The maximum duration to conduct optimization, after which optimization will automatically stop. **Uses inaccurate clock, by default is infinite, and recommended not to be changed**
 
+.. note::
+
+    The timer used in :code:`max_time` uses the inaccurate C clock, which tends to run fast, so
+    youroptimizations will often end earlier than the time entered. Thus the use of :code:`max_time` is
+    generally discouraged.
+
+
 Setting by Keword Arguments
 ***************************
 
@@ -58,6 +67,7 @@ Heres a quick example, where the number of optimizations is increased to 7200 it
 >>> model_5s3d = hm.EM_H2MM_C(hm.factory_h2mm_model(4,3), color3, times3, max_iter=7200)
 Optimization reached maximum number of iterations
 
+
 Setting Universal Defaults
 **************************
 
@@ -67,6 +77,7 @@ The defaults of these are stored in the module variable :code:`H2MM_C.optimizati
 
    This variable functions similarly to :code:`rcParams` in matplotlib.
    It's purpose is to make it easy to set the default value, instead of having to repeatebly input the same keyword arguments every time.
+
 
 Values in :code:`H2MM_C.optimization_limits` can be accessed and set like both dictionary keys and attributes.
 The default values are:
@@ -115,7 +126,12 @@ Or as a whole:
 
     hm.optimization limits
 
-| Optimization limits:: num_cores: 2, max_iter: 1000, converged_min: 1e-7, max_time: inf
+| Optimization limits:: num_cores: 2, max_iter: 1000, converged_min: 1e-07, max_time: inf,
+| formatter: StdPrinter, outstream=<cyfunction get_stdout at 0x78b0ec59c580>
+
+.. note::
+
+    The parameters :attr:`formatter`` and :attr:`outstream` are disucssed in :ref:`print_formatter`
 
 
 Hashable models *New v2.0*
