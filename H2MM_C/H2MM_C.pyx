@@ -248,7 +248,7 @@ cdef class opt_lim_const:
     @max_iter.setter
     def max_iter(self, max_iter):
         assert max_iter > 0 and np.issubdtype(type(max_iter), np.integer), ValueError("max_iter must be integer greater than 0")
-        self._max_iter = <unsigned long> max_iter
+        self._max_iter = <int64_t> max_iter
 
     @property
     def max_time(self):
@@ -288,7 +288,7 @@ cdef class opt_lim_const:
     @num_cores.setter
     def num_cores(self, num_cores):
         assert num_cores > 0 and np.issubdtype(type(num_cores), np.integer), ValueError("num_cores must be int and greater than 0")
-        self._num_cores = <unsigned long> num_cores
+        self._num_cores = <int64_t> num_cores
     
     @property
     def formatter(self):
@@ -425,7 +425,7 @@ cdef class opt_lim_const:
                 raise ValueError(f"Non-int options for num_cores are 'single' or 'multi', cannot process {num_cores}")
         elif num_cores is not None and np.issubdtype(type(num_cores), int):
             assert num_cores > 0, ValueError("num_cores must be greater than 0")
-            n_core = <unsigned long> num_cores
+            n_core = <int64_t> num_cores
         elif num_cores is None:
             n_core = self._num_cores
         else:
@@ -769,7 +769,7 @@ cdef class h2mm_model:
         return new
     
     def __repr__(self):
-        cdef unsigned long i, j
+        cdef int64_t i, j
         msg = f"nstate: {self.model.nstate}, ndet: {self.model.ndet}, nphot: {self.model.nphot}, niter: {self.model.niter}, loglik: {self.model.loglik} converged state: {hex(self.model.conv)}\n"
         msg += "prior:\n"
         for i in range(self.model.nstate):
@@ -2268,6 +2268,7 @@ cdef cnp.ndarray[object, ndim=1] make_gamma_arrays(int64_t nbursts, int64_t nsta
         err = True
     if err:
         return np.empty(0, dtype=np.object_)
+    cdef object obtemp
     cdef cnp.ndarray[double, ndim=2] temp
     cdef int64_t i
     cdef double **data = <double**> PyMem_Malloc(nbursts*sizeof(double*))
@@ -2275,7 +2276,8 @@ cdef cnp.ndarray[object, ndim=1] make_gamma_arrays(int64_t nbursts, int64_t nsta
         return out, MemoryError("insufficient memory for gamma array")
     for i in range(nbursts):
         try:
-            temp = np.empty((burst_sizes[i], nstate), dtype=np.double)
+            obtemp = np.empty((burst_sizes[i], nstate), dtype=np.double)
+            temp = obtemp
         except Exception as e:
             err = True
         if err:
@@ -2861,6 +2863,7 @@ cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_m
         err = True
     if err:
         return np.empty(0, dtype=np.object_)
+    cdef object obtemp
     cdef cnp.ndarray[double, ndim=2] temp
     cdef int64_t i, j
     cdef double ***data = <double***> PyMem_Malloc(nbursts*sizeof(double**))
@@ -2874,7 +2877,8 @@ cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_m
             return out
         for j in range(nbursts):
             try:
-                temp = np.empty((burst_sizes[j], models[i].nstate), dtype=np.double)
+                obtemp = np.empty((burst_sizes[j], models[i].nstate), dtype=np.double)
+                temp = obtemp
             except Exception as e:
                 err = True
             if err:
@@ -2882,7 +2886,7 @@ cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_m
                 data = NULL
                 return out
             
-            out[i,j] = temp
+            out[i,j] = obtemp
             data[i][j] = <double*> temp.data
     gamma[0] = data
     return out
