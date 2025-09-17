@@ -3,6 +3,19 @@ Change Notes
 
 .. currentmodule:: H2MM_C
 
+Changed in version 2.0.5
+------------------------
+
+- Added beta ``IPyPlot`` class, for plotting with matplotlib
+    - This class is not considered "official", and is not guaranteed to be backwards compatible with minor revision changes
+
+.. note::
+
+    When ``H2MM_C`` was first introduced, different version numbers were given in Zenodo and pip
+    repositories, creating confusion, as one stated at 1.x.x, the other at 0.x.x.
+    Version 2.0.5 marks the unification of these versioning systems.
+    All version in Documentation refrence the pip versioning.
+
 Changed in version 2.0.0
 ------------------------
 
@@ -11,9 +24,8 @@ Changed in version 2.0.0
       non-calculated modelof size :math:`2^{11} = 2048`)
     - `inplace` of :func:`EM_H2MM_C`, :meth:`h2mm_model.optimize`, and
       :meth:`h2mm_model.evaluate` now defaults to :code:`False`
-    - Introduction of :class:`Printer` and subclasses :class:`StdPrinter` and :class:`IPyPrinter`
-      to handle formatting of output through ``print_formatter`` in :func:`EM_H2MM_C`
-        - New ``print_func
+    - Introduction of :class:`Printer` and subclasses :class:`StdPrinter` and :class:`IPyPrinter` to handle formatting of output through ``print_formatter`` in :func:`EM_H2MM_C`
+        - New ``print_func``
         - ``print_args`` no longer used to set update frequency and keep
             - Use ``print_freq`` and ``print_fmt_kwargs`` instead (see further notes)
     - ``print_func`` as a function now takes signature ``(niter, new, current, old, iter_time, total_time, *print_args, **print_kwargs)``

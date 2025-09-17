@@ -163,14 +163,17 @@ class Printer(ABC):
 
 
 class StdPrinter(Printer):
-    __slots__ = ('buffer', 'width', 'keep',)
-    def __init__(self, buffer, keep=False):
+    __slots__ = ('buffer', 'width', 'keep', 'single_line')
+    def __init__(self, buffer, keep=False, single_line=True):
         self.buffer = buffer
         self.width = 0
         self.keep = bool(keep)
+        self.single_line = bool(single_line)
     
     def update(self, text):
         text = str(text)
+        if self.single_line:
+            text = text.replace('\n', ' ')
         if self.keep:
             text = text + '\n'
         else:
@@ -184,10 +187,23 @@ class StdPrinter(Printer):
     def close(self):
         self.buffer.write("\n")
 
-has_ipython = True
+has_ipython = False
+has_matplotlib = False
 try:
-    from IPython.display import DisplayHandle, Pretty
+    from itertools import product, chain
+    from IPython.display import DisplayHandle, Pretty, clear_output
+    has_ipython = True
     class IPyPrinter(Printer):
+        """
+        Class for prining to :code:`IPython.display.DisplayHandle` object.
+        
+        Parameters
+        ----------
+        buffer: IPython.display.DisplayHandle
+            DisplayHandle where output is displayed
+        keep: bool, optional
+            Whether to keep old output or replace with new. The default is False
+        """
         def __init__(self, buffer, keep=False):
             self.buffer = buffer
             self.keep = bool(keep)
@@ -195,6 +211,19 @@ try:
             self.buffer.display(self.text)
         
         def update(self, text):
+            """
+            Update display with text in text
+            
+            Parameters
+            ----------
+            text: str
+                Text to display
+            
+            Returns
+            -------
+            None
+            
+            """
             test = str(text)
             if self.keep:
                 self.text.data =self.text.data + '\n' + text if self.text.data else text
@@ -204,6 +233,178 @@ try:
         
         def close(self):
             pass
+    try:
+        import matplotlib.pyplot as plt
+        has_matplotlib = True
+        import matplotlib
+        
+        class IPyPlot(Printer):
+            """
+            **Beta Feature**
+            
+            .. note::
+                
+                This class is subject to rapid iteration and/or removal in
+                future minor version increments.
+            
+            Class for plotting optimization progress on matplotlib axes.
+            
+            Parameters
+            ----------
+            
+            stream: DiplayHandle
+                DisplayHandle for where plots will be displayed
+            nrow: int, optional
+                number of rows of plots in output, the default is 1
+            ncol: int, optional
+                number of columns of plots in output, the default is 1
+            xlim: tuple[tuple[tuple[int|float|str, int|float|str],...],...]
+                nrow x ncol x 2 nested tuples, identifying min and max values
+                for x axis of given [row][col] plot. If 'min' or 'max', take
+                said values in arrays. Defautl is for 1x1 'min', 'max' values
+            ylim: tuple[tuple[tuple[int|float|str, int|float|str],...],...]
+                nrow x ncol x 2 nested tuples, identifying min and max values
+                for y axis of given [row][col] plot. If 'min' or 'max', take
+                said values in arrays. Defautl is for 1x1 'min', 'max' values
+            plot_kwargs: dict, optional
+                dictionary of keword argumetns given to ax.plot on first iteration
+                Default is empty dictionary.
+            **kwargs: dict
+                kwargs handed to plt.subplots when creating initial figure and plots.
+            """
+            __slots__ = ('stream', 'nrows', 'ncols', 'data', 'xlim', 'ylim', 'kwargs', 'plot_type', 'plot_kwargs')
+            def __init__(self, stream, nrows=1, ncols=1, 
+                         xlim=((('min', 'max'),),), ylim=((('min', 'max'),),),
+                         plot_kwargs=None, plot_type=(('plot',),), **kwargs):
+                if len(xlim) != nrows or len(ylim) != nrows:
+                    raise ValueError("xlim and ylim must be nrow x ncol array")
+                if any(len(x) != ncols or len(y) != ncols for x, y in zip(xlim, ylim)):
+                    raise ValueError("xlim and ylim must be nrow x ncol x 2 array")
+                if any(len(x) != 2 or len(y) != 2 for x, y in chain.from_iterable(zip(xx,yy) for xx, yy in zip(xlim, ylim))):
+                    raise ValueError("xlim and ylim must be nrow x ncol x 2 array")
+                self.stream = stream
+                self.nrows = nrows
+                self.ncols = ncols
+                self.data = False
+                self.xlim = xlim
+                self.ylim = ylim
+                self.kwargs = kwargs
+                self.plot_type = plot_type
+                self.plot_kwargs = plot_kwargs if plot_kwargs is not None else [[[dict()] for j in range(ncols)] for i in range(nrows)]
+        
+            def update(self, data):
+                """
+                Update plot with new data points
+
+                Parameters
+                ----------
+                data : list[list[np.ndarray]]
+                    An array-like nrow x ncol object, with each pair of elements
+                    being an x-y value pair to plot.
+
+                Returns
+                -------
+                None.
+
+                """
+                if isinstance(data, str):
+                    return
+                if self.data is False:
+                    self.data = np.empty((self.nrows, self.ncols), dtype=np.object_)
+                    for i, j in product(range(self.nrows), range(self.ncols)):
+                        self.data[i,j] = data[i][j][np.newaxis]
+                else:
+                    for i, j in product(range(self.nrows), range(self.ncols)):
+                        self.data[i,j] = np.concatenate([self.data[i,j], data[i][j][np.newaxis]])
+                fig, ax = plt.subplots(self.nrows, self.ncols, **self.kwargs)
+                ax = np.atleast_2d(ax)
+                for i, j in product(range(self.nrows), range(self.ncols)):
+                    for k in range(self.data[i,j].shape[1]//2):
+                        if self.plot_type[i][j] == 'plot':
+                            ax[i,j].plot(self.data[i,j][:,2*i], self.data[i,j][:,2*i+1])
+                        else:
+                            ax[i,j].scatter(self.data[i,j][:,2*i], self.data[i,j][:,2*i+1], **self.plot_kwargs[i][j][k])
+                        xlim, ylim = self._get_xylim(i,j)
+                        ax[i,j].set_xlim(xlim)
+                        ax[i,j].set_ylim(ylim)
+                if self.data.shape[0] == 1:
+                    self.stream.display(fig)
+                else:
+                    clear_output()
+                    self.stream.update(fig)
+            
+            def _get_xylim(self, i, j):
+                xmin, xmax = self.xlim[i][j]
+                if xmin == 'min':
+                    xmin = np.min(self.data[i,j][:,::2])
+                if xmax == 'max':
+                    xmax = np.max(self.data[i,j][:,::2])
+                ymin, ymax = self.ylim[i][j]
+                if ymin == 'min':
+                    ymin = np.min(self.data[i,j][:,1::2])
+                if ymax == 'max':
+                    ymax = np.max(self.data[i,j][:,1::2])
+                if xmin == xmax:
+                    xmin -= 1.0
+                    xmax += 1.0
+                if ymin == ymax:
+                    ymin -= 1.0
+                    ymax += 1.0
+                return (xmin, xmax), (ymin, ymax)
+        
+            def close(self):
+                """
+                Clear the display handle.
+
+                Returns
+                -------
+                None.
+
+                """
+                clear_output()
+                
+        def plot_bic(niter, new, current, old, iter_time, total_time):
+            """
+            Printing function for :class:`IPyPlot`, plots BIC in single plot
+            
+            .. note::
+                
+                This class is subject to rapid iteration and/or removal in
+                future minor version increments.
+            """
+            return [[np.array([niter, current.bic])]]
+        
+        def plot_obs(niter, new, current, old, iter_time, total_time, dx=0, dy=1):
+            """
+            Printing function for :class:`IPyPlot`, plots obs values in single plot.
+            Takes 2 keyword arguments, dx, dy specifing index of det to plot
+            on x and y axis for each state.
+            
+            .. note::
+                
+                This function is subject to rapid iteration and/or removal in
+                future minor version increments.
+            
+            """
+            return [[np.array([[current.obs[i,dx], current.obs[i,dy]] for i in range(current.nstate)]).reshape(-1)]]
+        
+        def plot_bic_obs(niter, new, current, old, iter_time, total_time, dx=0, dy=1):
+            """
+            Printing function for :class:`IPyPlot`, plots plot_bic in first plot
+            plot_obs values in second plot.
+            Takes 2 keyword arguments, dx, dy specifing index of det to plot
+            on x and y axis for each state.
+            
+            .. note::
+                
+                This function is subject to rapid iteration and/or removal in
+                future minor version increments.
+            
+            """
+            return [[np.array([niter, current.bic]), np.array([[current.obs[i,dx], current.obs[i,dy]] for i in range(current.nstate)]).reshape(-1)]]
+
+    except:
+        has_matplotlib = False
 except:
     has_ipython = False
 
