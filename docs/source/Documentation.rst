@@ -3,6 +3,9 @@ Documentation
 
 .. module:: H2MM_C
 
+
+.. _analysis:
+
 Data Analysis Functions
 -----------------------
 
@@ -18,6 +21,9 @@ Data Analysis Functions
 
 .. autofunction:: path_loglik
 
+
+.. _simfuncs:
+
 Simulation Functions
 --------------------
 
@@ -28,6 +34,9 @@ Simulation Functions
 .. autofunction:: sim_sparsestatepath
 
 .. autofunction:: sim_statepath
+
+
+.. _classes:
 
 Classes
 -------
@@ -46,3 +55,48 @@ Classes
 
 .. autoclass:: IPyPrinter
     :members:
+
+
+.. _constants:
+
+Constants
+---------
+The following are all constants that serve as a bitmask for :attr:`h2mm_model.conv_code` if
+``&`` with a model and the given constant is non-zero, then the given condition is met
+
+.. py:const: H2MM_C.convcode.ll_computed
+
+    Model has had loglik computed against some data (either during optimization or singly
+
+.. py:const: H2MM_C.convcode.from_opt
+
+    Model was created during optimization
+
+.. py:const: H2MM_C.convcode.output
+
+    Model is best model during optimization, by some criterion marked by other flags
+
+.. py:const: H2MM_C.convcode.converged
+
+    Model has best logliklihood within converged_min threshold
+
+.. py:const: H2MM_C.convcode.max_iter
+
+    Optimization reached maximum number of iterations (only set for models furing terminal iteration)
+
+.. py:const: H2MM_C.convcode.max_time
+
+    Optimization reach maximum time (only set for models furing terminal iteration)
+
+.. py:const: H2MM_C.convcode.error
+
+    Error occured during optimization
+
+.. py:const: H2MM_C.convcode.post_opt
+
+    Model is either the model with poorer loglikelihood between current and old,
+    or is new and loglik is not calculated
+
+.. py:const: H2MM_C.convcode.frozen
+
+    Model cannot be modified in place

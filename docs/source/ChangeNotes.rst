@@ -3,6 +3,12 @@ Change Notes
 
 .. currentmodule:: H2MM_C
 
+
+Changed in version 2.0.6
+------------------------
+
+- Added :meth:`h2mm_model.tobytes` and :meth:`h2mm_model.frombytes` methods enabling serializing/loading :class:`h2mm_model`
+
 Changed in version 2.0.5
 ------------------------
 

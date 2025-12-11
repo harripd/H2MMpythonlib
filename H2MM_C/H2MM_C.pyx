@@ -1488,7 +1488,7 @@ cdef class h2mm_model:
             ``text`` is output of ``print_func`` call. At end of optimization,
             ``fmtr.close()`` will be called. If ``print_formatter`` is :code:`None`
             then will use the formatter specified in ``optimization_limits``.
-            The default is :code:`None:.
+            The default is :code:`None`.
         
         print_fmt_args : tuple, Any or None, optional
             Additional arguments passed to ``print_formatter``, if None, ignored,
@@ -2785,7 +2785,7 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         ``text`` is output of ``print_func`` call. At end of optimization,
         ``fmtr.close()`` will be called. If ``print_formatter`` is :code:`None`
         then will use the formatter specified in ``optimization_limits``.
-        The default is :code:`None:.
+        The default is :code:`None`.
     
     print_fmt_args : tuple, Any or None, optional
         Additional arguments passed to ``print_formatter``, if None, ignored,

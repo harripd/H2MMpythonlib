@@ -134,10 +134,13 @@ Or as a whole:
     The parameters :attr:`formatter`` and :attr:`outstream` are disucssed in :ref:`print_formatter`
 
 
-Hashable models *New v2.0*
---------------------------
+New v2.0
+--------
 
-Version 2.0 introduced limited abilities to hash and use `h2mm_model`
+Frozen models
+*************
+
+Version 2.0 introduced limited abilities to hash and use :class:`h2mm_model`
 objects as keys in dictionaries.
 
 By default, most models cannot be used in this way,
@@ -186,6 +189,78 @@ equality comparisons.
     Once a model is sorted so it can be hashed, it is fixed.
     It can no longer be assigned new :code:`prior` / :code:`trans` / :code:`obs`
     values, and optimizations must be performed with :code:`inplace=False`
+
+
+``convcode`` bitmask
+********************
+The :attr:`h2mm_model.conv_code` property is a number that informs on the nature of the model.
+While is is more common to interpret this with the :attr:`h2mm_model.conv_str`,
+
+A full list is in the :ref:`constants` section of the documentation,
+but we will provide a simple example of the usage here.
+
+To test if a given model has been sorted and frozen, we can `&` (bitwise and) the constant `H2MM_C.convcode.frozen` with a model:
+
+.. code-block::
+
+    bool(model_5s3d.conv_code & hm.convcode.frozen), bool(sorted_model_5s3d.conv_code & hm.convcode.frozen)
+
+| (False, True)
+
+
+Model Serialization
+*******************
+
+Version 2.0.6 introduced the :meth:`h2mm_model.tobytes` and :meth:`h2mm_model.frombytes` 
+method and classmethod respectively.
+These generate and interpret a bytes objects that represent all values of 
+an :class:`h2mm_model` object.
+This is useful if you want to save your data for later:
+
+.. code-block::
+
+    model_bytes = model_5s3d.tobytes()
+    print(f'tobytes creates a {type(model_bytes)}')
+    model_loaded = hm.h2mm_model.frombytes(model_bytes)
+    print(f'frombytes creates a {type(model_loaded)}')
+    print("Original model:")
+    print(repr(model_5s3d))
+    print('--------------------------------')
+    print("loaded model")
+    print(repr(model_loaded))
+
+| tobytes creates a <class 'bytes'>
+| frombytes creates a <class 'H2MM_C.h2mm_model'>
+| Original model:
+| nstate: 4, ndet: 3, nphot: 436084, niter: 1000, loglik: -408237.71297778725 converged state: 0x47
+| prior:
+| 0.6245004645842184, 0.030662090712150807, 0.1924008209154963, 0.15243662378813444
+| trans:
+| 0.9432491631685289, 0.024409636842630065, 0.03234119998884105, 7.969094511822206e-25
+| 2.055157130067666e-05, 0.9999671611112879, 1.0292524987281316e-05, 1.9947924240066577e-06
+| 4.9177071302160525e-06, 6.376167245906585e-06, 0.999978781601267, 9.924524356814171e-06
+| 3.0410544170313242e-06, 2.573965040036105e-06, 3.792681366573989e-05, 0.9999564581668772
+| obs:
+| 0.6174979502908565, 0.38250204970116924, 7.974116882904588e-12
+| 0.14418825554260808, 0.2894580006333491, 0.5663537438240428
+| 0.4416166011580735, 0.08698269744731542, 0.47140070139461104
+| 0.840976670297041, 0.07645342127367338, 0.08256990842928548
+| 
+| --------------------------------
+| loaded model
+| nstate: 4, ndet: 3, nphot: 436084, niter: 1000, loglik: -408237.71297778725 converged state: 0x47
+| prior:
+| 0.6245004645842184, 0.030662090712150807, 0.1924008209154963, 0.15243662378813444
+| trans:
+| 0.9432491631685289, 0.024409636842630065, 0.03234119998884105, 7.969094511822206e-25
+| 2.055157130067666e-05, 0.9999671611112879, 1.0292524987281316e-05, 1.9947924240066577e-06
+| 4.9177071302160525e-06, 6.376167245906585e-06, 0.999978781601267, 9.924524356814171e-06
+| 3.0410544170313242e-06, 2.573965040036105e-06, 3.792681366573989e-05, 0.9999564581668772
+| obs:
+| 0.6174979502908565, 0.38250204970116924, 7.974116882904588e-12
+| 0.14418825554260808, 0.2894580006333491, 0.5663537438240428
+| 0.4416166011580735, 0.08698269744731542, 0.47140070139461104
+| 0.840976670297041, 0.07645342127367338, 0.08256990842928548
 
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
