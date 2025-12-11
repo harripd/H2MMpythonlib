@@ -1026,20 +1026,22 @@ cdef class h2mm_model:
         cdef Py_ssize_t ln = len(buf)
         if ln < (sizeof(int64_t)*5 + sizeof(double)):
             raise ValueError("bytes too small to read as h2mm_model")
-        cdef array.array mqi = array.array('q', (0,0,0,0,0))
-        cdef array.array mdi = array.array('d', (0.0,))
-        memcpy(mqi.data.as_voidptr, buf.data.as_voidptr, 5*sizeof(int64_t))
-        memcpy(mdi.data.as_voidptr, buf.data.as_voidptr+5*sizeof(int64_t), sizeof(double))
-        cdef Py_ssize_t eln = (mqi[0]+mqi[1]+1)*mqi[0]*sizeof(double)+sizeof(double)+5*sizeof(int64_t)
+        cdef int64_t nstate
+        cdef int64_t ndet
+        cdef int64_t nphot
+        memcpy(&nstate, buf.data.as_voidptr, sizeof(int64_t))
+        memcpy(&ndet, buf.data.as_voidptr+sizeof(int64_t), sizeof(int64_t))
+        memcpy(&nphot, buf.data.as_voidptr+sizeof(int64_t)*2, sizeof(int64_t))
+        cdef Py_ssize_t eln = 5*sizeof(int64_t)+sizeof(double)+(1+nstate+ndet)*nstate*sizeof(double)
         if eln != ln:
-            raise ValueError(f"mallformed h2mm_model bytes array, specified {mqi[0]} states and {mqi[1]} dets, meaning buffer size should be {eln}, but buffer has size {ln}")
+            raise ValueError(f"mallformed h2mm_model bytes array, specified {nstate} states and {ndet} dets, meaning buffer size should be {eln}, but buffer has size {ln}")
         cdef h2mm_model new = h2mm_model.__new__(h2mm_model)
-        new.model = Py_allocate_models(1, mqi[0], mqi[1], mqi[2])
-        new.model.niter = mqi[3]
-        new.model.conv = mqi[4]
-        new.model.loglik = mdi[0]
+        new.model = Py_allocate_models(1, nstate, ndet, nphot)
+        memcpy(<void*>&new.model.niter, buf.data.as_voidptr+sizeof(int64_t)*3, sizeof(int64_t))
+        memcpy(<void*>&new.model.conv, buf.data.as_voidptr+sizeof(int64_t)*4, sizeof(int64_t))
+        memcpy(<void*>&new.model.loglik, buf.data.as_voidptr+sizeof(int64_t)*5, sizeof(double))
         memcpy(<void*>new.model.prior, buf.data.as_voidptr+sizeof(int64_t)*5+sizeof(double), new.model.nstate*sizeof(double))
-        memcpy(<void*>new.model.trans, buf.data.as_voidptr+(sizeof(int64_t)*5+sizeof(double)+sizeof(double)*new.model.nstate), new.model.nstate*new.model.nstate*sizeof(double))
+        memcpy(<void*>new.model.trans, buf.data.as_voidptr+sizeof(int64_t)*5+sizeof(double)+sizeof(double)*new.model.nstate, new.model.nstate*new.model.nstate*sizeof(double))
         memcpy(<void*>new.model.obs, buf.data.as_voidptr+5*sizeof(int64_t)+sizeof(double)+(1+new.model.nstate)*new.model.nstate*sizeof(double), new.model.nstate*new.model.ndet*sizeof(double))
         return new
 
