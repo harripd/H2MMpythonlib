@@ -986,15 +986,15 @@ cdef class h2mm_model:
         """
         cdef array.array arr = array.array('b', [])
         array.resize(arr, 5*sizeof(int64_t)+(self.model.nstate*(1+self.model.nstate+self.model.ndet)+1)*sizeof(double))
-        memcpy(arr.data.as_voidptr, <char*>&self.model.nstate, sizeof(int64_t))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t), <char*>&self.model.ndet, sizeof(int64_t))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*2, <char*>&self.model.nphot, sizeof(int64_t))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*3, <char*>&self.model.niter, sizeof(int64_t))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*4, <char*>&self.model.conv, sizeof(int64_t))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*5, <char*>&self.model.loglik, sizeof(double))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*5+sizeof(double), <char*>self.model.prior, self.model.nstate*sizeof(double))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*5+sizeof(double)+self.model.nstate*sizeof(double), <char*>self.model.trans, (self.model.nstate**2)*sizeof(double))
-        memcpy(arr.data.as_voidptr+sizeof(int64_t)*5+sizeof(double)+self.model.nstate*(self.model.nstate+1)*sizeof(double), <char*>self.model.obs, self.model.ndet*self.model.nstate*sizeof(double))
+        memcpy(arr.data.as_chars, <char*>&self.model.nstate, sizeof(int64_t))
+        memcpy(arr.data.as_chars+sizeof(int64_t), <char*>&self.model.ndet, sizeof(int64_t))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*2, <char*>&self.model.nphot, sizeof(int64_t))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*3, <char*>&self.model.niter, sizeof(int64_t))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*4, <char*>&self.model.conv, sizeof(int64_t))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*5, <char*>&self.model.loglik, sizeof(double))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*5+sizeof(double), <char*>self.model.prior, self.model.nstate*sizeof(double))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*5+sizeof(double)+self.model.nstate*sizeof(double), <char*>self.model.trans, (self.model.nstate**2)*sizeof(double))
+        memcpy(arr.data.as_chars+sizeof(int64_t)*5+sizeof(double)+self.model.nstate*(self.model.nstate+1)*sizeof(double), <char*>self.model.obs, self.model.ndet*self.model.nstate*sizeof(double))
         return arr.tobytes()
 
     @classmethod
@@ -1037,12 +1037,12 @@ cdef class h2mm_model:
             raise ValueError(f"mallformed h2mm_model bytes array, specified {nstate} states and {ndet} dets, meaning buffer size should be {eln}, but buffer has size {ln}")
         cdef h2mm_model new = h2mm_model.__new__(h2mm_model)
         new.model = Py_allocate_models(1, nstate, ndet, nphot)
-        memcpy(<void*>&new.model.niter, buf.data.as_voidptr+sizeof(int64_t)*3, sizeof(int64_t))
-        memcpy(<void*>&new.model.conv, buf.data.as_voidptr+sizeof(int64_t)*4, sizeof(int64_t))
-        memcpy(<void*>&new.model.loglik, buf.data.as_voidptr+sizeof(int64_t)*5, sizeof(double))
-        memcpy(<void*>new.model.prior, buf.data.as_voidptr+sizeof(int64_t)*5+sizeof(double), new.model.nstate*sizeof(double))
-        memcpy(<void*>new.model.trans, buf.data.as_voidptr+sizeof(int64_t)*5+sizeof(double)+sizeof(double)*new.model.nstate, new.model.nstate*new.model.nstate*sizeof(double))
-        memcpy(<void*>new.model.obs, buf.data.as_voidptr+5*sizeof(int64_t)+sizeof(double)+(1+new.model.nstate)*new.model.nstate*sizeof(double), new.model.nstate*new.model.ndet*sizeof(double))
+        memcpy(<void*>&new.model.niter, buf.data.as_chars+sizeof(int64_t)*3, sizeof(int64_t))
+        memcpy(<void*>&new.model.conv, buf.data.as_chars+sizeof(int64_t)*4, sizeof(int64_t))
+        memcpy(<void*>&new.model.loglik, buf.data.as_chars+sizeof(int64_t)*5, sizeof(double))
+        memcpy(<void*>new.model.prior, buf.data.as_chars+sizeof(int64_t)*5+sizeof(double), new.model.nstate*sizeof(double))
+        memcpy(<void*>new.model.trans, buf.data.as_chars+sizeof(int64_t)*5+sizeof(double)+sizeof(double)*new.model.nstate, new.model.nstate*new.model.nstate*sizeof(double))
+        memcpy(<void*>new.model.obs, buf.data.as_chars+5*sizeof(int64_t)+sizeof(double)+(1+new.model.nstate)*new.model.nstate*sizeof(double), new.model.nstate*new.model.ndet*sizeof(double))
         return new
 
     def __repr__(self):
