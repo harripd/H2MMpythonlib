@@ -1029,9 +1029,9 @@ cdef class h2mm_model:
         cdef int64_t nstate
         cdef int64_t ndet
         cdef int64_t nphot
-        memcpy(&nstate, buf.data.as_voidptr, sizeof(int64_t))
-        memcpy(&ndet, buf.data.as_voidptr+sizeof(int64_t), sizeof(int64_t))
-        memcpy(&nphot, buf.data.as_voidptr+sizeof(int64_t)*2, sizeof(int64_t))
+        memcpy(&nstate, buf.data.as_chars, sizeof(int64_t))
+        memcpy(&ndet, buf.data.as_chars+sizeof(int64_t), sizeof(int64_t))
+        memcpy(&nphot, buf.data.as_chars+sizeof(int64_t)*2, sizeof(int64_t))
         cdef Py_ssize_t eln = 5*sizeof(int64_t)+sizeof(double)+(1+nstate+ndet)*nstate*sizeof(double)
         if eln != ln:
             raise ValueError(f"mallformed h2mm_model bytes array, specified {nstate} states and {ndet} dets, meaning buffer size should be {eln}, but buffer has size {ln}")
