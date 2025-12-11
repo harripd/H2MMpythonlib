@@ -193,10 +193,12 @@ def opt_model(request):
     dets, times, nphot = data_gen_list()
     return h2.EM_H2MM_C(h2.factory_h2mm_model(nstate,2), dets, times, max_iter=20)
 
+
 def test_model_norm(opt_model):
     assert np.allclose(opt_model.prior.sum(), 1.0)
     assert np.allclose(opt_model.trans.sum(axis=1), 1.0)
     assert np.allclose(opt_model.obs.sum(axis=1), 1.0)
+
 
 def model_opt():
     dets, times, nphot = data_gen_list()
@@ -215,7 +217,6 @@ def model_opt():
 @pytest.fixture(scope='module', params=[out for out in model_opt()])
 def model_array(request):
     return request.param
-
 
 
 def test_H2MM_arr(model_array,simple_data_all):
@@ -392,6 +393,7 @@ def test_Sim():
     model_test = h2.factory_h2mm_model(3,2).optimize(colors,times,bounds=limits,bounds_func='revert',max_iter=3000)
     assert model_almost_equal(model_test,model_init)
 
+
 def test_BadData(opt_model):
     """
     Test errors raised when bad data is passed to array
@@ -411,6 +413,7 @@ def test_BadData(opt_model):
     with pytest.raises(Exception):
         h2.EM_H2MM_C(opt_model, time, dets)
 
+
 def test_BadLimits(opt_model, simple_data_list):
     """
     Check errors raised when bad limits func is passed
@@ -420,6 +423,7 @@ def test_BadLimits(opt_model, simple_data_list):
         h2.EM_H2MM_C(opt_model, dets, times, bounds_func=limits_func_bad_size)
     with pytest.raises(TypeError):
         h2.EM_H2MM_C(opt_model, dets, times, bounds_func=limits_func_bad_return)
+
 
 def test_OOp(simple_data_all):
     """
@@ -444,7 +448,8 @@ def test_OOp(simple_data_all):
     ev_mod = in_mod.evaluate(dets, times, inplace=True)
     assert in_mod.loglik < 0 and not np.isinf(in_mod.loglik)
     assert in_mod.nphot == nphot
-    
+
+
 def test_hash():
     m1 = h2.h2mm_model(np.array([0.2,0.5,0.3]), 
                        np.array([[0.99, 0.005, 0.005],
@@ -460,6 +465,23 @@ def test_hash():
     assert mh1 == m1
     m2 = h2.factory_h2mm_model(3,2).sort_states()
     assert m2 != mh1
+
+
+def test_bytes(opt_model):
+    bt = opt_model.tobytes()
+    bmodel = h2.h2mm_model.frombytes(bt)
+    assert bmodel.nstate == opt_model.nstate, "nstate not re-created"
+    assert bmodel.ndet == opt_model.ndet, "ndet not re-created"
+    assert bmodel.nphot == opt_model.nphot, "nphot not re-created"
+    assert bmodel.niter == opt_model.niter, "niter not re-created"
+    assert bmodel.conv_code == opt_model.conv_code, "conv_code not re-created"
+    assert bmodel.loglik == opt_model.loglik, "loglik not re-created"
+    assert bmodel.conv_code == opt_model.conv_code, "conv_code not re-created"
+    assert np.all(bmodel.prior == opt_model.prior), "prior not re-created"
+    assert np.all(bmodel.trans == opt_model.trans), "trans no re-created"
+    assert np.all(bmodel.obs == opt_model.obs), "obs not re-created"
+
+
 
 if __name__ == '__main__':
     pytest.main(['-x, -v, tests/test_H2MM.py'])
