@@ -1,21 +1,14 @@
 name: Test
 
-on: 
-  push:
-    branches:
-      - main
-      - gitactions_test
-  pull_request:
-    branches:
-      - main
-
+on: [push, pull_request]
+    
 jobs:
   test:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-13, macOS-14]
+        os: [ubuntu-latest, windows-latest, macos14-large, macos-latest]
         python-version: ["3.8", "3.11", "3.13"]
         exclude:
           - os: macos-latest
