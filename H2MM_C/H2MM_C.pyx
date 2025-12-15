@@ -1078,7 +1078,7 @@ cdef class h2mm_model:
     
     @prior.setter
     def prior(self,prior):
-        if self.model.conv == 8:
+        if self.model.conv & CONVCODE_FIXEDMODEL:
             raise AttributeError("Fixed models cannot be altered")
         if prior.ndim != 1:
             raise ValueError("Prior must be 1D numpy floating point array")
@@ -1101,7 +1101,7 @@ cdef class h2mm_model:
     
     @trans.setter
     def trans(self, trans):
-        if self.model.conv == 8:
+        if self.model.conv & CONVCODE_FIXEDMODEL:
             raise AttributeError("Fixed models cannot be altered")
         if trans.ndim != 2:
             raise ValueError("Trans must be a 2D numpy floating point array")
@@ -1127,7 +1127,7 @@ cdef class h2mm_model:
     
     @obs.setter
     def obs(self,obs):
-        if self.model.conv == 8:
+        if self.model.conv & CONVCODE_FIXEDMODEL:
             raise AttributeError("Fixed models cannot be altered")
         if obs.ndim != 2:
             raise ValueError("Obs must be a 2D numpy floating point array")
@@ -1223,7 +1223,7 @@ cdef class h2mm_model:
     
     @niter.setter
     def niter(self,niter):
-        if self.model.conv in (1, 8):
+        if self.model.conv & CONVCODE_FIXEDMODEL:
             raise AttributeError("Cannot set niter for this type of model")
         if niter <= 0:
             raise ValueError("Cannot have negative iterations")
@@ -1594,7 +1594,7 @@ cdef class h2mm_model:
                       print_fmt_args=print_fmt_args, print_fmt_kwargs=print_fmt_kwargs,
                       max_time=max_time, converged_min=converged_min, num_cores=num_cores, 
                       reset_niter=reset_niter, gamma=gamma, opt_array=opt_array)
-        if inplace and not self.model.conv & CONVCODE_FIXEDMODEL:
+        if inplace:
             # separate the models from gamma
             if gamma:
                 out_arr, gamma = out
@@ -1669,7 +1669,9 @@ cdef class h2mm_model:
             out_model, gamma = out
         else:
             out_model = out
-        if inplace and not self.model.conv & CONVCODE_FIXEDMODEL:
+        if inplace:
+            if self.model.conv & CONVCODE_FIXEDMODEL:
+                raise TypeError("cannot inplace evaluate fixed model")
             copy_model(out_model.model, self.model)
         return out
     
@@ -3136,7 +3138,7 @@ cdef tuple make_h2mm_arr_modptr(models, bint *modelsingle, int64_t *nmodels, h2m
 
 
 cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_mod *models, int64_t nbursts, int64_t *burst_sizes, double ****gamma):
-    cdef cnp.ndarray[object, ndim=2] out = NULL
+    cdef cnp.ndarray[object, ndim=2] out
     cdef bint err = False
     e = None
     try:
@@ -3605,7 +3607,7 @@ cdef tuple cpath_ll_full(int64_t nbursts, int64_t *burst_sizes, int32_t **cdelta
     cdef cnp.ndarray[double, ndim=1] temp
     cdef int64_t i
     # allocate loglik arrays
-    cdef double **ll = <double**> PyMem_Malloc(sizeof(*double)*nbursts)
+    cdef double **ll = <double**> PyMem_Malloc(sizeof(double*)*nbursts)
     if ll is NULL:
         return MemoryError("insufficient memory"), loglik
     for i in range(nbursts):
@@ -3616,14 +3618,16 @@ cdef tuple cpath_ll_full(int64_t nbursts, int64_t *burst_sizes, int32_t **cdelta
             return exception, loglik
         loglik[i] = temp
         ll[i] = <double*> temp.data
+    print("loglik path")
     cdef int ret = pathloglik_path(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
+    PyMem_Free(ll)
     return ret, loglik
 
 
 cdef tuple cpath_ll(int64_t nbursts, int64_t *burst_sizes, int32_t **cdeltas, uint8_t **cindexes, uint8_t **cstate_path, h2mm_mod *model, int64_t ncore):
     cdef cnp.ndarray[double, ndim=1] loglik = np.empty(nbursts, dtype=np.double)
     cdef double *ll = <double*> loglik.data
-    cdef int ret = pathloglik_path(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
+    cdef int ret = pathloglik(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
     return ret, loglik
 
 
@@ -3696,17 +3700,17 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
     cdef int64_t i
     cdef int64_t nphot = sum(burst_sizes[i] for i in range(nbursts))
     if loglikpath:
-        res, loglikpath = cpath_ll_full(nbursts, burst_size, cdeltas, cindexes, cstate_path, model.model, ncore)
+        res, loglikp = cpath_ll_full(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model.model, ncore)
         if not isinstance(res, Exception):
-            loglik = np.array([l.sum() for l in loglikpath], dtype=np.double)
+            loglik = np.array([l.sum() for l in loglikp], dtype=np.double)
     else:
-        res, loglik = cpath_ll(nbursts, burst_size, cdeltas, cindexes, cstate_path, model.model, ncore)
+        res, loglik = cpath_ll(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model.model, ncore)
     # cdef cnp.ndarray[double, ndim=1] loglik = np.empty(nbursts, dtype=np.double)
     # cdef double *ll = <double*> loglik.data
     # cdef res = pathloglik(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model.model, ll, ncore)
     free_idx_diffs_path_arrays(nbursts, burst_sizes, cindexes, cdeltas, cstate_path)
     # catch errors
-    if isisntance(res, Exception):
+    if isinstance(res, Exception):
         raise res
     elif res == -2:
         raise ValueError("Detector indexes out of range")
@@ -3724,7 +3728,7 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
     if loglikarray:
         out.append(loglik.reshape(shape))
     if loglikpath:
-        out.append(loglikpath)
+        out.append(loglikp.reshape(shape))
     if len(out) == 1:
         out = out[0]
     else:

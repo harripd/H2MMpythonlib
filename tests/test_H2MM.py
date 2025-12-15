@@ -7,7 +7,7 @@ Tests for verification of H2MM_C functions
 """
 
 import numpy as np
-from itertools import combinations_with_replacement
+from itertools import product
 
 import pytest
 import H2MM_C as h2
@@ -249,30 +249,41 @@ def test_Viterbi(opt_model,simple_data_all):
         assert np.issubdtype(s.dtype, np.floating)
         assert np.all(s <= 1.0), f"{(opt_model.prior*opt_model.obs[:,d[0]]).sum()}"
         assert np.all(s >= 0.0)
-    for BIC, LL, log in combinations_with_replacement((True, False), 3):
-        if sum((BIC, LL, log)) == 0:
+    for BIC, LL, log, logpath in product(*((False, True) for _ in  range(4))):
+        if sum((BIC, LL, log, logpath)) == 0:
             continue
-        out = h2.path_loglik(opt_model, dets, times, path, BIC=BIC, total_loglik=LL, loglikarray=log)
-        if sum((BIC, LL, log)) == 1:
+        out = h2.path_loglik(opt_model, dets, times, path, BIC=BIC, total_loglik=LL, loglikarray=log, loglikpath=logpath)
+        if sum((BIC, LL, log, logpath)) == 1:
             out = (out, )
         cur_pos = 0
         if BIC:
             bic = out[cur_pos]
-            assert bic > 0.0
             cur_pos += 1
+            assert bic > 0.0
         if LL:
             ll = out[cur_pos]
-            assert ll < 0.0
             cur_pos += 1
+            assert ll < 0.0
             if BIC and LL:
                 assert np.allclose(bic, np.log(nphot)*opt_model.k-2*ll)
         if log:
             lg = out[cur_pos]
+            cur_pos += 1
             assert np.all(lg < 0.0)
             assert true_size(lg) == true_size(dets)
             assert np.issubdtype(lg.dtype, np.floating)
             if log and LL:
                 assert np.allclose(lg.sum(), ll)
+        if logpath:
+            lp = out[cur_pos]
+            assert isinstance(lp, np.ndarray) and lp.dtype == np.object_, f"wrong logpath dtype: {type(lp)}"
+            assert all(np.all(lpa < 0.0) for lpa in lp), "loglik improperly calculated"
+            if log:
+                assert np.allclose(np.array([l.sum() for l in lp]), lg)
+    lg = h2.path_loglik(opt_model, dets, times, path, BIC=False, total_loglik=False, loglikarray=True, loglikpath=False)
+    lp = h2.path_loglik(opt_model, dets, times, path, BIC=False, total_loglik=False, loglikarray=False, loglikpath=True)
+    assert np.allclose(lg, np.array([l.sum() for l in lp])), "loglik by array and path differ in result"
+    
 
 ###############################################################################
 ### The following function is a better verification.
@@ -373,7 +384,7 @@ def test_User_print_str(opt_model, simple_data_list):
     with pytest.raises(Exception):
         h2.EM_H2MM_C(opt_model, dets, times, print_func=print_func_exception)
 
-#################### Start Here ###############################################
+
 def test_Sim():
     """
     Simulate a trajectory with simulation function, then check if optimization finds
@@ -465,6 +476,65 @@ def test_hash():
     assert mh1 == m1
     m2 = h2.factory_h2mm_model(3,2).sort_states()
     assert m2 != mh1
+
+
+def verify_allmodel(model, nstate, ndet, nphot, niter, conv, ll, prior, trans, obs):
+    assert model.nstate == nstate, "nstate changed"
+    assert model.ndet == ndet, "ndet changed"
+    assert model.nphot == nphot, "nphot changed"
+    assert model.niter == niter, "niter changed"
+    assert model.conv_code == conv, "conv_code changed"
+    if model.nphot == 0:
+        with pytest.warns():
+            assert (np.isnan(model.loglik) and np.isnan(ll)) or model.loglik == ll, "loglik changed"
+    else:
+        assert (np.isnan(model.loglik) and np.isnan(ll)) or model.loglik == ll, "loglik changed"
+    assert np.all(model.prior == prior), "prior changed"
+    assert np.all(model.trans == trans), "trans changed"
+    assert np.all(model.obs == obs), "obs changed"
+
+
+def test_immutable(simple_data_np):
+    dets, times, nphot = simple_data_np
+    m1 = h2.factory_h2mm_model(2, 3).sort_states()
+    m1nstate = m1.nstate
+    m1ndet = m1.ndet
+    m1nphot = m1.nphot
+    m1niter = m1.niter
+    m1conv = m1.conv_code
+    if m1.nphot == 0:
+        with pytest.warns():
+            m1ll = m1.loglik
+    else:
+        m1ll = m1.loglik
+    m1prior = m1.prior
+    m1trans = m1.trans
+    m1obs = m1.obs
+    h2.H2MM_arr(m1, dets, times)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    m1.evaluate(dets, times, inplace=False)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    with pytest.raises(TypeError):
+        m1.evaluate(dets, times, inplace=True)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    m2 = h2.EM_H2MM_C(m1, dets, times)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    m3 = m1.optimize(dets, times, inplace = False)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    with pytest.raises(TypeError):
+        m1.optimize(dets, times, inplace=True)
+    h2.H2MM_arr([m1, m2, m3], dets, times)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    path, _, _ , _ = h2.viterbi_path(m1, dets, times)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    h2.path_loglik(m1, dets, times, path)
+    verify_allmodel(m1, m1nstate, m1ndet, m1nphot, m1niter, m1conv, m1ll, m1prior, m1trans, m1obs)
+    with pytest.raises(AttributeError):
+        m1.prior = np.ones(m1.nstate) / m1.nstate
+    with pytest.raises(AttributeError):
+        m1.trans = np.ones((m1.nstate, m1.nstate)) / m1.nstate
+    with pytest.raises(AttributeError):
+        m1.prior = np.ones((m1.nstate, m1.ndet)) / m1.ndet
 
 
 def test_bytes(opt_model):

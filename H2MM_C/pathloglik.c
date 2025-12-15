@@ -139,7 +139,6 @@ DWORD WINAPI path_ll(void* in)
 }
 
 
-
 int pathloglik_path(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uint8_t ** dets, uint8_t **states, h2mm_mod *model, double **loglik, int64_t num_cores)
 {
 	phstream* bursts = (phstream*) malloc(num_burst*sizeof(phstream));
@@ -184,7 +183,7 @@ int pathloglik_path(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uin
 	}
 #if defined(__linux__) || defined(__APPLE__)
 	for ( i = 0; i < num_cores; i++)
-		pthread_create(&tid[i],NULL,path_ll,(void*) &burst_submit[i]);
+		pthread_create(&tid[i],NULL,path_ll_path,(void*) &burst_submit[i]);
 	// wait for all threads to finish
 	for ( i = 0; i < num_cores; i++)
 		pthread_join(tid[i],NULL);
@@ -232,13 +231,14 @@ int pathloglik_path(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uin
 	return 0;
 }
 
+
 #if defined(__linux__) || defined(__APPLE__)
 void* path_ll_path(void *in)
 #elif _WIN32
 DWORD WINAPI path_ll_path(void* in)
 #endif
 {
-	pll_valsp *D = (pllp_vals*) in;
+	pllp_vals *D = (pllp_vals*) in;
 	int64_t cur_burst, i , j;
 	while ((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
 	{

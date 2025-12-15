@@ -5,6 +5,7 @@ Created on Tue Sep  9 07:19:01 2025
 
 @author: paul
 """
+from itertools import product
 
 import numpy as np
 import H2MM_C as hm
@@ -89,20 +90,26 @@ if __name__ == "__main__":
     except Exception as e:
         err = e
     else:
-        raise ValueError("limit raise functio did not raise an error")
+        raise ValueError("limit raise function did not raise an error")
     try:
         mo1 = mi2.optimize(c2, t2, print_func=print_bad)
     except Exception as e:
         err = e
     else:
-        raise ValueError("")
+        raise ValueError("bad print func did not raise an error")
     for vp in valid_print:
-        ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3,2), c2, t2, max_iter=100, print_func=vp)
+        ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3,2), c2, t2, max_iter=3, print_func=vp)
+        break
     for vp in valid_bound_str:
         print(vp)
         ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3,2), c2, t2, max_iter=100, bounds_func=vp, bounds=bi2)
     for vp in valid_bound:
         print(vp, callable(vp))
         ot = hm.EM_H2MM_C(hm.factory_h2mm_model(3, 2), c2, t2, max_iter=100, bounds_func=vp, bounds_kwargs=dict(conv=1e-8))
+    path, scale, ll, icl = hm.viterbi_path(ot, c2, t2)
+    for bic, total_loglik, loglikarray, loglikpath in product(*((False, True) for _ in range(4))):
+        if sum((bic, total_loglik, loglikarray, loglikpath)) == 0:
+            continue
+        _ = hm.path_loglik(ot, c2, t2, path, BIC=bic, total_loglik=total_loglik, loglikarray=loglikarray, loglikpath=loglikpath)
     md = [hm.factory_h2mm_model(3,2),  hm.factory_h2mm_model(3,2)]
     out = hm.H2MM_arr(md, c2, t2)
