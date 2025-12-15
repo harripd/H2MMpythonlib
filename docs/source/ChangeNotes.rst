@@ -4,6 +4,17 @@ Change Notes
 .. currentmodule:: H2MM_C
 
 
+Changed in Version 2.1.0
+------------------------
+
+- Added ``loglikpath`` keyword argument to :func:`path_loglik`, if :code:`True`,
+  the loglikelihood of each photon is return in an array of arrays.
+
+- Fixed
+    - Setting of :attr:`h2mm_model.prior`, :attr:`h2mm_model.trans` :attr:`h2mm_model.obs`, and :attr:`h2mm_model.niter` after model is sorted now raises an error.
+    - :meth:`h2mm_model.optimize` after models sorted with option ``inplace=True`` now raises error and prevents modification of model.
+
+
 Changed in version 2.0.6
 ------------------------
 
