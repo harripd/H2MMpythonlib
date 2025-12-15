@@ -3604,6 +3604,7 @@ cdef tuple cast_indexes_times_paths(indexes, times, paths, bint *single, int64_t
 
 cdef tuple cpath_ll_full(int64_t nbursts, int64_t *burst_sizes, int32_t **cdeltas, uint8_t **cindexes, uint8_t **cstate_path, h2mm_mod *model, int64_t ncore):
     cdef cnp.ndarray[object, ndim=1] loglik = np.empty(nbursts, dtype=object)
+    cdef object obtemp
     cdef cnp.ndarray[double, ndim=1] temp
     cdef int64_t i
     # allocate loglik arrays
@@ -3612,13 +3613,13 @@ cdef tuple cpath_ll_full(int64_t nbursts, int64_t *burst_sizes, int32_t **cdelta
         return MemoryError("insufficient memory"), loglik
     for i in range(nbursts):
         try:
-            temp = np.empty(burst_sizes[i], dtype=np.double)
+            obtemp = np.empty(burst_sizes[i], dtype=np.double)
         except Exception as exception:
             PyMem_Free(ll)
             return exception, loglik
+        temp = obtemp
         loglik[i] = temp
         ll[i] = <double*> temp.data
-    print("loglik path")
     cdef int ret = pathloglik_path(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
     PyMem_Free(ll)
     return ret, loglik
