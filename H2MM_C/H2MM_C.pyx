@@ -75,6 +75,7 @@ cdef extern from "C_H2MM.h" nogil:
     int sparsestatepath(h2mm_mod* model, int64_t lent, int64_t* times, uint8_t* path, unsigned int seed)
     int phpathgen(h2mm_mod* model, int64_t lent, uint8_t* path, uint8_t* traj, unsigned int seed)
     int pathloglik(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uint8_t ** dets, uint8_t **states, h2mm_mod *model, double *loglik, int64_t num_cores)
+    int pathloglik_path(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uint8_t ** dets, uint8_t **states, h2mm_mod *model, double **loglik, int64_t num_cores)
     
     int64_t CONVCODE_FROMOPT
     int64_t CONVCODE_LLCOMPUTED
@@ -1228,17 +1229,18 @@ cdef class h2mm_model:
             raise ValueError("Cannot have negative iterations")
         self.model.niter = niter
     
-    def set_converged(self,converged=True):
+    def set_converged(self, converged=True):
         """Modify model to mark as converged or not"""
-        if not isinstance(converged,bool):
-            raise ValueError("Input must be True or False")
+        converged = bool(converged)
         if self.model.nphot == 0 or self.model.loglik == 0 or self.model.loglik == np.inf or np.isnan(self.model.loglik):
             raise Exception("Model uninitialized with data, cannot set converged")
+        if self.model.conv & CONVCODE_FIXEDMODEL:
+            raise Exception("Fixed model, cannot mutate converged state")
         if converged:
             self.model.conv |= CONVCODE_OUTPUT_CONVERGED
-        elif self.model.conv == 3:
+        else:
             self.model.conv &= ~(CONVCODE_OUTPUT|CONVCODE_ANYFINAL)
-            
+
     def sort_states(self):
         """Return model with states sorted by values in prior, and set as 'hashable'"""
         srt = np.argsort(self.prior)
@@ -1272,7 +1274,7 @@ cdef class h2mm_model:
     
     def normalize(self):
         """For internal use, ensures all model arrays are row stochastic"""
-        if self.model.conv != 8:
+        if not self.model.conv & CONVCODE_FIXEDMODEL:
             h2mm_normalize(self.model)
     
     def copy(self):
@@ -1592,7 +1594,7 @@ cdef class h2mm_model:
                       print_fmt_args=print_fmt_args, print_fmt_kwargs=print_fmt_kwargs,
                       max_time=max_time, converged_min=converged_min, num_cores=num_cores, 
                       reset_niter=reset_niter, gamma=gamma, opt_array=opt_array)
-        if inplace:
+        if inplace and not self.model.conv & CONVCODE_FIXEDMODEL:
             # separate the models from gamma
             if gamma:
                 out_arr, gamma = out
@@ -1667,7 +1669,7 @@ cdef class h2mm_model:
             out_model, gamma = out
         else:
             out_model = out
-        if inplace:
+        if inplace and not self.model.conv & CONVCODE_FIXEDMODEL:
             copy_model(out_model.model, self.model)
         return out
     
@@ -3124,16 +3126,17 @@ cdef tuple make_h2mm_arr_modptr(models, bint *modelsingle, int64_t *nmodels, h2m
             imod_arr[i].obs[j] = mtemp.obs[j]
         imod_arr[i].nstate = mtemp.nstate
         imod_arr[i].ndet = mtemp.ndet
-        imod_arr[i].loglik = 0.0
-        imod_arr[i].conv = 0
         imod_arr[i].nphot = 0
+        imod_arr[i].niter = 0
+        imod_arr[i].conv = 0
+        imod_arr[i].loglik = 0.0
     mod_arr[0] = imod_arr
     nmodels[0] = nmodel
     return shape, False
 
 
 cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_mod *models, int64_t nbursts, int64_t *burst_sizes, double ****gamma):
-    cdef cnp.ndarray[object, ndim=2] out 
+    cdef cnp.ndarray[object, ndim=2] out = NULL
     cdef bint err = False
     e = None
     try:
@@ -3147,7 +3150,7 @@ cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_m
     cdef int64_t i, j
     cdef double ***data = <double***> PyMem_Malloc(nbursts*sizeof(double**))
     if data is NULL:
-        return out, MemoryError("insufficient memory for gamma array")
+        return out
     for i in range(nmodels):
         data[i] = <double**> PyMem_Malloc(nbursts*sizeof(double*))
         if data[i] is NULL:
@@ -3595,10 +3598,37 @@ cdef tuple cast_indexes_times_paths(indexes, times, paths, bint *single, int64_t
         return tuple(), tuple(), err
     single[0] = sngl
     return shape, indexes, paths, None
-    
+
+
+cdef tuple cpath_ll_full(int64_t nbursts, int64_t *burst_sizes, int32_t **cdeltas, uint8_t **cindexes, uint8_t **cstate_path, h2mm_mod *model, int64_t ncore):
+    cdef cnp.ndarray[object, ndim=1] loglik = np.empty(nbursts, dtype=object)
+    cdef cnp.ndarray[double, ndim=1] temp
+    cdef int64_t i
+    # allocate loglik arrays
+    cdef double **ll = <double**> PyMem_Malloc(sizeof(*double)*nbursts)
+    if ll is NULL:
+        return MemoryError("insufficient memory"), loglik
+    for i in range(nbursts):
+        try:
+            temp = np.empty(burst_sizes[i], dtype=np.double)
+        except Exception as exception:
+            PyMem_Free(ll)
+            return exception, loglik
+        loglik[i] = temp
+        ll[i] = <double*> temp.data
+    cdef int ret = pathloglik_path(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
+    return ret, loglik
+
+
+cdef tuple cpath_ll(int64_t nbursts, int64_t *burst_sizes, int32_t **cdeltas, uint8_t **cindexes, uint8_t **cstate_path, h2mm_mod *model, int64_t ncore):
+    cdef cnp.ndarray[double, ndim=1] loglik = np.empty(nbursts, dtype=np.double)
+    cdef double *ll = <double*> loglik.data
+    cdef int ret = pathloglik_path(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
+    return ret, loglik
+
 
 def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None, 
-                BIC=True, total_loglik=False, loglikarray=False):
+                BIC=True, total_loglik=False, loglikarray=False, loglikpath=False):
     """
     Function for calculating the statistical parameters of a specific state path 
     and data set given a model (ln(P(XY|lambda))). By default returns the BIC of
@@ -3628,6 +3658,9 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
     loglikarray : bool, optional
         Whether to return the loglikelihoods of each burst as a numpy array. 
         The default is False.
+    loglikpath : bool, optional
+        Whether to return the loglikelihoods of each photon in each burst
+        as a numpy array of numpy arrays. The default is False
 
     Raises
     ------
@@ -3646,6 +3679,8 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
         Log likelihood of entire dataset
     loglik_array : numpy.ndarray
         Loglikelihood of each burst separately
+    loglikpath: numpy.ndarray
+        Loglikelihood of each photon of each burst array.
 
     """
     cdef int64_t ncore = <int64_t> optimization_limits._get_num_cores(num_cores)
@@ -3660,12 +3695,20 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
         raise err
     cdef int64_t i
     cdef int64_t nphot = sum(burst_sizes[i] for i in range(nbursts))
-    cdef cnp.ndarray[double, ndim=1] loglik = np.empty(nbursts, dtype=np.double)
-    cdef double *ll = <double*> loglik.data
-    cdef res = pathloglik(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model.model, ll, ncore)
+    if loglikpath:
+        res, loglikpath = cpath_ll_full(nbursts, burst_size, cdeltas, cindexes, cstate_path, model.model, ncore)
+        if not isinstance(res, Exception):
+            loglik = np.array([l.sum() for l in loglikpath], dtype=np.double)
+    else:
+        res, loglik = cpath_ll(nbursts, burst_size, cdeltas, cindexes, cstate_path, model.model, ncore)
+    # cdef cnp.ndarray[double, ndim=1] loglik = np.empty(nbursts, dtype=np.double)
+    # cdef double *ll = <double*> loglik.data
+    # cdef res = pathloglik(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model.model, ll, ncore)
     free_idx_diffs_path_arrays(nbursts, burst_sizes, cindexes, cdeltas, cstate_path)
     # catch errors
-    if res == -2:
+    if isisntance(res, Exception):
+        raise res
+    elif res == -2:
         raise ValueError("Detector indexes out of range")
     elif res == -1:
         raise ValueError("Empty or null array, raise issue on github")
@@ -3680,6 +3723,8 @@ def path_loglik(h2mm_model model, indexes, times, state_path, num_cores=None,
         out.append(sum_loglik)
     if loglikarray:
         out.append(loglik.reshape(shape))
+    if loglikpath:
+        out.append(loglikpath)
     if len(out) == 1:
         out = out[0]
     else:

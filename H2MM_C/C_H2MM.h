@@ -184,6 +184,16 @@ typedef struct
 } pll_vals;
 
 
+typedef struct
+{
+	double **ll;
+	uint8_t **state;
+	h2mm_mod *model;
+	trpow *A;
+	phstream *b;
+	brst_mutex *burst_lock;
+} pllp_vals;
+
 // Function definitions
 
 // loop_functions.c definitions
@@ -346,6 +356,13 @@ void* path_ll(void* in);
 DWORD WINAPI path_ll(void* in);
 #endif
 
+int pathloglik_path(int64_t num_burst, int64_t *len_burst, int32_t **deltas, uint8_t ** dets, uint8_t **states, h2mm_mod *model, double **loglik, int64_t num_cores);
+
+#if defined(__linux__) || defined(__APPLE__)
+void* path_ll_path(void* in);
+#elif _WIN32
+DWORD WINAPI path_ll_path(void* in);
+#endif
 // C_H2MM_txtread.c functions
 
 temps* burst_read(char *fname, int64_t *n);
