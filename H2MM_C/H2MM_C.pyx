@@ -3618,7 +3618,7 @@ cdef tuple cpath_ll_full(int64_t nbursts, int64_t *burst_sizes, int32_t **cdelta
             PyMem_Free(ll)
             return exception, loglik
         temp = obtemp
-        loglik[i] = temp
+        loglik[i] = obtemp
         ll[i] = <double*> temp.data
     cdef int ret = pathloglik_path(nbursts, burst_sizes, cdeltas, cindexes, cstate_path, model, ll, ncore)
     PyMem_Free(ll)
