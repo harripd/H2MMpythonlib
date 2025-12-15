@@ -4,7 +4,7 @@ Change Notes
 .. currentmodule:: H2MM_C
 
 
-Changed in Version 2.1.0
+Changed in Version 2.1.1
 ------------------------
 
 - Added ``loglikpath`` keyword argument to :func:`path_loglik`, if :code:`True`,
