@@ -12,7 +12,7 @@ from itertools import product
 import pytest
 import H2MM_C as h2
 
-rnd = np.random.default_rng(seed=15371)
+rnd = np.random.default_rng(seed=13371)
 
 
 def model_almost_equal(model1,model2):
