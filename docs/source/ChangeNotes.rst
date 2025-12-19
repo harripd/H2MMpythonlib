@@ -4,6 +4,12 @@ Change Notes
 .. currentmodule:: H2MM_C
 
 
+Changed in Version 2.1.X
+------------------------
+
+- Fixed: issue `Issue 4 <https://github.com/harripd/H2MMpythonlib/issues/4>`_ where :func:`viterbi_sort` failed when run from ipython ``__main__``.
+
+
 Changed in Version 2.1.1
 ------------------------
 

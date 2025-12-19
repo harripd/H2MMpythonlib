@@ -3411,7 +3411,7 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     return out
 
 
-def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
+def viterbi_sort(hmod, indexes, times, num_cores=None):
     """
     An all inclusive viterbi processing algorithm. Returns the ICL, the most likely
     state path, posterior probabilities, and a host of information sorted by
@@ -3505,14 +3505,9 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
         dwell, the columns correspond to the counts of each photon stream.
     """
     # use viterbi to find most likely path based on posterior probability through all bursts
-    cdef Py_ssize_t i, b, e, st
-    cdef list paths, scale
-    cdef cnp.ndarray[double,ndim=1] ll
-    cdef double icl
     paths, scale, ll, icl = viterbi_path(hmod,indexes,times,num_cores=num_cores)
-    
     # sorting bursts based on which dwells occur in them
-    cdef cnp.ndarray[int, ndim=1] burst_type = np.zeros(len(indexes),dtype=int)
+    burst_type = np.zeros(len(indexes),dtype=int)
     for i in range(len(indexes)):
         # determine the "type" of burst it is, the index represents if a state is present, using binary, minus 1 because there are no bursts with no dwells
         burst_type_temp = 0
@@ -3521,17 +3516,16 @@ def viterbi_sort(h2mm_model hmod, indexes, times, num_cores=None):
                 burst_type_temp += 2**st
         burst_type[i] = burst_type_temp
     # sorting dwells based on transition rates, and calculating their E and S values
-    cdef list dwell_mid = [[[]for i in range(hmod.nstate)] for j in range(hmod.nstate)]
-    cdef list dwell_beg = [[[]for i in range(hmod.nstate)] for j in range(hmod.nstate)]
-    cdef list dwell_end = [[[]for i in range(hmod.nstate)] for j in range(hmod.nstate)]
-    cdef list dwell_burst = [[] for i in range(hmod.nstate)]
-    cdef list ph_mid = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
-    cdef list ph_beg = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
-    cdef list ph_end = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
-    cdef list ph_burst = [np.zeros((0,hmod.ndet),dtype=int) for i in range(hmod.nstate)]
-    cdef list ph_counts = [np.zeros((0,hmod.ndet),dtype=int) for i in range(hmod.nstate)]
-    cdef cnp.ndarray time, index, state
-    cdef cnp.ndarray[long,ndim=2] ph_counts_temp = np.zeros((1,hmod.ndet),dtype=int)
+    dwell_mid = [[[] for i in range(hmod.nstate)] for j in range(hmod.nstate)]
+    dwell_beg = [[[] for i in range(hmod.nstate)] for j in range(hmod.nstate)]
+    dwell_end = [[[] for i in range(hmod.nstate)] for j in range(hmod.nstate)]
+    dwell_burst = [[] for i in range(hmod.nstate)]
+    ph_mid = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
+    ph_beg = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
+    ph_end = [[np.zeros((0,hmod.ndet),dtype=int)for i in range(hmod.nstate)] for j in range(hmod.nstate)]
+    ph_burst = [np.zeros((0,hmod.ndet),dtype=int) for i in range(hmod.nstate)]
+    ph_counts = [np.zeros((0,hmod.ndet),dtype=int) for i in range(hmod.nstate)]
+    ph_counts_temp = np.zeros((1,hmod.ndet),dtype=int)
     #sorts the dwells into dwell times and photon counts
     for time, index, state in zip(times, indexes, paths):
         demar = np.append(1,np.diff(state))
