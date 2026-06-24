@@ -103,6 +103,33 @@ typedef struct
 } fback_vals;
 
 
+typedef struct
+{
+	phstream *phot; // array of phstream structures (burst data)
+	h2mm_mod *current; // the h2mm_mod from last iteration
+	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
+	brst_mutex *burst_lock;
+	int64_t max_phot; // the size of the larges burst, used for allocating various arrays
+	int64_t sk; // number of states, indexing chosen to match
+	int64_t sj; // square of the number of states
+	int64_t si; // cube of the number of states
+	int64_t sT; // fourth power of number of states
+	double *Rho; // Rho array, an sT x sk x sk x sk x sk array
+	double *A; // contains powers of transition matrix, a sT x sk x sK array
+	// internal arrays, just to avoid having to calloc / free over and over
+	double* alpha; // no need to zero
+	double* beta; // no need to zero
+	double* b; // no need to zero
+	double** gamma; // no need to zero
+	double* xi_temp; // no need to zero
+	double* xi_summed; // zero after each iteration 
+	double* obs_temp; // zero after each iteration 
+	double* prior; // zero after each iteration
+	double* llarr; // logliklihood of each burst
+	double loglik; // zero after each iteration
+	int64_t llerror; // If a NAN or other was encountered in the calculation
+} fbackll_vals;
+
 
 // C_H2MM.c structures
 
@@ -201,11 +228,19 @@ typedef struct
 
 int h2mm_optimize(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
+int h2mm_optimize_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
 int h2mm_optimize_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_optimize_ll_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
 int h2mm_optimize_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
+int h2mm_optimize_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
 int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_optimize_ll_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
 
 // model_array.c functions
@@ -213,7 +248,11 @@ int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t *
 
 int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, lm *limits);
 
+int calc_multi_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double **llarr, lm *limits);
+
 int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double ****gamma, lm *limits);
+
+int calc_multi_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double **llarr, double ****gamma, lm *limits);
 
 
 // viterbi.c functions
@@ -239,9 +278,21 @@ DWORD WINAPI fwd_bck_no_gamma(void* burst);
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_ll_no_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_ll_no_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
 void* fwd_bck_gamma(void* burst);
 #elif _WIN32
 DWORD WINAPI fwd_bck_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_ll_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_ll_gamma(void* burst);
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -250,17 +301,31 @@ void* fwd_only(void* burst);
 DWORD WINAPI fwd_only(void* burst);
 #endif
 
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_ll_only(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_ll_only(void* burst);
+#endif
+
 
 // fwd_back.c functions
 // core parts of the h2mm algorithm calculation
 
 void fwd_calc(fback_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride);
 
+void fwd_calc_ll(fbackll_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride);
+
 void bck_calc(fback_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma);
+
+void bck_calc_ll(fbackll_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma);
 
 void thread_update_h2mm_loglik(fback_vals* D);
 
+void thread_update_h2mm_loglik_ll(fbackll_vals* D);
+
 void thread_update_h2mm_arrays(fback_vals* D);
+
+void thread_update_h2mm_arrays_ll(fbackll_vals* D);
 
 
 // rho_calc.c functions

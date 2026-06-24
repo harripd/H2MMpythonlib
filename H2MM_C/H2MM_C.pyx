@@ -59,13 +59,19 @@ cdef extern from "C_H2MM.h" nogil:
     int move_model_ptrs(h2mm_mod *source, h2mm_mod *dest)
     void h2mm_normalize(h2mm_mod *model_params)
     int h2mm_optimize(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_ll_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_optimize_ll_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *model, ph_path *path_array, int64_t num_cores)
     int baseprint(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
     int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, lm *limits)
+    int calc_multi_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double **llarr, lm *limits)
     int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double ****gamma, lm *limits)
+    int calc_multi_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, double **llarr, double ****gamma, lm *limits)
     int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limits)
     int limit_check_only(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
     int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims)
@@ -94,7 +100,6 @@ cdef extern from "C_H2MM.h" nogil:
     int64_t CONVCODE_POST_MAXITER
     int64_t CONVCODE_POST_MAXTIME
     int64_t CONVCODE_ANYFINAL
-
 
 
 ctypedef struct BoundStruct:
@@ -1298,7 +1303,7 @@ cdef class h2mm_model:
                   print_stream=None, print_formatter=None,
                   print_fmt_args=None, print_fmt_kwargs=None,
                   max_time=np.inf, converged_min=None, num_cores=None, 
-                  reset_niter=True, gamma=False, opt_array=False, inplace=False):
+                  reset_niter=True, ll=False, gamma=False, opt_array=False, inplace=False):
         """
         Optimize the H2MM model for the given set of data.
         
@@ -1537,6 +1542,10 @@ cdef class h2mm_model:
             the max_iter threshold.
             Default is False
         
+        ll : bool, optional
+            Whether or not to return array of loglikelihood of each burst.
+            The default is False
+        
         gamma : bool, optional
             Whether or not to return the gamma array, which gives the probabilities
             of each photon being in a given state.
@@ -1572,6 +1581,11 @@ cdef class h2mm_model:
             are met: model has converged (according to converged_min, default 1e-14),
             maximum iterations reached, maximum time has passed, or an error has occurred
             (usually the result of a nan from a floating point precision error)
+        
+        ll_array : numpy.ndarray (optional)
+            If ll = True, this variable is returned, it contains the loglikelhoods
+            of each burst.
+        
         gamma : list, tuple or np.ndarray (optional)
             If gamma = True, this variable is returned, which contains (as numpy arrays)
             the probabilities of each photon to be in each state, for each burst.
@@ -1593,11 +1607,11 @@ cdef class h2mm_model:
                       print_stream=print_stream, print_formatter=print_formatter,
                       print_fmt_args=print_fmt_args, print_fmt_kwargs=print_fmt_kwargs,
                       max_time=max_time, converged_min=converged_min, num_cores=num_cores, 
-                      reset_niter=reset_niter, gamma=gamma, opt_array=opt_array)
+                      reset_niter=reset_niter, ll=ll, gamma=gamma, opt_array=opt_array)
         if inplace:
-            # separate the models from gamma
-            if gamma:
-                out_arr, gamma = out
+            # separate the models from ll_array / gamma
+            if gamma or ll:
+                out_arr = out[0]
             else:
                 out_arr = out
             # find the ideal model
@@ -1611,7 +1625,7 @@ cdef class h2mm_model:
             copy_model(out_model.model, self.model)
         return out
     
-    def evaluate(self, indexes, times, gamma=False, num_cores=None, 
+    def evaluate(self, indexes, times, ll=False, gamma=False, num_cores=None, 
                  inplace=True):
         """
         Calculate the loglikelihood of the model given a set of data. The 
@@ -1631,8 +1645,13 @@ cdef class h2mm_model:
             Each element of the list (a numpy array) corresponds to a burst, and
             each element of the array is a singular photon.
             The times list must maintain  1-to-1 correspondence to the indexes list
+        ll : bool, optional
+            Whether or not to return array of loglikelihood of each burst.
+            The default is False
+        
         gamma : bool (optional)
             Whether or not to return the gamma array. (The default is False)
+        
         num_cores : int or None, optional
             the number of C threads (which ignore the gil, thus functioning more
             like python processes), to use when calculating iterations.
@@ -1655,7 +1674,12 @@ cdef class h2mm_model:
         Returns
         -------
         out: h2mm_model
-            The evaluated model
+            The evaluated model.
+        
+        ll_array : numpy.ndarray (optional)
+            If ll = True, this variable is returned, it contains the loglikelhoods
+            of each model and burst.
+        
         gamma_arr : list, tuple or np.ndarray (optional)
             If gamma = True, this variable is returned, which contains (as numpy arrays)
             the probabilities of each photon to be in each state, for each burst and model.
@@ -1664,9 +1688,9 @@ cdef class h2mm_model:
             sequence.
         """
         cdef h2mm_model out_model
-        out = H2MM_arr(self, indexes, times, gamma=gamma, num_cores=num_cores)
-        if gamma:
-            out_model, gamma = out
+        out = H2MM_arr(self, indexes, times, ll=ll, gamma=gamma, num_cores=num_cores)
+        if gamma or ll:
+            out_model = out[0]
         else:
             out_model = out
         if inplace:
@@ -2541,6 +2565,20 @@ cdef tuple cast_indexes_times(indexes, times, bint *single, int64_t *nbursts, in
     return shape, indexes, None
 
 
+cdef cnp.ndarray[double, ndim=1] make_llarray(int64_t nbursts, double **llarr):
+    cdef cnp.ndarray[double, ndim=1] out
+    cdef bint err = False
+    try:
+        out = np.empty(nbursts, dtype=np.double)
+    except Exception:
+        err = True
+    if err:
+        llarr[0] = NULL
+        return np.empty((0,), dtype=np.double)
+    llarr[0] = <double*> out.data
+    return out
+
+
 cdef cnp.ndarray[object, ndim=1] make_gamma_arrays(int64_t nbursts, int64_t nstate, int64_t *burst_sizes, double ***gamma):
     cdef cnp.ndarray[object, ndim=1] out 
     cdef bint err = False
@@ -2600,7 +2638,7 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
               print_stream=None, print_formatter=None,
               print_fmt_args=None, print_fmt_kwargs=None,
               max_time=np.inf, converged_min=None, num_cores=None, 
-              reset_niter=True, gamma=False, opt_array=False):
+              reset_niter=True, ll=False, gamma=False, opt_array=False):
     """
     Calculate the most likely model that explains the given set of data. The 
     input model is used as the start of the optimization.
@@ -2836,6 +2874,10 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         the max_iter threshold.
         Default is False
     
+    ll : bool, optional
+        Whether or not to return array of loglikelihood of each burst.
+        The default is False
+    
     gamma : bool, optional
         Whether or not to return the gamma array, which gives the probabilities
         of each photon being in a given state.
@@ -2861,7 +2903,11 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         are met: model has converged (according to converged_min, default 1e-14),
         maximum iterations reached, maximum time has passed, or an error has occurred
         (usually the result of a nan from a floating point precision error)
-        
+    
+    ll_array : numpy.ndarray (optional)
+        If ll = True, this variable is returned, it contains the loglikelhoods
+        of each burst.
+    
     gamma : numpy.ndarray (optional)
         If gamma = True, this variable is returned, which contains (as numpy arrays)
         the probabilities of each photon to be in each state, for each burst.
@@ -2878,6 +2924,7 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
     print_kwargs = dict() if print_kwargs is None else dict(print_kwargs)
     bounds_kwargs = dict() if bounds_kwargs is None else dict(bounds_kwargs)
     cdef int64_t i
+    cdef bint ll_ = bool(ll)
     cdef bint gamma_ = bool(gamma)
     cdef int opt_array_ = int(opt_array)
     if opt_array_ not in (0, 1, 2):
@@ -2972,34 +3019,54 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
     cdef int64_t nphot = 0
     for i in range(nbursts):
         nphot += burst_sizes[i]
+    ###################### allocate ll array for output  ######################
+    cdef double *llarr = NULL
+    cdef cnp.ndarray[double, ndim=1] ll_array
+    if ll_:
+        ll_array = make_llarray(nbursts, &llarr)
+        if llarr is NULL:
+            free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+            raise MemoryError("insufficient memory for ll")
     #################### allocate gamma arrays for output  ####################
     cdef double **gamma_arr = NULL
     cdef cnp.ndarray[object, ndim=1] gamma_out
     cdef int res
     if gamma_:
         gamma_out = make_gamma_arrays(nbursts, mdl.model.nstate, burst_sizes, &gamma_arr)
-        if gamma_arr == NULL:
+        if gamma_arr is NULL:
             free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
             raise MemoryError("insufficient memory for gamma")
     ######################## make model output arrays  ########################
     cdef int64_t out_arr_size = limits.max_iter + 2 - mdl.model.niter if opt_array_ else 1
     cdef h2mm_mod *out_arr = Py_allocate_models(out_arr_size, mdl.model.nstate, mdl.model.ndet, nphot)
-    if out_arr == NULL:
+    if out_arr is NULL:
         free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
         PyMem_Free(gamma_arr)
         raise MemoryError("insufficient memory for h2mm_model output")
     ######################## perform h2mm optimization ########################
     with nogil:
-        if gamma_:
-            if opt_array_:
-                res =  h2mm_optimize_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+        if ll_:
+            if gamma_:
+                if opt_array_:
+                    res =  h2mm_optimize_ll_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                else:
+                    res =  h2mm_optimize_ll_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
             else:
-                res =  h2mm_optimize_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                if opt_array_:
+                    res =  h2mm_optimize_ll_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                else:
+                    res =  h2mm_optimize_ll(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
         else:
-            if opt_array_:
-                res =  h2mm_optimize_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+            if gamma_:
+                if opt_array_:
+                    res =  h2mm_optimize_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                else:
+                    res =  h2mm_optimize_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
             else:
-                res =  h2mm_optimize(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                if opt_array_:
+                    res =  h2mm_optimize_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                else:
+                    res =  h2mm_optimize(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
     free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
     if gamma_arr is not NULL:
         PyMem_Free(gamma_arr)
@@ -3074,8 +3141,12 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
     if ptr_print_func is not NULL:
         print_fmtr.update(out_text)
         print_fmtr.close()
+    if ll_ or gamma_:
+        out = (out, )
+    if ll_:
+        out += (ll_array[0], ) if single else (ll_array.reshape(shape), ) 
     if gamma_:
-        out = out, gamma_out[0] if single else gamma_out.reshape(shape)
+        out += (gamma_out[0], ) if single else (gamma_out.reshape(shape), )
     return out
 
 
@@ -3137,6 +3208,26 @@ cdef tuple make_h2mm_arr_modptr(models, bint *modelsingle, int64_t *nmodels, h2m
     return shape, False
 
 
+cdef cnp.ndarray[double, ndim=2] make_llarrays(int64_t nmodels, int64_t nbursts, double ***llarr):
+    cdef cnp.ndarray[double, ndim=2] out
+    cdef bint err = False
+    try:
+        out = np.empty((nmodels, nbursts), dtype=np.double)
+    except Exception:
+        err = True
+    if err:
+        llarr[0] = NULL
+        return np.empty((0,0), dtype=np.double)
+    llarr[0] = <double**> PyMem_Malloc(nmodels*sizeof(double*))
+    if llarr[0] is NULL:
+        return np.empty((0,0), dtype=np.double)
+    cdef int64_t i
+    cdef double *data = <double*> out.data
+    for i in range(nmodels):
+        llarr[0][i] = &data[i*nbursts]
+    return out
+
+
 cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_mod *models, int64_t nbursts, int64_t *burst_sizes, double ****gamma):
     cdef cnp.ndarray[object, ndim=2] out
     cdef bint err = False
@@ -3150,7 +3241,7 @@ cdef cnp.ndarray[object, ndim=2] make_gamma_gamma_arrays(int64_t nmodels, h2mm_m
     cdef object obtemp
     cdef cnp.ndarray[double, ndim=2] temp
     cdef int64_t i, j
-    cdef double ***data = <double***> PyMem_Malloc(nbursts*sizeof(double**))
+    cdef double ***data = <double***> PyMem_Malloc(nmodels*sizeof(double**))
     if data is NULL:
         return out
     for i in range(nmodels):
@@ -3189,7 +3280,7 @@ cdef int free_gammagamma(int64_t nmodels, double ***gamma):
     return 0
 
 
-def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
+def H2MM_arr(models, indexes, times, ll=False, gamma=False, num_cores=None):
     """
     Calculate the logliklihood of every model in a list/array given a set of
     data
@@ -3203,11 +3294,20 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
         Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
         The indexes list must maintain  1-to-1 correspondence to the times list
+    
     times : list or tuple of NUMPY 1D int arrays
         A list of the arrival times for each photon in each burst
         Each element of the list (a numpy array) corresponds to a burst, and
         each element of the array is a singular photon.
-        The times list must maintain  1-to-1 correspondence to the indexes list
+        The times list must maintain  1-to-1 correspondence to the indexes list.
+    
+    num_cores : int | None, optional
+        Number of cores to use in computation. The default is None.
+    
+    ll : bool, optional
+        Whether or not to return array of loglikelihood of each burst.
+        The default is False
+    
     gamma : bool, optional
         Whether or not to return the gamma array, which gives the probabilities
         of each photon being in a given state.
@@ -3225,6 +3325,25 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
             
         If None (default) use value from optimization_limits. 
         Default is None
+    
+    num_cores : int or None, optional
+        the number of C threads (which ignore the gil, thus functioning more
+        like python processes), to use when calculating iterations.
+        
+        .. note:: 
+            
+            optimization_limtis sets this to be `os.cpu_count() // 2`, as most machines
+            are multithreaded. Because os.cpu_count() returns the number of threads,
+            not necessarily the number of cpus. For most machines, being multithreaded,
+            this actually returns twice the number of physical cores. Hence the default
+            to set at `os.cpu_count() // 2`. If your machine is not multithreaded, it
+            is best to set `optimization_limits.num_cores = os.cpu_count()`
+            
+        If None (default) use value from optimization_limits. 
+        Default is None
+    inplace: bool, optional
+        Whether or not to store the evaluated model in the current model object.
+        Default is True
         
     Returns
     -------
@@ -3233,6 +3352,11 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
         The converged state is automatically set to 0, and nphot is set
         in accordance with the number of photons in the data set.
         The datatype returned is the same as the datatype of h_model
+    
+    ll_array : numpy.ndarray (optional)
+        If ll = True, this variable is returned, it contains the loglikelhoods
+        of each model and burst.
+    
     gamma_arr : list, tuple or np.ndarray (optional)
         If gamma = True, this variable is returned, which contains (as numpy arrays)
         the probabilities of each photon to be in each state, for each burst and model.
@@ -3240,6 +3364,7 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
         indexes, individual data points organized as [photon, state] within each data
         sequence.
     """
+    cdef bint ll_ = bool(ll)
     cdef bint gamma_ = bool(gamma)
     cdef lm limits
     limits.num_cores = <int64_t> optimization_limits._get_num_cores(num_cores)
@@ -3260,6 +3385,15 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
     if not modelshape:
         free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
         raise err
+    ############################# allocte for ll  #############################
+    cdef cnp.ndarray[double, ndim=2] ll_array
+    cdef double **llarr = NULL
+    if ll_:
+        ll_array = make_llarrays(nmodels, nbursts, &llarr)
+        if llarr is NULL:
+            free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+            Py_free_models(nmodels, out_mod)
+            raise MemoryError("insufficient memory for ll")
     ############################# allocate for gamma ##########################
     cdef cnp.ndarray[object, ndim=2] gamma_out
     cdef double ***gamma_arr = NULL
@@ -3268,15 +3402,25 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
         if gamma_arr is NULL:
             free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
             Py_free_models(nmodels, out_mod)
+            if ll_:
+                PyMem_Free(llarr)
             raise MemoryError("insufficient memory for gamma")
     ############################ main calculation  ############################
     cdef int res
     with nogil:
-        if gamma_:
-            res = calc_multi_gamma(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, &gamma_arr, &limits)
+        if ll_:
+            if gamma_:
+                res = calc_multi_ll_gamma(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, llarr, &gamma_arr, &limits)
+            else:
+                res = calc_multi_ll(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, llarr, &limits)
         else:
-            res = calc_multi(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, &limits)
+            if gamma_:
+                res = calc_multi_gamma(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, &gamma_arr, &limits)
+            else:
+                res = calc_multi(nbursts, burst_sizes, deltas, idxs, nmodels, out_mod, &limits)
     free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
+    if ll_:
+        PyMem_Free(llarr)
     if gamma_:
         free_gammagamma(nmodels, gamma_arr)
     ############################# check for error #############################
@@ -3290,15 +3434,26 @@ def H2MM_arr(models, indexes, times, num_cores=None, gamma=False):
         raise ValueError('Bursts photons are out of order, please check your data')
     elif res == 2:
         raise ValueError('Too many photon streams in data for one or more H2MM models')
+    if ll_ or gamma_:
+        out = (out, )
+    if ll_:
+        if modelsingle and burstsingle:
+            out += (ll_array[0], )
+        elif modelsingle:
+            out += (ll_array.reshape(burstshape), )
+        elif burstsingle:
+            out += (ll_array.reshape(modelshape), )
+        else:
+            out += (ll_array.reshape(modelshape+burstshape), )
     if gamma_:
         if modelsingle and burstsingle:
-            out = (out, gamma_out[0])
+            out += (gamma_out[0], )
         elif modelsingle:
-            out = (out, gamma_out.reshape(burstshape))
+            out += (gamma_out.reshape(burstshape), )
         elif burstsingle:
-            out = (out, gamma_out.reshape(modelshape))
+            out += (gamma_out.reshape(modelshape), )
         else:
-            out = (out, gamma_out.reshape(modelshape+burstshape))
+            out += (gamma_out.reshape(modelshape+burstshape), )
     return out
 
 

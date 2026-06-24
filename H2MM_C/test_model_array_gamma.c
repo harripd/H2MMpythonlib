@@ -123,6 +123,16 @@ int main(int argc, char **argv)
 		}
 	}
 	calc_multi_gamma(num_burst, len_bursts, times, detectors, argc - 2 , models, &gamma, limits);
+	double **llarr = (double**) malloc((argc - 2)*sizeof(double*));
+	for (i = 0; i < (argc - 2); i++) llarr[i] = (double*) malloc(num_burst*sizeof(double));
+	calc_multi_ll_gamma(num_burst, len_bursts, times, detectors, argc - 2 , models, llarr, &gamma, limits);
+	printf("loglik:\n");
+	for (i = 0; i < (argc - 2); i++){
+		for (j = 0; j < num_burst; j++) printf("%f, ", llarr[i][j]);
+		printf("\n");
+	}
+	for (i = 0; i < (argc - 2); i++) free(llarr[i]);
+	free(llarr);
 	/*for (i = 0; i < (argc - 2); i++){
 		print_model(&models[i]);
 		models[i].conv = 0;

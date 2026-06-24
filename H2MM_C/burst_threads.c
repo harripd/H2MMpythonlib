@@ -66,6 +66,35 @@ DWORD WINAPI fwd_bck_no_gamma(void* burst)
 #endif
 }
 
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_ll_no_gamma(void* burst)
+#elif _WIN32
+DWORD WINAPI fwd_bck_ll_no_gamma(void* burst)
+#endif
+{
+	fbackll_vals* D = (fbackll_vals*) burst;
+	int64_t cur_burst, recursion_size, recursion_stride;
+	double* gamma = D->gamma[0];
+	D->llerror = FALSE;
+	while((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
+	{
+		recursion_size = D->sk * D->phot[cur_burst].nphot;
+		recursion_stride = recursion_size - D->sk;
+		fwd_calc_ll(D, cur_burst, recursion_size, recursion_stride);
+		bck_calc_ll(D, cur_burst, recursion_size, recursion_stride, gamma);
+	}
+	thread_update_h2mm_loglik_ll(D);
+	thread_update_h2mm_arrays_ll(D);
+#if defined(__linux__) || defined(__APPLE__)
+	pthread_exit(NULL);
+#elif _WIN32
+	//printf("fwd_back_PhotonByPhoton(): BOTTOM: threadId: %8x  nthreads: %d\n", GetCurrentThreadId(),nt);
+	ExitThread(0);
+#endif
+}
+
+
 #if defined(__linux__) || defined(__APPLE__)
 void* fwd_bck_gamma(void* burst)
 #elif _WIN32
@@ -95,6 +124,37 @@ DWORD WINAPI fwd_bck_gamma(void* burst)
 #endif
 }
 
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_ll_gamma(void* burst)
+#elif _WIN32
+DWORD WINAPI fwd_bck_ll_gamma(void* burst)
+#endif
+{
+	fbackll_vals* D = (fbackll_vals*) burst;
+	int64_t cur_burst, recursion_size, recursion_stride;
+	double* gamma;
+	D->llerror = FALSE;
+	while((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
+	{
+		recursion_size = D->sk * D->phot[cur_burst].nphot;
+		recursion_stride = recursion_size - D->sk;
+		gamma = D->gamma[cur_burst];
+		fwd_calc_ll(D, cur_burst, recursion_size, recursion_stride);
+		bck_calc_ll(D, cur_burst, recursion_size, recursion_stride, gamma);
+	}
+	thread_update_h2mm_loglik_ll(D);
+	thread_update_h2mm_arrays_ll(D);
+#if defined(__linux__) || defined(__APPLE__)
+	//~ pthread_exit(NULL);
+	return NULL;
+#elif _WIN32
+	//printf("fwd_back_PhotonByPhoton(): BOTTOM: threadId: %8x  nthreads: %d\n", GetCurrentThreadId(),nt);
+	ExitThread(0);
+#endif
+}
+
+
 #if defined(__linux__) || defined(__APPLE__)
 void* fwd_only(void* burst)
 #elif _WIN32
@@ -112,6 +172,32 @@ DWORD WINAPI fwd_only(void* burst)
 		fwd_calc(D, cur_burst, recursion_size, recursion_stride);
 	}
 	thread_update_h2mm_loglik(D);
+#if defined(__linux__) || defined(__APPLE__)
+	pthread_exit(NULL);
+#elif _WIN32
+	//printf("fwd_back_PhotonByPhoton(): BOTTOM: threadId: %8x  nthreads: %d\n", GetCurrentThreadId(),nt);
+	ExitThread(0);
+#endif
+}
+
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_ll_only(void* burst)
+#elif _WIN32
+DWORD WINAPI fwd_ll_only(void* burst)
+#endif
+{
+	
+	fbackll_vals* D = (fbackll_vals*) burst;
+	int64_t cur_burst, recursion_size, recursion_stride;
+	D->llerror = FALSE;
+	while((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
+	{
+		recursion_size = D->sk * D->phot[cur_burst].nphot;
+		recursion_stride = recursion_size - D->sk;
+		fwd_calc_ll(D, cur_burst, recursion_size, recursion_stride);
+	}
+	thread_update_h2mm_loglik_ll(D);
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_exit(NULL);
 #elif _WIN32

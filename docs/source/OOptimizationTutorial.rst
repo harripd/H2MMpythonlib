@@ -516,4 +516,70 @@ Now we can plot the loglikelihood and see how sharply it is centered on the opti
 
 .. image:: notebooks/H2MM_Optimization_Tutorial_files/FOT_error.png
 
+Bust and Photon-Wise Arrays
+---------------------------
+
+A final point of interest.
+As models are optimized, the loglik of the model is a sum of the loglik of each burst.
+We can instruct :meth:`h2mm_model.optimize` and :meth:`h2mm_model.evaluate` to return
+the array of individual logliks by passing :code:`ll=True`.
+
+.. note::
+
+    This evaluates
+
+    .. math::
+
+        P(Y|\lambda) \equiv \sum\limits_{X}{P(X, Y | \lambda)}
+
+
+    Where :math:`\lambda` is the model, and :math:`Y` are the observations 
+    (time-detector pairs)
+
+    See equation 9 in `Pirchi 2016 <https://doi.org/10.1021/acs.jpcb.6b10726>`_
+    For formal definition of this calculation.
+
+.. code-block::
+
+    model_3s2d = hm.factory_h2mm_model(3,2)
+    model_3s2d, ll_3s2d = model_3s2d.optimize(color2, times2, ll=True)
+    print(f"model ll: {model_3s2d.loglik}, sum ll: {np.sum(ll_3s2d)}")
+    print(f"individual logliks: {ll_3s2d[:5]}")
+
+| Optimization reached maximum number of iterations
+| model ll: -120029.31045130291, sum ll: -120029.31045130265
+| individual logliks: [-28.85690639 -27.31476489 -28.31673661  -9.63365026 -28.22406335]
+
+
+Another interesting array that can also be accessed is the gamma array.
+
+This array gives the likelihood that a photon is in a given state given the model.
+
+.. math::
+
+    \gamma_{t, s} \equiv P(x_{t, s}, Y|\lambda)
+
+
+Where $t$ is the time of a given photon, :math:`s` is the state,
+:math:`Y` is the entire observed data, and :math:`\lambda` is the model.
+
+Note that :math:`t` and :math:`s` are indexes in the output array.
+
+To have :meth:`h2mm_model.optimize` and :meth:`h2mm_model.evaluate` return these values,
+simply passthe keyword argument :code:`gamma=True`
+
+.. code-block::
+
+    model_3s2d = hm.factory_h2mm_model(3,2)
+    model_3s2d, gamma_3s2d = model_3s2d.optimize(color2, times2, gamma=True)
+    print(f"Number of bursts: {len(color2)}, number of gamma arrays: {len(gamma_3s2d)}")
+    print(f'size of 1 burst: {color3[0].size}, shape of first gamma: {gamma_3s2d[0].shape}')
+
+| Optimization reached maximum number of iterations
+| Number of bursts: 4468, number of gamma arrays: 4468
+| size of 1 burst: 72, shape of first gamma: (41, 3)
+
+
+If both :code:`ll=True, gamma=True` then the returned values will be ``model, ll, gamma``
+
 .. |H2MM| replace:: H\ :sup:`2`\ MM
