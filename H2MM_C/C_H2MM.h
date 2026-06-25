@@ -196,6 +196,8 @@ typedef struct
 	phstream *phot; // pointer to burst array, part of input
 	ph_path *path; // pointer to viterbi path found by viterbi algorithm
 	h2mm_mod *model; // h2mm model used in calculating the path
+	uint8_t *psi; // internally necessary array of likely state given forward state
+	double *omega; // internally necessary probability of state array
 	brst_mutex *burst_lock; // mutex for updating cur_burst
 } vit_vals;
 

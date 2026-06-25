@@ -22,6 +22,11 @@
 #define FALSE 0
 
 
+/*
+ * psi uint8_t [max_phot*nstate]
+ * omega double [max_phot*nstate]
+*/
+
 #if defined(__linux__) || defined(__APPLE__)
 void* viterbi_burst(void* in_vals)
 #elif _WIN32
@@ -34,22 +39,22 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 	int64_t t;
 	int64_t omegaT, omegaTp, transT, transTshift, bT; // variables to store offsets (strides) for values indexed in nested for loops
 	int64_t cur_burst;
-	uint8_t *psi = (uint8_t*) calloc(D->si*D->max_phot,sizeof(uint8_t)); // forward state assignment
+	//uint8_t *psi = (uint8_t*) calloc(D->si*D->max_phot,sizeof(uint8_t)); // forward state assignment
 	double runsum = 0.0;
-	double *omega = (double*) calloc(D->si*D->max_phot,sizeof(double));
+	//double *omega = (double*) calloc(D->si*D->max_phot,sizeof(double));
 	double omegamax;
 	while ((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
 	{
 		// initiation
 		for ( i = 0; i < D->si; i++)
 		{
-			omega[i] = D->model->prior[i] * D->model->obs[D->phot[cur_burst].det[0] * D->si + i];
-			runsum += omega[i];
+			D->omega[i] = D->model->prior[i] * D->model->obs[D->phot[cur_burst].det[0] * D->si + i];
+			runsum += D->omega[i];
 		}
 		D->path[cur_burst].scale[0] = runsum;
 		D->path[cur_burst].loglik = log(runsum);
 		for ( i = 0; i < D->si; i++) // for loop to divide by runsum, thus normalizing omega
-			omega[i] /= runsum;
+			D->omega[i] /= runsum;
 		// recursion
 		for ( t = 1; t < D->phot[cur_burst].nphot; t++)
 		{
@@ -65,19 +70,19 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 				omegamax = 0.0;
 				for ( k = 0; k < D->si; k++)
 				{
-					if ( (D->A[transTshift + (D->si * k)] * omega[omegaTp + k]) > omegamax )
+					if ( (D->A[transTshift + (D->si * k)] * D->omega[omegaTp + k]) > omegamax )
 					{
-						omegamax = D->A[transTshift + (D->si * k)] * omega[omegaTp + k];
-						psi[omegaT + j] = k;
+						omegamax = D->A[transTshift + (D->si * k)] * D->omega[omegaTp + k];
+						D->psi[omegaT + j] = k;
 					}
 				}
-				omega[omegaT + j] = omegamax * D->model->obs[bT + j];
-				runsum += omega[omegaT + j];
+				D->omega[omegaT + j] = omegamax * D->model->obs[bT + j];
+				runsum += D->omega[omegaT + j];
 			}
 			D->path[cur_burst].scale[t] = runsum;
 			D->path[cur_burst].loglik += log(runsum);
 			for ( j = 0; j < D->si; j++)
-				omega[omegaT + j] /= runsum;
+				D->omega[omegaT + j] /= runsum;
 		}
 		// termination- find the state to begin the state backtracing with
 		t--; // decrement t because for loop executes last increment, leaving t at 1 beyond the proper index
@@ -85,9 +90,9 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 		omegamax = 0.0;
 		for ( i = 0; i < D->si; i++)
 		{
-			if ( omega[omegaT + i] > omegamax )
+			if ( D->omega[omegaT + i] > omegamax )
 			{
-				omegamax = omega[omegaT + i];
+				omegamax = D->omega[omegaT + i];
 				D->path[cur_burst].path[t] = i;
 			}
 		}
@@ -95,14 +100,14 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 		do
 		{
 			t--;
-			D->path[cur_burst].path[t] = psi[D->si * (t + 1) + D->path[cur_burst].path[t+1]];
+			D->path[cur_burst].path[t] = D->psi[D->si * (t + 1) + D->path[cur_burst].path[t+1]];
 		} while(t != 0);
 		
 	}
-	if (omega != NULL)
+/*	if (omega != NULL)
 		free(omega);
 	if ( psi != NULL)
-		free(psi);
+		free(psi);*/
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_exit(0);
 #elif _WIN32
@@ -128,6 +133,7 @@ int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uin
 	phstream *b = (phstream*) calloc(num_burst,sizeof(phstream));
 	// process burst arrays
 	//~ printf("Getting deltas\n");
+	int ret = 0;
 	int32_t max_delta = get_max_delta(num_burst,burst_sizes,burst_deltas,burst_det,b); 
 	//~ printf("Got max delta\n");
 	if (max_delta == 0)
@@ -166,6 +172,14 @@ int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uin
 		vit_submit[i].phot = b;
 		vit_submit[i].path = path_array;
 		vit_submit[i].model = model;
+		vit_submit[i].psi = (uint8_t*) calloc(max_phot*powers->sk, sizeof(uint8_t));
+		if (vit_submit[i].psi == NULL){
+			goto termination;
+		}
+		vit_submit[i].omega = (double*) calloc(max_phot*powers->sk, sizeof(double));
+		if (vit_submit[i].psi == NULL){
+			goto termination;
+		}
 		vit_submit[i].max_phot = max_phot;
 		vit_submit[i].burst_lock = burst_lock;
 	}
@@ -190,6 +204,7 @@ int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uin
 		}
 	}
 #endif
+	termination:
 	// free allocated memory
 #if defined(__linux__) || defined(__APPLE__)
 	pthread_mutex_destroy(vit_lock);
@@ -212,10 +227,21 @@ int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uin
 		b = NULL;
 	}
 	free_trpow(powers);
-		if (vit_submit != NULL)
+	if (vit_submit != NULL)
 	{
+		for ( i = 0; i < num_cores; i++)
+		{
+			if ( vit_submit[i].psi != NULL){
+				free(vit_submit[i].psi);
+				vit_submit[i].psi = NULL;
+			}
+			if ( vit_submit[i].omega != NULL){
+				free(vit_submit[i].omega);
+				vit_submit[i].omega = NULL;
+			}
+		}
 		free(vit_submit);
 		vit_submit = NULL;
 	}
-	return 0;
+	return ret;
 }
