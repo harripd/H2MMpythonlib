@@ -198,7 +198,7 @@ def test_InputType(simple_data_all):
     assert out.nstate == 2, 'number of states changed'
     assert out.nphot == nphot, "nphot not updated chorectly"
     assert out.loglik < 0.0, 'positive/0 loglik after optimization'
-    
+
 
 @pytest.fixture(scope="module", params=(2,3,4))
 def opt_model(request):
@@ -253,7 +253,7 @@ def test_H2MM_arr(model_array,simple_data_all):
     assert np.allclose([m.loglik for m in true_iter(arr_out)], [m.loglik for m in true_iter(model_array)]), "logliks significantly changed"
 
 # dllclose(g.sum(axis=1), 1.0) 
-    
+
 def test_Viterbi(opt_model,simple_data_all):
     """
     Smoke test for viterbi and path_loglik functions
@@ -304,7 +304,11 @@ def test_Viterbi(opt_model,simple_data_all):
     lg = hm.path_loglik(opt_model, dets, times, path, BIC=False, total_loglik=False, loglikarray=True, loglikpath=False)
     lp = hm.path_loglik(opt_model, dets, times, path, BIC=False, total_loglik=False, loglikarray=False, loglikpath=True)
     assert np.allclose(lg, np.array([l.sum() for l in lp])), "loglik by array and path differ in result"
-    
+
+
+def diff_print(values):
+    return "||".join(key + "len = {len(val)},:: {val} " for key, val in values.items())
+
 
 ###############################################################################
 ### The following function is a better verification.
@@ -338,13 +342,13 @@ def test_Viterbi_multi_core(opt_model,simple_data_all):
         assert np.all(p < opt_model.nstate), "out of bounds path index"
         values['pathmatch'].append(None if np.all(p == p1) else (s1-s)[:np.argwhere(p != p1)[-1,0]+1])
         values['scalematch'].append(None if np.allclose(s, s1) else s1 - s)
-        values['scaleupper'].append(None if np.all(s <= 1.0) else s)
-        values['scalelower'].append(None if np.all(s >= 0.0) else s)
-        values['scale1upper'].append(None if np.all(s1 <= 1.0) else s1)
-        values['scale1lower'].append(None if np.all(s1 >= 0.0) else s1)
+        values['scaleupper'].append(None if np.all(s <= 1.0) else np.argwhere(s > 1.0))
+        values['scalelower'].append(None if np.all(s >= 0.0) else np.arghwere(s < 0.0))
+        values['scale1upper'].append(None if np.all(s1 <= 1.0) else np.argwhere(s1 > 1.0))
+        values['scale1lower'].append(None if np.all(s1 >= 0.0) else np.argwhere(s1 < 0))
     values = {k:[v for v in val if v is not None] for k, val in values.items()}
     values = {k:v for k, v in values.items() if v}
-    assert len(values)==0 and llm and iclm, f'll:{ll-ll1}, icl:{icl-icl1}, {values}'
+    assert len(values)==0 and llm and iclm, f'll:{ll-ll1}, icl:{icl-icl1}, {diff_print(values)}'
     for BIC, LL, log in combinations_with_replacement((True, False), 3):
         if sum((BIC, LL, log)) == 0:
             continue
@@ -369,7 +373,8 @@ def test_Viterbi_multi_core(opt_model,simple_data_all):
             assert np.issubdtype(lg.dtype, np.floating)
             if log and LL:
                 assert np.allclose(lg.sum(), ll)
-        
+
+
 def test_Limits(simple_data_list):
     """
     Ensure basic limits functions work properly
@@ -380,7 +385,7 @@ def test_Limits(simple_data_list):
         out = hm.EM_H2MM_C(hm.factory_h2mm_model(2,2), dets, times, bounds=limits, bounds_func=lim)
         assert np.all(out.trans[np.eye(2) < 1] < 1e-1), "trans rates smaller than allowed by bounds"
         assert np.all(out.trans[np.eye(2) < 1] > 1e-7), "trans rates larger than allowed by trans"
-    
+
 
 def test_Limits_usr(opt_model, simple_data_list):
     """

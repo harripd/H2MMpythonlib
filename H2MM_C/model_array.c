@@ -69,6 +69,11 @@ int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, 
 	pwrs* powers;
 	fback_vals *burst_submit = (fback_vals*) malloc(limits->num_cores * sizeof(fback_vals));
 	double **gamma_var = (double**) malloc(limits->num_cores * sizeof(double*));
+	for (i=0; i < limits->num_cores; i++)
+	{
+		burst_submit[i].burst_lock = burst_lock;
+		burst_submit[i].loglik = 0.0;
+	}
 	if (!multi_state) // when not mutli-state, can allocate arrays for alpha/beta/gamma all at once
 	{
 		powers = allocate_powers(&models[0], max_delta);
@@ -98,11 +103,6 @@ int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, 
 	{
 		for (i=0; i < limits->num_cores; i++)
 			burst_submit[i].obs_temp = (double*) calloc(models[0].nstate * models[0].ndet, sizeof(double));
-	}
-	for (i=0; i < limits->num_cores; i++)
-	{
-		burst_submit[i].burst_lock = burst_lock;
-		burst_submit[i].loglik = 0.0;
 	}
 	for (i = 0; i < num_models; i++)
 	{
@@ -308,6 +308,11 @@ int calc_multi_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_delta
 	pwrs* powers;
 	fbackll_vals *burst_submit = (fbackll_vals*) malloc(limits->num_cores * sizeof(fbackll_vals));
 	double **gamma_var = (double**) malloc(limits->num_cores * sizeof(double*));
+	for (i=0; i < limits->num_cores; i++)
+	{
+		burst_submit[i].burst_lock = burst_lock;
+		burst_submit[i].loglik = 0.0;
+	}
 	if (!multi_state) // when not mutli-state, can allocate arrays for alpha/beta/gamma all at once
 	{
 		powers = allocate_powers(&models[0], max_delta);
@@ -337,11 +342,6 @@ int calc_multi_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_delta
 	{
 		for (i=0; i < limits->num_cores; i++)
 			burst_submit[i].obs_temp = (double*) calloc(models[0].nstate * models[0].ndet, sizeof(double));
-	}
-	for (i=0; i < limits->num_cores; i++)
-	{
-		burst_submit[i].burst_lock = burst_lock;
-		burst_submit[i].loglik = 0.0;
 	}
 	for (i = 0; i < num_models; i++)
 	{
@@ -549,6 +549,11 @@ int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_de
 	fback_vals *burst_submit = (fback_vals*) malloc(limits->num_cores * sizeof(fback_vals));
 	double ***gamma_var = (*gamma == NULL) ? (double***) malloc(num_models * sizeof(double**)) : *gamma;
 	h2mm_mod *dummy_model;
+	for (i=0; i < limits->num_cores; i++)
+	{
+		burst_submit[i].burst_lock = burst_lock;
+		burst_submit[i].loglik = 0.0;
+	}
 	if (!multi_state) // when not mutli-state, can allocate arrays for alpha/beta/gamma all at once
 	{
 		powers = allocate_powers(&models[0], max_delta);
@@ -581,11 +586,6 @@ int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_de
 			burst_submit[i].new = dummy_model;
 			burst_submit[i].obs_temp = (double*) calloc(models[0].nstate * models[0].ndet, sizeof(double));
 		}
-	}
-	for (i=0; i < limits->num_cores; i++)
-	{
-		burst_submit[i].burst_lock = burst_lock;
-		burst_submit[i].loglik = 0.0;
 	}
 	for (i = 0; i < num_models; i++)
 	{
@@ -804,6 +804,11 @@ int calc_multi_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst
 	fbackll_vals *burst_submit = (fbackll_vals*) malloc(limits->num_cores * sizeof(fbackll_vals));
 	double ***gamma_var = (*gamma == NULL) ? (double***) malloc(num_models * sizeof(double**)) : *gamma;
 	h2mm_mod *dummy_model;
+	for (i=0; i < limits->num_cores; i++)
+	{
+		burst_submit[i].burst_lock = burst_lock;
+		burst_submit[i].loglik = 0.0;
+	}
 	if (!multi_state) // when not mutli-state, can allocate arrays for alpha/beta/gamma all at once
 	{
 		powers = allocate_powers(&models[0], max_delta);
@@ -836,11 +841,6 @@ int calc_multi_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst
 			burst_submit[i].new = dummy_model;
 			burst_submit[i].obs_temp = (double*) calloc(models[0].nstate * models[0].ndet, sizeof(double));
 		}
-	}
-	for (i=0; i < limits->num_cores; i++)
-	{
-		burst_submit[i].burst_lock = burst_lock;
-		burst_submit[i].loglik = 0.0;
 	}
 	for (i = 0; i < num_models; i++)
 	{

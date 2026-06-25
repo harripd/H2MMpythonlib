@@ -162,7 +162,6 @@ int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uin
 	{
 		vit_submit[i].si = powers->sk;
 		vit_submit[i].sT = powers->sj;
-		vit_submit[i].burst_lock = burst_lock;
 		vit_submit[i].A = powers->A;
 		vit_submit[i].phot = b;
 		vit_submit[i].path = path_array;
