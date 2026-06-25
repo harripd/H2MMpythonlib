@@ -3458,32 +3458,58 @@ def H2MM_arr(models, indexes, times, ll=False, gamma=False, num_cores=None):
 
 
 # viterbi function
-cdef tuple make_ph_path_arrays(int64_t nbursts, int64_t *burst_sizes, int64_t nstate, ph_path **paths):
+cdef cnp.ndarray[object, ndim=1] make_path_arrays(int64_t nbursts, int64_t *burst_sizes, ph_path **paths):
     cdef cnp.ndarray[object, ndim=1] state_paths = np.empty(nbursts, dtype=np.object_)
-    cdef cnp.ndarray[object, ndim=1] scale_paths = np.empty(nbursts, dtype=np.object_)
-    cdef ph_path *cpaths = <ph_path*> PyMem_Malloc(nbursts*sizeof(ph_path))
     cdef cnp.ndarray[uint8_t, ndim=1] statetemp
-    cdef cnp.ndarray[double, ndim=1] scaletemp
-    cdef i
+    cdef int64_t i
     for i in range(nbursts):
-        try:
-            statetemp = np.empty(burst_sizes[i], dtype=np.uint8)
-        except:
-            PyMem_Free(cpaths)
-            return state_paths, scale_paths
+        statetemp = np.empty(burst_sizes[i], dtype=np.uint8)
+        state_paths[i] = statetemp
+        paths[0][i].path = <uint8_t*> statetemp.data
+    return state_paths
+
+
+cdef cnp.ndarray[object, ndim=1] make_scale_arrays(int64_t nbursts, int64_t *burst_sizes, ph_path **paths):
+    cdef cnp.ndarray[object, ndim=1] scale_paths = np.empty(nbursts, dtype=np.object_)
+    cdef cnp.ndarray[double, ndim=1] scaletemp
+    cdef int64_t i
+    for i in range(nbursts):
         try:
             scaletemp = np.empty(burst_sizes[i], dtype=np.double)
         except:
-            PyMem_Free(cpaths)
-            return state_paths, scale_paths
-        state_paths[i] = statetemp
+            return np.empty(0, dtype=np.object_)
         scale_paths[i] = scaletemp
-        cpaths[i].path = <uint8_t*> statetemp.data
-        cpaths[i].scale = <double*> scaletemp.data
-        cpaths[i].nstate = nstate
-        cpaths[i].nphot = burst_sizes[i]
-    paths[0] = cpaths
-    return state_paths, scale_paths
+        paths[0][i].scale = <double*> scaletemp.data
+    return scale_paths
+
+
+
+# cdef tuple make_ph_path_arrays(int64_t nbursts, int64_t *burst_sizes, int64_t nstate, ph_path **paths):
+#     cdef cnp.ndarray[object, ndim=1] state_paths = np.empty(nbursts, dtype=np.object_)
+#     cdef cnp.ndarray[object, ndim=1] scale_paths = np.empty(nbursts, dtype=np.object_)
+#     cdef ph_path *cpaths = <ph_path*> PyMem_Malloc(nbursts*sizeof(ph_path))
+#     cdef cnp.ndarray[uint8_t, ndim=1] statetemp
+#     cdef cnp.ndarray[double, ndim=1] scaletemp
+#     cdef i
+#     for i in range(nbursts):
+#         try:
+#             statetemp = np.empty(burst_sizes[i], dtype=np.uint8)
+#         except:
+#             PyMem_Free(cpaths)
+#             return state_paths, scale_paths
+#         try:
+#             scaletemp = np.empty(burst_sizes[i], dtype=np.double)
+#         except:
+#             PyMem_Free(cpaths)
+#             return state_paths, scale_paths
+#         state_paths[i] = statetemp
+#         scale_paths[i] = scaletemp
+#         cpaths[i].path = <uint8_t*> statetemp.data
+#         cpaths[i].scale = <double*> scaletemp.data
+#         cpaths[i].nstate = nstate
+#         cpaths[i].nphot = burst_sizes[i]
+#     paths[0] = cpaths
+#     return state_paths, scale_paths
 
 
 def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
@@ -3539,12 +3565,19 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     for i in range(nbursts):
         nphot += burst_sizes[i]
     cdef int64_t n_core = <int64_t> optimization_limits._get_num_cores(num_cores)
-    cdef ph_path *cpaths = NULL
-    cdef cnp.ndarray[object,ndim=1] paths
-    cdef cnp.ndarray[object,ndim=1] scale
-    paths, scale = make_ph_path_arrays(nbursts, burst_sizes, h_mod.model.nstate, &cpaths)
-    if cpaths == NULL:
-        raise MemoryError("insufficent memory to allocate path arrays")
+    cdef ph_path *cpaths = <ph_path*> PyMem_Malloc(nbursts*sizeof(ph_path))
+    cdef cnp.ndarray[object,ndim=1] paths = make_path_arrays(nbursts, burst_sizes, &cpaths)
+    if paths.size == 0:
+        PyMem_Free(cpaths)
+        raise MemoryError("insufficient memory to allocate path arrays")
+    cdef cnp.ndarray[object,ndim=1] scale = make_scale_arrays(nbursts, burst_sizes, &cpaths)
+    if paths.size == 0:
+        PyMem_Free(cpaths)
+        raise MemoryError("insufficient memory to allocate scale arrays")
+    for i in range(nbursts):
+        cpaths[i].nstate = h_mod.model.nstate
+        cpaths[i].nphot = burst_sizes[i]
+    # paths, scale = make_ph_path_arrays(nbursts, burst_sizes, h_mod.model.nstate, &cpaths)
     cdef int ret
     with nogil:
         ret = viterbi(nbursts, burst_sizes, deltas, idxs, h_mod.model, cpaths, n_core)
