@@ -335,17 +335,19 @@ def test_Viterbi_multi_core(opt_model,simple_data_all):
     assert type(path) == type(scale)
     assert true_size(path) == true_size(scale) == true_size(dets)
     values = {"pathmatch":list(), "scalematch":list(), "scaleupper":list(), "scalelower":list(), "scale1upper":list(), "scale1lower":list()}
-    for p, s, p1, s1, t, d in zip(true_iter(path), true_iter(scale), true_iter(path1), true_iter(scale1),true_iter(times), true_iter(dets)):
+    for i, (p, s, p1, s1, t, d) in enumerate(zip(true_iter(path), true_iter(scale), 
+                                                 true_iter(path1), true_iter(scale1), 
+                                                 true_iter(times), true_iter(dets))):
         assert p.shape == s.shape == t.shape, "path and shape arrays not the same as times/dets"
         assert np.issubdtype(p.dtype, np.integer), "wrong path dtype"
         assert np.issubdtype(s.dtype, np.floating), "wrong scale dtype"
         assert np.all(p < opt_model.nstate), "out of bounds path index"
-        values['pathmatch'].append(None if np.all(p == p1) else (s1-s)[:np.argwhere(p != p1)[-1,0]+1])
-        values['scalematch'].append(None if np.allclose(s, s1) else s1 - s)
-        values['scaleupper'].append(None if np.all(s <= 1.0) else np.argwhere(s > 1.0))
-        values['scalelower'].append(None if np.all(s >= 0.0) else np.arghwere(s < 0.0))
-        values['scale1upper'].append(None if np.all(s1 <= 1.0) else np.argwhere(s1 > 1.0))
-        values['scale1lower'].append(None if np.all(s1 >= 0.0) else np.argwhere(s1 < 0))
+        values['pathmatch'].append(None if np.all(p == p1) else (i, np.argwhere(p != p1)))
+        values['scalematch'].append(None if np.allclose(s, s1) else (i, s1 - s))
+        values['scaleupper'].append(None if np.all(s <= 1.0) else (i, np.argwhere(s > 1.0)))
+        values['scalelower'].append(None if np.all(s >= 0.0) else (i, np.arghwere(s < 0.0)))
+        values['scale1upper'].append(None if np.all(s1 <= 1.0) else (i, np.argwhere(s1 > 1.0)))
+        values['scale1lower'].append(None if np.all(s1 >= 0.0) else (i, np.argwhere(s1 < 0)))
     values = {k:[v for v in val if v is not None] for k, val in values.items()}
     values = {k:v for k, v in values.items() if v}
     assert len(values)==0 and llm and iclm, f'll:{ll-ll1}, icl:{icl-icl1}, {diff_print(values)}'
