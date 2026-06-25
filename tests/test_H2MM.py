@@ -307,7 +307,7 @@ def test_Viterbi(opt_model,simple_data_all):
 
 
 def diff_print(values):
-    return "||".join(key + "len = {len(val)},:: {val} " for key, val in values.items())
+    return "||".join(key + f"len = {len(val)},:: {val} " for key, val in values.items())
 
 
 ###############################################################################
