@@ -15,7 +15,10 @@ Changed in Version 2.2.1
 - Fixed:
     - Previous version of :func:`H2MM_arr` had misallocation resulting in rare segfault.
       The mistake has been resolved
-
+    - Previous versions had bug in C function ``viterbi_burst`` (in ``H2MM_C/viterbi.c``)
+      where a running sum varaible was not reset at the beginning of each iteration.
+      This resulted in incorrect (although still very close) computation of omega and loglik.
+      This bug has been fixed.
 
 Changed in Version 2.1.2
 ------------------------
