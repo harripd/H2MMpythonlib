@@ -3464,6 +3464,7 @@ cdef cnp.ndarray[object, ndim=1] make_path_arrays(int64_t nbursts, int64_t *burs
     """Make array of arrays for path output, and fill in ph_path pointers"""
     cdef int64_t i
     cdef cnp.ndarray[object, ndim=1] out
+    cdef object obtemp
     cdef cnp.ndarray[uint8_t, ndim=1] temp
     try:
         out = np.empty(nbursts, dtype=np.object_)
@@ -3471,11 +3472,13 @@ cdef cnp.ndarray[object, ndim=1] make_path_arrays(int64_t nbursts, int64_t *burs
         return np.empty(0, dtype=np.object_)
     for i in range(nbursts):
         try:
-            temp = np.empty(burst_sizes[i], dtype=np.uint8)
+            obtemp = np.empty(burst_sizes[i], dtype=np.uint8)
+            temp = obtemp
         except:
             return np.empty(0, dtype=np.object_)
-        paths[i].path = <uint8_t*> temp.data
         out[i] = temp
+        paths[i].path = <uint8_t*> temp.data
+        
     return out
 
 
@@ -3483,6 +3486,7 @@ cdef cnp.ndarray[object, ndim=1] make_scale_arrays(int64_t nbursts, int64_t *bur
     """Make array of arrays for scale output, and fill in ph_path pointers"""
     cdef int64_t i
     cdef cnp.ndarray[object, ndim=1] out
+    cdef object obtemp
     cdef cnp.ndarray[double, ndim=1] temp
     try:
         out = np.empty(nbursts, dtype=np.object_)
@@ -3490,11 +3494,12 @@ cdef cnp.ndarray[object, ndim=1] make_scale_arrays(int64_t nbursts, int64_t *bur
         return np.empty(0, dtype=np.object_)
     for i in range(nbursts):
         try:
-            temp = np.empty(burst_sizes[i], dtype=np.double)
+            obtemp = np.empty(burst_sizes[i], dtype=np.double)
+            temp = obtemp
         except:
             return np.empty(0, dtype=np.object_)
-        paths[i].scale = <double*> temp.data
         out[i] = temp
+        paths[i].scale = <double*> temp.data
     return out
 
 
