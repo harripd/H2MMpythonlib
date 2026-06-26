@@ -66,7 +66,7 @@ int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, 
 	burst_lock->burst_mutex = h2mm_lock;
 	burst_lock->cur_burst = 0;
 	burst_lock->num_burst = num_burst;
-	pwrs* powers;
+	pwrs* powers = NULL;
 	fback_vals *burst_submit = (fback_vals*) malloc(limits->num_cores * sizeof(fback_vals));
 	double **gamma_var = (double**) malloc(limits->num_cores * sizeof(double*));
 	for (i=0; i < limits->num_cores; i++)
@@ -305,7 +305,7 @@ int calc_multi_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_delta
 	burst_lock->burst_mutex = h2mm_lock;
 	burst_lock->cur_burst = 0;
 	burst_lock->num_burst = num_burst;
-	pwrs* powers;
+	pwrs* powers = NULL;
 	fbackll_vals *burst_submit = (fbackll_vals*) malloc(limits->num_cores * sizeof(fbackll_vals));
 	double **gamma_var = (double**) malloc(limits->num_cores * sizeof(double*));
 	for (i=0; i < limits->num_cores; i++)
@@ -545,10 +545,10 @@ int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_de
 	burst_lock->burst_mutex = h2mm_lock;
 	burst_lock->cur_burst = 0;
 	burst_lock->num_burst = num_burst;
-	pwrs* powers;
+	pwrs* powers = NULL;
 	fback_vals *burst_submit = (fback_vals*) malloc(limits->num_cores * sizeof(fback_vals));
 	double ***gamma_var = (*gamma == NULL) ? (double***) malloc(num_models * sizeof(double**)) : *gamma;
-	h2mm_mod *dummy_model;
+	h2mm_mod *dummy_model = NULL;
 	for (i=0; i < limits->num_cores; i++)
 	{
 		burst_submit[i].burst_lock = burst_lock;
@@ -800,10 +800,10 @@ int calc_multi_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst
 	burst_lock->burst_mutex = h2mm_lock;
 	burst_lock->cur_burst = 0;
 	burst_lock->num_burst = num_burst;
-	pwrs* powers;
+	pwrs* powers = NULL;
 	fbackll_vals *burst_submit = (fbackll_vals*) malloc(limits->num_cores * sizeof(fbackll_vals));
 	double ***gamma_var = (*gamma == NULL) ? (double***) malloc(num_models * sizeof(double**)) : *gamma;
-	h2mm_mod *dummy_model;
+	h2mm_mod *dummy_model = NULL;
 	for (i=0; i < limits->num_cores; i++)
 	{
 		burst_submit[i].burst_lock = burst_lock;

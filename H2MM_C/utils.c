@@ -47,7 +47,7 @@ int baseprint(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, do
 void h2mm_normalize(h2mm_mod *model_params)
 {
 	double norm_factor = 0.0;
-	size_t i, j;
+	int64_t i, j;
 	// normalize the prior matrix
 	for( i = 0; i < model_params->nstate; i++) norm_factor += model_params->prior[i];
 	for( i = 0; i < model_params->nstate; i++) model_params->prior[i] /= norm_factor;
@@ -328,36 +328,51 @@ int allocate_path(int64_t nphot, int64_t nstate, ph_path* path)
 	path->nphot = nphot;
 	path->nstate = nstate;
 	path->path = (uint8_t*) calloc(nphot, sizeof(uint8_t));
+	if (path->path == NULL) return 1;
 	path->scale = (double*) calloc(nphot, sizeof(double));
+	if (path->scale == NULL){
+		free(path->path);
+		return 1;
+	}
 	return 0;
 }
 
 int free_path_arrs(ph_path* path)
 {
+	int ret = 0;
 	if (path->path != NULL)
 	{
 		free(path->path);
 		path->path = NULL;
 	}
 	else
-		return 1;
+		ret += 1;
 	if (path->scale != NULL)
 	{
 		free(path->scale);
 		path->scale = NULL;
 	}
 	else
-		return 2;
-	return 0;
+		ret += 2;
+	return ret;
 }
 
 ph_path* allocate_paths(int64_t num_burst, int64_t* len_burst, int64_t nstate)
 {
-	int64_t i;
+	int64_t i, j;
 	ph_path* paths = (ph_path*) malloc(num_burst * sizeof(ph_path));
+	if (paths == NULL){
+		return NULL;
+	}
 	for (i=0; i < num_burst; i++)
 	{
-		allocate_path(len_burst[i], nstate, &paths[i]);
+		if (allocate_path(len_burst[i], nstate, &paths[i])){
+			for ( j = 0; j < i; j++){
+				free_path_arrs(&paths[i]);
+			}
+			free(paths);
+			return NULL;
+		}
 	}
 	return paths;
 }

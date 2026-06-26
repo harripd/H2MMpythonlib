@@ -58,6 +58,8 @@ cdef extern from "C_H2MM.h" nogil:
     int copy_model_vals(h2mm_mod *source, h2mm_mod *dest)
     int move_model_ptrs(h2mm_mod *source, h2mm_mod *dest)
     void h2mm_normalize(h2mm_mod *model_params)
+    int free_paths(int64_t num_burst, ph_path* paths)
+    ph_path* allocate_paths(int64_t num_burst, int64_t* len_burst, int64_t nstate)
     int h2mm_optimize(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
@@ -3457,32 +3459,32 @@ def H2MM_arr(models, indexes, times, ll=False, gamma=False, num_cores=None):
     return out
 
 
-# viterbi function
-cdef cnp.ndarray[object, ndim=1] make_path_arrays(int64_t nbursts, int64_t *burst_sizes, ph_path **paths):
-    cdef cnp.ndarray[object, ndim=1] state_paths = np.empty(nbursts, dtype=np.object_)
-    cdef cnp.ndarray[uint8_t, ndim=1] statetemp
+# viterbi functionc
+cdef ph_path* alloc_ph_paths(int64_t nbursts, int64_t *burst_sizes, int64_t nstate):
     cdef int64_t i
+    cdef ph_path *path = <ph_path*> PyMem_Malloc(nbursts*sizeof(ph_path))
+    if path is NULL:
+        return NULL
     for i in range(nbursts):
-        statetemp = np.empty(burst_sizes[i], dtype=np.uint8)
-        state_paths[i] = statetemp
-        paths[0][i].path = <uint8_t*> statetemp.data
-    return state_paths
+        path[i].path = <uint8_t*> PyMem_Malloc(burst_sizes[i]*sizeof(uint8_t))
+        path[i].path = <uint8_t*> PyMem_Malloc(burst_sizes[i]*sizeof(uint8_t))
+    return path
 
 
-cdef cnp.ndarray[object, ndim=1] make_scale_arrays(int64_t nbursts, int64_t *burst_sizes, ph_path **paths):
-    cdef cnp.ndarray[object, ndim=1] scale_paths = np.empty(nbursts, dtype=np.object_)
-    cdef cnp.ndarray[double, ndim=1] scaletemp
+cdef cnp.ndarray[int64_t, ndim=1] copy_path_array(ph_path *path):
+    cdef cnp.ndarray[int64_t, ndim=1] out = np.empty(path.nphot, dtype=np.int64)
     cdef int64_t i
-    for i in range(nbursts):
-        try:
-            scaletemp = np.empty(burst_sizes[i], dtype=np.double)
-        except:
-            return np.empty(0, dtype=np.object_)
-        scale_paths[i] = scaletemp
-        paths[0][i].scale = <double*> scaletemp.data
-    return scale_paths
+    for i in range(path.nphot):
+        out[i] = path.path[i]
+    return out
 
 
+cdef cnp.ndarray[double, ndim=1] copy_scale_array(ph_path *path):
+    cdef cnp.ndarray[double, ndim=1] out = np.empty(path.nphot, dtype=np.double)
+    cdef int64_t i
+    for i in range(path.nphot):
+        out[i] = path.scale[i]
+    return out
 
 # cdef tuple make_ph_path_arrays(int64_t nbursts, int64_t *burst_sizes, int64_t nstate, ph_path **paths):
 #     cdef cnp.ndarray[object, ndim=1] state_paths = np.empty(nbursts, dtype=np.object_)
@@ -3565,18 +3567,10 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     for i in range(nbursts):
         nphot += burst_sizes[i]
     cdef int64_t n_core = <int64_t> optimization_limits._get_num_cores(num_cores)
-    cdef ph_path *cpaths = <ph_path*> PyMem_Malloc(nbursts*sizeof(ph_path))
-    cdef cnp.ndarray[object,ndim=1] paths = make_path_arrays(nbursts, burst_sizes, &cpaths)
-    if paths.size == 0:
-        PyMem_Free(cpaths)
-        raise MemoryError("insufficient memory to allocate path arrays")
-    cdef cnp.ndarray[object,ndim=1] scale = make_scale_arrays(nbursts, burst_sizes, &cpaths)
-    if paths.size == 0:
-        PyMem_Free(cpaths)
+    cdef ph_path *cpaths = allocate_paths(nbursts, burst_sizes, h_mod.model.nstate)
+    if cpaths is NULL:
+        free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
         raise MemoryError("insufficient memory to allocate scale arrays")
-    for i in range(nbursts):
-        cpaths[i].nstate = h_mod.model.nstate
-        cpaths[i].nphot = burst_sizes[i]
     # paths, scale = make_ph_path_arrays(nbursts, burst_sizes, h_mod.model.nstate, &cpaths)
     cdef int ret
     with nogil:
@@ -3588,12 +3582,15 @@ def viterbi_path(h2mm_model h_mod, indexes, times, num_cores=None):
     except:
         PyMem_Free(cpaths)
         raise MemoryError("insufficient memory to allocate loglik array")
-    
+    cdef cnp.ndarray[object, ndim=1] paths = np.empty(nbursts, dtype=np.object_)
+    cdef cnp.ndarray[object, ndim=1] scale = np.empty(nbursts, dtype=np.object_)
     cdef double loglik = 0.0
     for i in range(nbursts):
         loglik += cpaths[i].loglik
         ll[i] = cpaths[i].loglik
-    PyMem_Free(cpaths)
+        paths[i] = copy_path_array(&cpaths[i])
+        scale[i] = copy_scale_array(&cpaths[i])
+    free_paths(nbursts, cpaths)
     cdef double icl = ((h_mod.nstate**2 + ((h_mod.ndet - 1) * h_mod.nstate) - 1) * np.log(nphot)) - 2 * loglik
     out = paths[0] if single else paths.reshape(shape), scale[0] if single else scale.reshape(shape), ll[0] if single else ll.reshape(shape), icl
     return out
