@@ -93,11 +93,17 @@ def print_func_exception(new, current, old, titer, ttotal, *args):
 def data_gen_list():
     """produce sample data as a list"""
     times = [np.array([   20,   50,   90,   95,  190,  230,  350,  800], dtype=np.int32),
-             np.array([  820,  850,  990,  995, 1055, 1130, 1290, 1525]),
-             np.array([ 1750, 1820, 1950, 1985, 2055, 2110, 2220, 2325])]
+             np.array([  820,  850,  990,  995, 1055, 1130, 1290, 1525, 1640]),
+             np.array([ 1750, 1820, 1950, 1985, 2055, 2110, 2220, 2325]),
+             np.array([ 5000, 5210, 5465, 6385, 6420, 6475]),
+             np.array([ 7001, 7350, 7357, 7484, 7518, 7630]),
+             np.array([ 7901, 7951, 7968, 8045, 8175, 8250, 8295, 8367, 8405, 8473]),]
     dets =  [np.array([    1,    1,    0,    1,    0,    1,    0,    1], dtype=np.uint8),
-             np.array([    0,    0,    0,    1,    1,    1,    1,    0], dtype=np.int32),
-             np.array([    1,    0,    1,    1,    0,    1,    0,    1])]
+             np.array([    0,    0,    0,    1,    1,    1,    1,    0,    0], dtype=np.int32),
+             np.array([    1,    0,    1,    1,    0,    1,    0,    1]),
+             np.array([    0,    1,    0,    0,    0,    1]),
+             np.array([    1,    1,    1,    0,    0,    0]),
+             np.array([    0,    0,    0,    0,    0,    0,    1,    1,    1,    1])]
     nphot = sum(t.size for t in times)
     return (dets, times, nphot)
 

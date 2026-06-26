@@ -46,6 +46,7 @@ DWORD WINAPI viterbi_burst(void* in_vals)
 	while ((cur_burst = get_next_burst(D->burst_lock)) < D->burst_lock->num_burst)
 	{
 		// initiation
+		runsum = 0.0;
 		for ( i = 0; i < D->si; i++)
 		{
 			D->omega[i] = D->model->prior[i] * D->model->obs[D->phot[cur_burst].det[0] * D->si + i];
