@@ -3476,7 +3476,7 @@ cdef cnp.ndarray[object, ndim=1] make_path_arrays(int64_t nbursts, int64_t *burs
             temp = obtemp
         except:
             return np.empty(0, dtype=np.object_)
-        out[i] = temp
+        out[i] = obtemp
         paths[i].path = <uint8_t*> temp.data
         
     return out
@@ -3498,7 +3498,7 @@ cdef cnp.ndarray[object, ndim=1] make_scale_arrays(int64_t nbursts, int64_t *bur
             temp = obtemp
         except:
             return np.empty(0, dtype=np.object_)
-        out[i] = temp
+        out[i] = obtemp
         paths[i].scale = <double*> temp.data
     return out
 
