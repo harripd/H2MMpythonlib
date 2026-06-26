@@ -12,6 +12,8 @@ Changed in Version 2.2.1
       :func:`H2MM_arr`, and :meth:`h2mm_model.evaluate`.
       Setting ``ll=True`` results in function returning as second return value (in tuple)
       the loglik of each burst.
+- Internal changes (no change in results)
+      - Better allocation of arrays in :func:`viterbi_sort`
 - Fixed:
     - Previous version of :func:`H2MM_arr` had misallocation resulting in rare segfault.
       The mistake has been resolved
