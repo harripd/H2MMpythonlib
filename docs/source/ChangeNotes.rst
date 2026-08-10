@@ -4,8 +4,8 @@ Change Notes
 .. currentmodule:: H2MM_C
 
 
-upcoming Changed in Version 2.3.0
----------------------------------
+Changed in Version 2.3.0
+------------------------
 
 The main addition in v2.3.0 is the incorporation of SQUAREM optimization acceleration.
 
