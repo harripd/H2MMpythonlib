@@ -143,7 +143,7 @@ int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, 
 			}
 		}
 		burst_lock->cur_burst = 0; // reset cur_burst to 0 for next round of optimization
-		rho_all(models[i].nstate, models[i].trans, powers);
+		rho_all(models[i].trans, powers);
 #if defined(__linux__) || defined(__APPLE__)
 		for(j = 0; j < limits->num_cores; j++) 
 		{
@@ -383,7 +383,7 @@ int calc_multi_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_delta
 			}
 		}
 		burst_lock->cur_burst = 0; // reset cur_burst to 0 for next round of optimization
-		rho_all(models[i].nstate, models[i].trans, powers);
+		rho_all(models[i].trans, powers);
 #if defined(__linux__) || defined(__APPLE__)
 		for(j = 0; j < limits->num_cores; j++) 
 		{
@@ -639,7 +639,7 @@ int calc_multi_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_de
 			}
 		}
 		burst_lock->cur_burst = 0;
-		rho_all(models[i].nstate, models[i].trans, powers);
+		rho_all(models[i].trans, powers);
 		//~ fwd_bck_gamma((void*) burst_submit);
 #if defined(__linux__) || defined(__APPLE__)
 		for(j = 0; j < limits->num_cores; j++) 
@@ -895,7 +895,7 @@ int calc_multi_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst
 			}
 		}
 		burst_lock->cur_burst = 0;
-		rho_all(models[i].nstate, models[i].trans, powers);
+		rho_all(models[i].trans, powers);
 		//~ fwd_bck_gamma((void*) burst_submit);
 #if defined(__linux__) || defined(__APPLE__)
 		for(j = 0; j < limits->num_cores; j++) 

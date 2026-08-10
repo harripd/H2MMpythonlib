@@ -91,3 +91,6 @@ int H2MM_C.convcode.post_opt
 
 int H2MM_C.convcode.frozen
     Model cannot be modified in place
+
+int H2MM_C.convcode.squarem
+    Model is the result of SQUAREM projection

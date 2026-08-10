@@ -138,10 +138,10 @@ void* rhoulate(void *vals)
 	//pthread_exit(0);
 }
 
-void* rho_all(int64_t nstate, double* transmat, pwrs *powers)
+void* rho_all(double* transmat, pwrs *powers)
 {
 	int64_t i, j;
-	// free A and Rho just in case
+	// zero A and Rho just in case
 	for ( i = 0; i < powers->max_pow * powers->sj; i++) powers->A[i] = 0.0;
 	for ( i = 0; i < powers->max_pow * powers->sT; i++) powers->Rho[i] = 0.0;
 	// set values for first A matrix
@@ -151,7 +151,8 @@ void* rho_all(int64_t nstate, double* transmat, pwrs *powers)
 	{
 		for ( j = 0; j < powers->sk; j++) powers->Rho[powers->si * i + powers->sj * j + powers->sk * i + j] = transmat[powers->sk * i +j];
 	}
-	for ( i = 1; i < powers->max_pow; i++) // note, this is not really a mid calculation, and there are no smarts for skipping unused values of Rho, future iterations may change this for minor speed boosts
+	// note, this is not really a mid calculation, and there are no smarts for skipping unused values of Rho, future iterations may change this for minor speed boosts
+	for ( i = 1; i < powers->max_pow; i++) 
 	{
 		powers->td = i;
 		powers->tq = i - 1;

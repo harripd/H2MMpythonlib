@@ -20,6 +20,7 @@
 #define CONVCODE_CONVERGED  0x0020
 #define CONVCODE_MAXITER    0x0040
 #define CONVCODE_MAXTIME    0x0080
+#define CONVCODE_SQUAREM    0x0100
 #define CONVCODE_FIXEDMODEL 0x8000
 
 #define CONVCODE_OUTPUT_CONVERGED CONVCODE_OUTPUT|CONVCODE_CONVERGED
@@ -129,6 +130,61 @@ typedef struct
 	double loglik; // zero after each iteration
 	int64_t llerror; // If a NAN or other was encountered in the calculation
 } fbackll_vals;
+
+// structure contains all inputs for fwd_back_PhotonByPhoton
+typedef struct
+{
+	phstream *phot; // array of phstream structures (burst data)
+	h2mm_mod *current; // the h2mm_mod from last iteration
+	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
+	brst_mutex *burst_lock;
+	int64_t max_phot; // the size of the larges burst, used for allocating various arrays
+	int64_t sk; // number of states, indexing chosen to match
+	int64_t sj; // square of the number of states
+	int64_t si; // cube of the number of states
+	int64_t sT; // fourth power of number of states
+	double *Rho; // Rho array, an sT x sk x sk x sk x sk array
+	double *A; // contains powers of transition matrix, a sT x sk x sK array
+	// internal arrays, just to avoid having to calloc / free over and over
+	double** alpha; // no need to zero
+	double* beta; // no need to zero
+	double* b; // no need to zero
+	double** gamma; // no need to zero
+	double* xi_temp; // no need to zero
+	double* xi_summed; // zero after each iteration 
+	double* obs_temp; // zero after each iteration 
+	double* prior; // zero after each iteration
+	double loglik; // zero after each iteration
+	int64_t llerror; // If a NAN or other was encountered in the calculation
+} fbacka_vals;
+
+
+typedef struct
+{
+	phstream *phot; // array of phstream structures (burst data)
+	h2mm_mod *current; // the h2mm_mod from last iteration
+	h2mm_mod *new; // the new h2mm_mod being generated in current iteration
+	brst_mutex *burst_lock;
+	int64_t max_phot; // the size of the larges burst, used for allocating various arrays
+	int64_t sk; // number of states, indexing chosen to match
+	int64_t sj; // square of the number of states
+	int64_t si; // cube of the number of states
+	int64_t sT; // fourth power of number of states
+	double *Rho; // Rho array, an sT x sk x sk x sk x sk array
+	double *A; // contains powers of transition matrix, a sT x sk x sK array
+	// internal arrays, just to avoid having to calloc / free over and over
+	double** alpha; // no need to zero
+	double* beta; // no need to zero
+	double* b; // no need to zero
+	double** gamma; // no need to zero
+	double* xi_temp; // no need to zero
+	double* xi_summed; // zero after each iteration 
+	double* obs_temp; // zero after each iteration 
+	double* prior; // zero after each iteration
+	double* llarr; // logliklihood of each burst
+	double loglik; // zero after each iteration
+	int64_t llerror; // If a NAN or other was encountered in the calculation
+} fbackall_vals;
 
 
 // C_H2MM.c structures
@@ -244,6 +300,21 @@ int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t *
 
 int h2mm_optimize_ll_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
+int h2mm_squarem(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_ll_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
+
+int h2mm_squarem_ll_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*), void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*),void *print_call);
 
 // model_array.c functions
 // Outer level functions for calcualating loglik and gamma of arrays of models
@@ -309,6 +380,71 @@ void* fwd_ll_only(void* burst);
 DWORD WINAPI fwd_ll_only(void* burst);
 #endif
 
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_alpha(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_alpha(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_alpha_ll(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_alpha_ll(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_alpha_no_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_alpha_no_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_alpha_ll(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_alpha_ll(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_alpha_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_alpha_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* fwd_bck_alpha_ll_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI fwd_bck_alpha_ll_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* bck_only(void* burst);
+#elif _WIN32
+DWORD WINAPI bck_only(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* bck_ll_only(void* burst);
+#elif _WIN32
+DWORD WINAPI bck_ll_only(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* bck_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI bck_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* bck_ll_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI bck_ll_gamma(void* burst);
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+void* bck_ll_gamma(void* burst);
+#elif _WIN32
+DWORD WINAPI bck_ll_gamma(void* burst);
+#endif
 
 // fwd_back.c functions
 // core parts of the h2mm algorithm calculation
@@ -317,9 +453,17 @@ void fwd_calc(fback_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t 
 
 void fwd_calc_ll(fbackll_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride);
 
+void fwd_calc_alpha(fbacka_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride);
+
+void fwd_calc_alpha_ll(fbackall_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride);
+
 void bck_calc(fback_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma);
 
 void bck_calc_ll(fbackll_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma);
+
+void bck_calc_alpha(fbacka_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma);
+
+void bck_calc_alpha_ll(fbackall_vals* D, int64_t cur_burst, int64_t recursion_size, int64_t recursion_stride, double* gamma);
 
 void thread_update_h2mm_loglik(fback_vals* D);
 
@@ -329,6 +473,13 @@ void thread_update_h2mm_arrays(fback_vals* D);
 
 void thread_update_h2mm_arrays_ll(fbackll_vals* D);
 
+void thread_update_h2mm_loglik_alpha(fbacka_vals* D);
+
+void thread_update_h2mm_loglik_alpha_ll(fbackall_vals* D);
+
+void thread_update_h2mm_arrays_alpha(fbacka_vals* D);
+
+void thread_update_h2mm_arrays_alpha_ll(fbackall_vals* D);
 
 // rho_calc.c functions
 // functions for pre-calculating powers of transition matrix and Rho
@@ -337,7 +488,7 @@ trpow* transpow(int64_t nstate, int32_t maxdif, double* trans);
 
 void* rhoulate(void *vals);
 
-void* rho_all(int64_t nstate, double* transmat, pwrs *powers);
+void* rho_all(double* transmat, pwrs *powers);
 
 
 // model_limits_funcs.c functions
@@ -353,6 +504,7 @@ int limit_revert_old(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double tot
 
 int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_time, lm *limit, void *lims);
 
+int project_squarem(h2mm_mod* current, h2mm_mod* new0, h2mm_mod* new1, h2mm_mod* newSQ, h2mm_mod* r, h2mm_mod* v);
 
 // state_path.c functions
 // functions for generating Markov paths
@@ -370,6 +522,8 @@ int phpathgen(h2mm_mod* model, int64_t lent, uint8_t* path, uint8_t* traj, unsig
 
 // utils.c functions
 // miscilaneous small functions for basic tasks
+
+void Xfree(void* p);
 
 int32_t get_max_delta(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, phstream *b);
 
@@ -440,6 +594,6 @@ h2mm_mod* h2mm_read(char* fname);
 
 int print_model(h2mm_mod* model);
 
-int transfer_gamma(int64_t num_burst, int64_t *burst_sizes, double **gamma_in, double **gamma_out);
+int transfer_gamma(int64_t nstate, int64_t num_burst, int64_t *burst_sizes, double **gamma_in, double **gamma_out);
 
 int free_gamma(int64_t num_burst, double **gamma);

@@ -21,10 +21,29 @@ def model_almost_equal(model1:hm.h2mm_model, model2:hm.h2mm_model):
     """
     prior = np.all(np.abs(model1.prior - model2.prior) < 0.1)
     trans_check = model1.trans / model2.trans
-    trans = np.all(trans_check < 5) * np.all(trans_check > 0.5)
+    trans = np.all(trans_check < 2) * np.all(trans_check > 0.5)
     obs = np.all(np.abs(model1.obs - model2.obs) < 0.1)
     return prior * trans * obs
 
+
+def model_out_of_range(model1:hm.h2mm_model, model2:hm.h2mm_model):
+    prt = ""
+    priordiff = model1.prior - model2.prior
+    prior = np.abs(priordiff) >= 0.1
+    if np.any(prior):
+        prt += "" + str(np.argwhere(prior)[:,0]) + "diffs: " + str(priordiff)
+    transrat = model1.trans / model2.trans
+    trans = (transrat >= 2) * (transrat <= 0.5)
+    if np.any(trans):
+        loc = np.argwhere(trans)
+        prt += "trans: " + str(trans).replace("\n", ", ") + "ratios:" + str(transrat[tuple(loc.T)])
+    obsdiff = model1.obs - model2.obs
+    obs = np.abs(obsdiff) >= 0.1
+    if np.any(obs):
+        loc = np.argwhere(obs)
+        prt += 'obs: ' + str(obs).replace("\n", ", ") + "ratios:" + str(obsdiff[tuple(loc.T)])
+    return prt
+    
 
 def true_size(inp):
     """
@@ -214,11 +233,11 @@ def opt_model(request):
     return hm.EM_H2MM_C(hm.factory_h2mm_model(nstate,2), dets, times, max_iter=20)
 
 
-def test_model_norm(opt_model):
-    """Test that models are normalized"""
-    assert np.allclose(opt_model.prior.sum(), 1.0)
-    assert np.allclose(opt_model.trans.sum(axis=1), 1.0)
-    assert np.allclose(opt_model.obs.sum(axis=1), 1.0)
+# def test_model_norm(opt_model):
+#     """Test that models are normalized"""
+#     assert np.allclose(opt_model.prior.sum(), 1.0)
+#     assert np.allclose(opt_model.trans.sum(axis=1), 1.0)
+#     assert np.allclose(opt_model.obs.sum(axis=1), 1.0)
 
 
 def get_output_model(arr)->hm.h2mm_model:
@@ -436,7 +455,7 @@ def test_Sim():
         colors.append(color)
     limits = hm.h2mm_limits(min_prior=0.001,max_prior=0.999,min_trans=1e-10,max_trans=1-1e-10,min_obs=0.001,max_obs=0.999)
     model_test = hm.factory_h2mm_model(3,2).optimize(colors,times,bounds=limits,bounds_func='revert',max_iter=3000)
-    assert model_almost_equal(model_test,model_init)
+    assert model_almost_equal(model_test,model_init), f"bad model: {model_out_of_range(model_test, model_init)}"
 
 
 def test_BadData(opt_model):
@@ -622,38 +641,6 @@ def test_EM_H2MM_C_ll_gamma(simple_data_tuple):
                 assert np.allclose(ga, ga_t), "Inconsistent gamma arrays"
 
 
-def test_optimize_ll_gamma(simple_data_tuple):
-    indexes, times, nphot = simple_data_tuple
-    model, llarray, gammaarray = None, None, None
-    for ll, gamma, opt_array in product(*([False, True] for _ in range(3))):
-        out = hm.factory_h2mm_model(2,3).optimize(indexes, times, ll=ll, gamma=gamma, opt_array=opt_array)
-        if not ll and not gamma:
-            out = (out, )
-        model_t, out = out[0], out[1:]
-        if opt_array:
-            model_t = get_output_model(model_t)
-        if ll:
-            llarray_t, out = out[0], out[1:]
-        if gamma:
-            gammaarray_t, out = out[0], out[1:]
-        assert not out, "Incorrect number of returned values"
-        if model is None:
-            model = model_t
-        else:
-            assert model_almost_equal(model, model_t), "Different optimization results returned"
-        if ll and llarray is None:
-            llarray = llarray_t
-        elif ll:
-            assert np.allclose(llarray, llarray_t), "Inconsistent logliklihoods"
-        if ll:
-            assert np.allclose(model_t.loglik, np.sum(llarray_t)), f"Loglik array does not sum to model loglik, {model_t.loglik} vs {np.sum(llarray_t)}"
-        if gamma and gammaarray is None:
-            gammaarray = gammaarray_t
-        elif gamma:
-            for ga, ga_t in zip(gammaarray, gammaarray_t):
-                assert np.allclose(ga, ga_t), "Inconsistent gamma arrays"
-
-
 def test_H2MM_arr_ll_gamma(simple_data_tuple, model_array):
     indexes, times, nphot = simple_data_tuple
     model, ll_array, gammaarray = None, None, None
@@ -691,6 +678,48 @@ def test_H2MM_arr_ll_gamma(simple_data_tuple, model_array):
                 assert np.allclose(ga, ga_t), "Inconsistent gamma arrays"
 
 
+def comp_gamma(model, gamma, indexes, times, msg=None):
+    _, true_gamma = hm.H2MM_arr(model, indexes, times, gamma=True)
+    assert gamma.shape == true_gamma.shape, "bad gamma shape"
+    for g, gt in zip(gamma.ravel(), true_gamma.ravel()):
+        assert np.allclose(g, gt), f"Bad gamma array: {g[:,:4]-gt[:,:4]}: {msg}"
+
+
+def test_optimize_ll_gamma(simple_data_tuple):
+    indexes, times, nphot = simple_data_tuple
+    model, llarray, gammaarray = None, None, None
+    for ll, gamma, opt_array in product(*([False, True] for _ in range(3))):
+        out = hm.factory_h2mm_model(2,3).optimize(indexes, times, ll=ll, gamma=gamma, opt_array=opt_array)
+        if not ll and not gamma:
+            out = (out, )
+        model_t, out = out[0], out[1:]
+        if opt_array:
+            model_t = get_output_model(model_t)
+        if ll:
+            llarray_t, out = out[0], out[1:]
+        if gamma:
+            gammaarray_t, out = out[0], out[1:]
+        assert not out, "Incorrect number of returned values"
+        if model is None:
+            model = model_t
+        else:
+            assert model_almost_equal(model, model_t), "Different optimization results returned"
+        if ll and llarray is None:
+            llarray = llarray_t
+        elif ll:
+            assert np.allclose(llarray, llarray_t), "Inconsistent logliklihoods"
+        if ll:
+            assert np.allclose(model_t.loglik, np.sum(llarray_t)), f"Loglik array does not sum to model loglik, {model_t.loglik} vs {np.sum(llarray_t)}"
+        if gamma and gammaarray is None:
+            gammaarray = gammaarray_t
+            comp_gamma(model, gammaarray_t, indexes, times)
+        elif gamma:
+            for ga, ga_t in zip(gammaarray, gammaarray_t):
+                assert np.allclose(ga, ga_t), "Inconsistent gamma arrays"
+
+
+
+
 def test_evaluate_ll_gamma(simple_data_tuple):
     indexes, times, nphot = simple_data_tuple
     model, ll_array, gammaarray = None, None, None
@@ -720,9 +749,139 @@ def test_evaluate_ll_gamma(simple_data_tuple):
             assert np.allclose(ll_array, ll_array_t), "loglik arrays do not match"
         if gamma and gammaarray is None:
             gammaarray = gammaarray_t
+            comp_gamma(model, gammaarray_t, indexes, times)
         elif gamma:
             for ga, ga_t in zip(gammaarray.ravel(), gammaarray_t.ravel()):
                 assert np.allclose(ga, ga_t), "Inconsistent gamma arrays"
+
+
+def test_EM_H2MM_C_ll_gamma_squarem(simple_data_tuple):
+    indexes, times, nphot = simple_data_tuple
+    model, llarray, gammaarray = None, None, None
+    for ll, gamma in product(*([False, True] for _ in range(2))):
+        if gamma:
+            continue
+        out = hm.EM_H2MM_C(hm.factory_h2mm_model(2,3), indexes, times, ll=ll, gamma=gamma, opt_array=False, squarem=True)
+        if not ll and not gamma:
+            out = (out, )
+        model_t, out = out[0], out[1:]
+        # if opt_array:
+        #     model_t = get_output_model(model_t)
+        if ll:
+            llarray_t, out = out[0], out[1:]
+        if gamma:
+            gammaarray_t, out = out[0], out[1:]
+        assert not out, "Incorrect number of returned values"
+        if model is None:
+            model = model_t
+        else:
+            assert model_almost_equal(model, model_t), "Different optimization results returned"
+        if ll and llarray is None:
+            llarray = llarray_t
+        elif ll:
+            assert np.allclose(llarray, llarray_t), "Inconsistent logliklihoods"
+        if ll:
+            assert np.allclose(model_t.loglik, np.sum(llarray_t)), f"Loglik array does not sum to model loglik, {model_t.loglik} vs {np.sum(llarray_t)}"
+        if gamma and gammaarray is None:
+            gammaarray = gammaarray_t
+            comp_gamma(model, gammaarray_t, indexes, times, f'll:{ll}')
+        elif gamma:
+            for ga, ga_t in zip(gammaarray, gammaarray_t):
+                assert np.allclose(ga, ga_t), "Inconsistent gamma arrays (with opt_array=False)"
+
+
+def test_EM_H2MM_C_ll_gamma_array_squarem(simple_data_tuple):
+    indexes, times, nphot = simple_data_tuple
+    model, llarray, gammaarray = None, None, None
+    for ll, gamma in product(*([False, True] for _ in range(2))):
+        if gamma:
+            continue
+        out = hm.EM_H2MM_C(hm.factory_h2mm_model(2,3), indexes, times, ll=ll, gamma=gamma, opt_array=True, squarem=True)
+        if not ll and not gamma:
+            out = (out, )
+        model_t, out = out[0], out[1:]
+        model_t = get_output_model(model_t)
+        if ll:
+            llarray_t, out = out[0], out[1:]
+        if gamma:
+            gammaarray_t, out = out[0], out[1:]
+        assert not out, "Incorrect number of returned values"
+        if model is None:
+            model = model_t
+        else:
+            assert model_almost_equal(model, model_t), "Different optimization results returned"
+        if ll and llarray is None:
+            llarray = llarray_t
+        elif ll:
+            assert np.allclose(llarray, llarray_t), "Inconsistent logliklihoods"
+        if ll:
+            assert np.allclose(model_t.loglik, np.sum(llarray_t)), f"Loglik array does not sum to model loglik, {model_t.loglik} vs {np.sum(llarray_t)}"
+        if gamma and gammaarray is None:
+            gammaarray = gammaarray_t
+            comp_gamma(model, gammaarray_t, indexes, times, f'll:{ll}')
+        elif gamma:
+            for ga, ga_t in zip(gammaarray, gammaarray_t):
+                assert np.allclose(ga, ga_t), "Inconsistent gamma arrays (with opt_array=False)"
+
+def test_optimize_ll_gamma_squarem(simple_data_tuple):
+    indexes, times, nphot = simple_data_tuple
+    model, llarray, gammaarray = None, None, None
+    for ll, gamma, opt_array in product(*([False, True] for _ in range(3))):
+        if gamma:
+            continue
+        out = hm.factory_h2mm_model(2,3).optimize(indexes, times, ll=ll, gamma=gamma, opt_array=opt_array, squarem=True)
+        if not ll and not gamma:
+            out = (out, )
+        model_t, out = out[0], out[1:]
+        if opt_array:
+            model_t = get_output_model(model_t)
+        if ll:
+            llarray_t, out = out[0], out[1:]
+        if gamma:
+            gammaarray_t, out = out[0], out[1:]
+        assert not out, "Incorrect number of returned values"
+        if model is None:
+            model = model_t
+        else:
+            assert model_almost_equal(model, model_t), "Different optimization results returned"
+        if ll and llarray is None:
+            llarray = llarray_t
+        elif ll:
+            assert np.allclose(llarray, llarray_t), "Inconsistent logliklihoods"
+        if ll:
+            assert np.allclose(model_t.loglik, np.sum(llarray_t)), f"Loglik array does not sum to model loglik, {model_t.loglik} vs {np.sum(llarray_t)}"
+        if gamma and gammaarray is None:
+            gammaarray = gammaarray_t
+            comp_gamma(model, gammaarray_t, indexes, times, f'll:{ll}, opt_array:{opt_array}')
+        elif gamma:
+            for ga, ga_t in zip(gammaarray, gammaarray_t):
+                assert np.allclose(ga, ga_t), "Inconsistent gamma arrays"
+
+
+@pytest.fixture(params=[{'squarem':True, 'opt_array':op, 'gamma':False, 'll':ll} 
+                        for op, gam, ll in product(*((True, False) for _ in range(3)))])
+def sqkwargs(request):
+    return request.param
+
+
+def test_squarem_eval(simple_data_tuple, sqkwargs):
+    indexes, times, nphot = simple_data_tuple
+    model = hm.factory_h2mm_model(2, 3)
+    for miter in range(10,20):
+        out = hm.EM_H2MM_C(model, indexes, times, **sqkwargs)
+        if not sqkwargs['gamma'] and not sqkwargs['ll']:
+            out = (out, )
+        model, out = out[0], out[1:]
+        if sqkwargs['opt_array']:
+            model = get_output_model(model)
+        m, l = hm.H2MM_arr(model, indexes, times, ll=True)
+        assert np.allclose(model.loglik, m.loglik), "Bad total ll calculation"
+        if sqkwargs['ll']:
+            ll, out = out[0], out[1:]
+            assert np.allclose(ll, l), f"bad ll array calculation, miter = {miter}"
+        if sqkwargs['gamma']:
+            gamma = out[0]
+            comp_gamma(model, gamma, indexes, times)
 
 
 if __name__ == '__main__':

@@ -23,7 +23,7 @@ int h2mm_check_converged(h2mm_mod * new, h2mm_mod *current, h2mm_mod *old, doubl
 	if ( (current->conv & CONVCODE_ERROR) ) // error
 	{
 		old->conv |= CONVCODE_ERROR | CONVCODE_OUTPUT; // 
-		current->conv |= CONVCODE_POSTMODEL; // model created error
+		current->conv |= CONVCODE_ERROR | CONVCODE_POSTMODEL; // model created error
 		new->conv |= CONVCODE_ERROR | CONVCODE_POSTMODEL;
 		return 1;
 	}
@@ -79,12 +79,9 @@ int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 	out_count = new->nstate;
 	off_diff = 0.0;
 	// section correcting the prior array
-	for (i = 0; i < new->nstate; i++)
-		nstate_bounds[i] = TRUE;
-	for ( i = 0; i < new->nstate; i++)
-	{
-		if (new->prior[i] < limits->mins->prior[i] || new->prior[i] > limits->maxs->prior[i])
-		{
+	for (i = 0; i < new->nstate; i++) nstate_bounds[i] = TRUE;
+	for ( i = 0; i < new->nstate; i++) {
+		if (new->prior[i] < limits->mins->prior[i] || new->prior[i] > limits->maxs->prior[i]) {
 			// update the main iterator variables
 			out_count--;
 			nstate_bounds[i] = FALSE;
@@ -98,24 +95,20 @@ int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 	if (var_correct)
 	{
 		off_diff /= out_count;
-		for ( i = 0; i < new->nstate; i++)
-		{
+		for ( i = 0; i < new->nstate; i++) {
 			if ( nstate_bounds[i])
 				new->prior[i] += off_diff;
 		}
 	}
 	// section correcting the trans array
-	for ( i = 0; i < new->nstate; i++)
-	{
+	for ( i = 0; i < new->nstate; i++) {
 		// flush the nstate bounds array
 		off_diff = 0.0;
 		var_correct = FALSE;
 		// iterate over row of trans matrix
-		for (j = 0; j < new->nstate; j++)
-		{
+		for (j = 0; j < new->nstate; j++) {
 			ind = i * new->nstate + j;
-			if (i != j && (new->trans[ind] < limits->mins->trans[ind] || new->trans[ind] > limits->maxs->trans[ind]))
-			{
+			if (i != j && (new->trans[ind] < limits->mins->trans[ind] || new->trans[ind] > limits->maxs->trans[ind])) {
 				var_correct = TRUE;
 				// add the adjustment to the sum
 				off_diff += new->trans[ind] - current->trans[ind];
@@ -123,22 +116,19 @@ int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 			}
 		}
 		// re-normalize the trans matrix, by adjusting only the diagonal
-		if (var_correct)
-			new->trans[i * new->nstate + i] += off_diff;
+		if (var_correct) new->trans[i * new->nstate + i] += off_diff;
 	}
 	// section for correcting the obs array
-	for ( i = 0; i < new->nstate; i++)
-	{
-		for ( j = 0; j < new->ndet; j++)
+	for ( i = 0; i < new->nstate; i++) {
+		for ( j = 0; j < new->ndet; j++) { 
 			ndet_bounds[j] = TRUE;
+		}
 		out_count = new->ndet;
 		off_diff = 0.0;
 		var_correct = FALSE;
-		for ( j = 0; j < new->ndet; j++)
-		{
+		for ( j = 0; j < new->ndet; j++) {
 			ind = j * new->nstate + i;
-			if ( new->obs[ind] < limits->mins->obs[ind] || new->obs[ind] > limits->maxs->obs[ind])
-			{
+			if ( new->obs[ind] < limits->mins->obs[ind] || new->obs[ind] > limits->maxs->obs[ind]) {
 				out_count--;
 				ndet_bounds[j] = FALSE;
 				var_correct = TRUE;
@@ -147,21 +137,17 @@ int limit_revert(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 				new->obs[ind] = current->obs[ind];
 			}
 		}
-		if(var_correct)
-		{
+		if(var_correct) {
 			off_diff /= out_count;
-			for ( j = 0; j < new->ndet; j++)
-			{
+			for ( j = 0; j < new->ndet; j++) {
 				ind = j * new->nstate + i;
 				if (ndet_bounds[j])
 					new->obs[ind] += off_diff;
 			} 
 		}
 	} 
-	if (nstate_bounds != NULL)
-		free(nstate_bounds);
-	if (ndet_bounds != NULL)
-		free(ndet_bounds);
+	if (nstate_bounds != NULL) free(nstate_bounds);
+	if (ndet_bounds != NULL) free(ndet_bounds);
 	return ret;
 }
 
@@ -411,4 +397,49 @@ int limit_minmax(h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double total_t
 		for ( i = 0; i < old->nstate * old->ndet; i++) old->obs[i] = 0.0;
 	}
 	return ret;
+}
+
+int project_squarem(h2mm_mod* current, h2mm_mod* new0, h2mm_mod* new1, h2mm_mod* newSQ, h2mm_mod* r, h2mm_mod* v){
+	int64_t i;
+	int64_t ntrans = current->nstate * current->nstate;
+	int64_t nobs = current->nstate * current->ndet;
+	double magr = 0.0, magv = 0.0;
+	// for loops compute deltas of r and v arrays
+	for (i = 0; i < current->nstate; i++){
+		r->prior[i] = new0->prior[i] - current->prior[i];
+		magr += r->prior[i] * r->prior[i];
+		v->prior[i] = new1->prior[i] - new0->prior[i];
+		magv += v->prior[i] * v->prior[i];
+	}
+	for (i = 0; i < ntrans; i++){
+		r->trans[i] = new0->trans[i] - current->trans[i];
+		magr += r->trans[i] * r->trans[i];
+		v->trans[i] = new1->trans[i] - new0->trans[i];
+		magv += v->trans[i] * v->trans[i];
+	}
+	for (i = 0; i < nobs; i++){
+		r->obs[i] = new0->obs[i] - current->obs[i];
+		magr += r->obs[i] * r->obs[i];
+		v->obs[i] = new1->obs[i] - new0->obs[i];
+		magv += v->obs[i] * v->obs[i];
+	}
+	// compute next model
+	double alpha = - sqrt(magr) / sqrt(magv);
+	for (i = 0; i < current->nstate; i++){
+		newSQ->prior[i] = current->prior[i] + (alpha * alpha * v->prior[i]) - (2 * alpha * r->prior[i]);
+		if ( isnan(newSQ->prior[i]) || (newSQ->prior[i] < 0.0) ) return 1;
+	}
+	for (i = 0; i < ntrans; i++){
+		newSQ->trans[i] = current->trans[i] + (alpha * alpha * v->trans[i]) - (2 * alpha * r->trans[i]);
+		if ( isnan(newSQ->trans[i]) || (newSQ->trans[i] < 0.0) ) return 1;
+	}
+	for (i = 0; i < nobs; i++){
+		newSQ->obs[i] = current->obs[i] + (alpha * alpha * v->obs[i]) - (2 * alpha * r->obs[i]);
+		if ( isnan(newSQ->obs[i]) || (newSQ->obs[i] < 0.0)  )return 1;
+	}
+	// set final values for newSQ model
+	newSQ->nphot = current->nphot;
+	newSQ->conv = CONVCODE_SQUAREM;
+	newSQ->loglik = 0.0;
+	return 0;
 }

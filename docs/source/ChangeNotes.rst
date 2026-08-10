@@ -4,6 +4,17 @@ Change Notes
 .. currentmodule:: H2MM_C
 
 
+upcoming Changed in Version 2.3.0
+---------------------------------
+
+The main addition in v2.3.0 is the incorporation of SQUAREM optimization acceleration.
+
+- Added:
+   - ``squarem`` optimizatization acceleration implemented in :func:`EM_H2MM_C` and :meth:`h2mm_model.optimize`
+     use by settng ``squarem=True``
+   - ``optimization_limits.squarem`` default value added to control whether defaut use SQUAREM optimization acceleration
+   - New bit added to bit codes for ``conv_code`` for indicating model created from SQUAREM optimization
+
 Changed in Version 2.2.1
 ------------------------
 

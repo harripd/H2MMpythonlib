@@ -5,6 +5,9 @@
 #Author: Paul David Harris
 """
 Module for analyzing data with photon by photon hidden Markov moddeling
+
+.. |Du2018| replace:: `Du & Varadhan 2018 <https://doi.org/10.48550/arXiv.1810.11163>`__
+.. |Varadhan2008| replace:: `Varadhan & Roland 2008. <https://doi.org/10.1111/j.1467-9469.2007.00585.x>`__
 """
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF, Py_XDECREF
@@ -68,6 +71,16 @@ cdef extern from "C_H2MM.h" nogil:
     int h2mm_optimize_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
     int h2mm_optimize_ll_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    
+    int h2mm_squarem(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_ll(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_ll_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_ll_gamma(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod *out_model, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    int h2mm_squarem_ll_gamma_array(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *in_model, h2mm_mod **out_models, double *llarr, double ***gamma, lm *limits, int (*model_limits_func)(h2mm_mod*, h2mm_mod*, h2mm_mod*, double, lm*, void*) noexcept with gil, void *model_limits, int (*print_func)(int64_t,h2mm_mod*,h2mm_mod*,h2mm_mod*,double,double,void*) noexcept with gil,void *print_call)
+    
     int viterbi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, h2mm_mod *model, ph_path *path_array, int64_t num_cores)
     int baseprint(int64_t niter, h2mm_mod *new, h2mm_mod *current, h2mm_mod *old, double t_iter, double t_total, void *func)
     int calc_multi(int64_t num_burst, int64_t *burst_sizes, int32_t **burst_deltas, uint8_t **burst_det, int64_t num_models, h2mm_mod *models, lm *limits)
@@ -93,6 +106,7 @@ cdef extern from "C_H2MM.h" nogil:
     int64_t CONVCODE_CONVERGED
     int64_t CONVCODE_MAXITER
     int64_t CONVCODE_MAXTIME
+    int64_t CONVCODE_SQUAREM
     int64_t CONVCODE_FIXEDMODEL
     
     int64_t CONVCODE_OUTPUT_CONVERGED
@@ -437,10 +451,11 @@ cdef class opt_lim_const:
         double _max_time
         double _converged_min
         int64_t _num_cores
+        bint _squarem
         object _formatter
         object _outstream
     def __cinit__(self, max_iter=2046, max_time=np.inf, converged_min=1e-14, 
-                  num_cores=os.cpu_count()//2, formatter=StdPrinter,
+                  num_cores=os.cpu_count()//2, squarem=False, formatter=StdPrinter,
                   outstream=lambda: sys.stdout):
         assert max_iter > 0 and np.issubdtype(type(max_iter), np.integer), ValueError("max_iter must be integer greater than 0")
         assert max_time > 0 and np.issubdtype(type(max_time), np.floating), ValueError("max_time must be float and greater than 0")
@@ -450,6 +465,7 @@ cdef class opt_lim_const:
         self._max_time = <double> max_time
         self._converged_min = <double> converged_min
         self._num_cores = <int64_t> num_cores
+        self._squarem = <bint> bool(squarem)
         self._formatter = formatter
         self._outstream = outstream
 
@@ -482,9 +498,11 @@ cdef class opt_lim_const:
     def converged_min(self):
         """Minimum difference between loglik of succesive iterations for a model to be considered converged"""
         return self._converged_min
+    
     @converged_min.setter
     def converged_min(self, converged_min):
-        assert converged_min > 0 and np.issubdtype(type(converged_min), np.floating), ValueError("converged_min must be float and greater than 0")
+        if converged_min <= 0 or not np.issubdtype(type(converged_min), np.floating):
+            ValueError("converged_min must be float and greater than 0")
         self._converged_min = <double> converged_min
 
     @property
@@ -497,10 +515,25 @@ cdef class opt_lim_const:
             used in optimization
         """
         return self._num_cores
+
     @num_cores.setter
     def num_cores(self, num_cores):
-        assert num_cores > 0 and np.issubdtype(type(num_cores), np.integer), ValueError("num_cores must be int and greater than 0")
+        if num_cores <= 0 or not np.issubdtype(type(num_cores), np.integer):
+            ValueError("num_cores must be int and greater than 0")
         self._num_cores = <int64_t> num_cores
+    
+    @property
+    def squarem(self):
+        """
+        Choice of whether or not to use SQUAREM (|Varadhan2008|) method of
+        accelerating optimization using quadratic projection of 3 successive
+        models.
+        """
+        return self._squarem
+    
+    @squarem.setter
+    def squarem(self, squarem):
+        self._squarem = <bint> bool(squarem)
     
     @property
     def formatter(self):
@@ -644,6 +677,25 @@ cdef class opt_lim_const:
             raise ValueError(f"Non-int options for num_cores are 'single' or 'multi', cannot process {num_cores}")
         return n_core
     
+    def _get_squarem(self, squarem):
+        """
+        Proces squarem keyword argument value.
+
+        Parameters
+        ----------
+        squarem : bool or None
+            Whether or not to use the SQUAREM acceleration.
+
+        Returns
+        -------
+        bool
+            Whether or not to use SQUAREM acceleration
+
+        """
+        if squarem is None:
+            return self._squarem
+        return bool(squarem)
+    
     def _get_formatter(self, formatter):
         """
         Get the formatter based on the value form kwargs.
@@ -697,30 +749,42 @@ cdef class ConvCodes:
     def ll_computed(self):
         """Model has had loglik computed against some data (either during optimization or singly"""
         return CONVCODE_LLCOMPUTED
+    
     @property
     def from_opt(self):
         """Model was created during optimization"""
         return CONVCODE_FROMOPT
+    
     @property
     def output(self):
         """Model is best model during optimization, by some criterion marked by other flags"""
         return CONVCODE_OUTPUT
+    
     @property
     def converged(self):
         """Model has best logliklihood within converged_min threshold"""
         return CONVCODE_CONVERGED
+    
     @property
     def max_iter(self):
         """Optimization reached maximum number of iterations"""
         return CONVCODE_MAXITER
+    
     @property
     def max_time(self):
         """Optimization reach maximum time"""
         return CONVCODE_MAXTIME
+    
+    @property
+    def squarem(self):
+        """Model computed as projection of :math:`\theta_{n} - 2\alpha r + \alpha^{2}v`"""
+        return CONVCODE_SQUAREM
+    
     @property
     def error(self):
         """Error occured during optimization"""
         return CONVCODE_ERROR
+    
     @property
     def post_opt(self):
         """
@@ -728,6 +792,7 @@ cdef class ConvCodes:
         and old, or is new and loglik is not calculated
         """
         return CONVCODE_POSTMODEL
+    
     @property
     def frozen(self): 
         """Model cannot be modified in place"""
@@ -812,6 +877,8 @@ cdef str get_conv_convtype(int64_t conv):
     cdef str out = str()
     if conv & CONVCODE_CONVERGED:
         out += ' converged'
+    if conv & CONVCODE_SQUAREM:
+        out += " squarem projection"
     if conv & CONVCODE_MAXITER:
         out += ' maximum iterations'
     if conv & CONVCODE_MAXTIME:
@@ -1304,9 +1371,9 @@ cdef class h2mm_model:
                   print_func='iter', print_freq=1, print_args=None, print_kwargs=None,
                   print_stream=None, print_formatter=None,
                   print_fmt_args=None, print_fmt_kwargs=None,
-                  max_time=np.inf, converged_min=None, num_cores=None, 
+                  max_time=np.inf, converged_min=None, num_cores=None, squarem=None,
                   reset_niter=True, ll=False, gamma=False, opt_array=False, inplace=False):
-        """
+        r"""
         Optimize the H2MM model for the given set of data.
         
         .. note::
@@ -1486,7 +1553,7 @@ cdef class h2mm_model:
         print_stream : OutStream, optional
             Typically OutStream, the stream where the output will be displayed.
             Passed as first argument to print_formatter, if :code:`None`, then use
-            stream specified in optimization_limites. Default is None
+            stream specified in optimization_limits. Default is None
         
         print_formatter : Printer, optional
             Class object (usually subclass of :class:`Printer`) that formats
@@ -1533,6 +1600,45 @@ cdef class h2mm_model:
                 
             If None (default) use value from optimization_limits. 
             Default is None
+        squarem : bool or None, optional
+            Whether or not to use the SQUAREM method (|Varadhan2008|, |Du2018|) 
+            on top of the standard optimization procedure.
+            
+            SQUAREM modifies the standard optimization loop. The model from the
+            last iteration of the SQUAREM loop ( :math:`\theta_{0}` ), and the
+            next two models from the traditional optimization loop
+            ( :math:`\theta_{1}` , :math:`\theta_{2}` ) are used to compute a
+            projected model 
+            
+            .. math::
+                
+                \theta_{SQ} = \theta_{0} - 2\alpha r + \alpha^{2} v
+            
+            Where :math:`r = \theta_{1} - \theta_{0}` and 
+            :math:`v = \theta_{2} - \theta_{1}`, and
+            :math:`\alpha = - \frac{||r||}{||v||}`. In these evaluations,
+            models are treated as simple vectors, essentially unwrapping the
+            prior, trans, and obs arrays into a single combined linear vector.
+            After projection, :math:`\theta_{SQ}` is normalized to be row-stochastic.
+            Then, the loglikelihoods of :math:`\theta_{2}` and :math:`\theta_{SQ}`
+            are compared, and the better model is used as :math:`\theta_{0}` in
+            the next iteration. 
+            
+            .. note::
+                
+                Iteration counting using squarem is based on total number of
+                evaluation of new models, not SQUAREM loops. In the iteration
+                counter of the models, the :math:`\theta_{2}` and :math:`\theta_{SQ}`
+                have the same iteration count.
+                When ``opt_array=False``, then the iteration limit is based on
+                this counter, however, if ``opt_array=True``, then both
+                :math:`\theta_{2}` and :math:`\theta_{SQ}` are included in the
+                array, and the iteration limit is based on the total size of the
+                array. Therefore, there will be fewer maximum iterations in
+                ``squarem=True, opt_array=True`` than in ``squarem=True, opt_array=False``.
+            
+            If None, use default from ``optimization_limits.squarem``.
+            The default is None.
         reset_niter : bool, optional
             Tells the algorithm whether or not to reset the iteration counter of the
             model, True means that even if the model was previously optimized, the 
@@ -2639,9 +2745,12 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
               print_func='iter', print_freq=1, print_args=None, print_kwargs=None,
               print_stream=None, print_formatter=None,
               print_fmt_args=None, print_fmt_kwargs=None,
-              max_time=np.inf, converged_min=None, num_cores=None, 
+              max_time=np.inf, converged_min=None, num_cores=None, squarem=None,
               reset_niter=True, ll=False, gamma=False, opt_array=False):
-    """
+    r"""
+    .. |Varadhan2008| replace:: `Varadhan & Roland 2008. <https://doi.org/10.1111/j.1467-9469.2007.00585.x>`__
+    .. |Du2018| replace:: `Du & Varadhan 2018 <https://doi.org/10.48550/arXiv.1810.11163>`__
+    
     Calculate the most likely model that explains the given set of data. The 
     input model is used as the start of the optimization.
 
@@ -2818,7 +2927,7 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
     print_stream : OutStream, optional
         Typically OutStream, the stream where the output will be displayed.
         Passed as first argument to print_formatter, if :code:`None`, then use
-        stream specified in optimization_limites. Default is None
+        stream specified in optimization_limits. Default is None
     
     print_formatter : Printer, optional
         Class object (usually subclass of :class:`Printer`) that formats
@@ -2865,6 +2974,45 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
             
         If None (default) use value from optimization_limits. 
         Default is None
+    squarem : bool or None, optional
+        Whether or not to use the SQUAREM method (|Varadhan2008|, |Du2018|) 
+        on top of the standard optimization procedure.
+        
+        SQUAREM modifies the standard optimization loop. The model from the
+        last iteration of the SQUAREM loop ( :math:`\theta_{0}` ), and the
+        next two models from the traditional optimization loop
+        ( :math:`\theta_{1}` , :math:`\theta_{2}` ) are used to compute a
+        projected model 
+        
+        .. math::
+            
+            \theta_{SQ} = \theta_{0} - 2\alpha r + \alpha^{2} v
+        
+        Where :math:`r = \theta_{1} - \theta_{0}` and 
+        :math:`v = \theta_{2} - \theta_{1}`, and
+        :math:`\alpha = - \frac{||r||}{||v||}`. In these evaluations,
+        models are treated as simple vectors, essentially unwrapping the
+        prior, trans, and obs arrays into a single combined linear vector.
+        After projection, :math:`\theta_{SQ}` is normalized to be row-stochastic.
+        Then, the loglikelihoods of :math:`\theta_{2}` and :math:`\theta_{SQ}`
+        are compared, and the better model is used as :math:`\theta_{0}` in
+        the next iteration. 
+        
+        .. note::
+            
+            Iteration counting using squarem is based on total number of
+            evaluation of new models, not SQUAREM loops. In the iteration
+            counter of the models, the :math:`\theta_{2}` and :math:`\theta_{SQ}`
+            have the same iteration count.
+            When ``opt_array=False``, then the iteration limit is based on
+            this counter, however, if ``opt_array=True``, then both
+            :math:`\theta_{2}` and :math:`\theta_{SQ}` are included in the
+            array, and the iteration limit is based on the total size of the
+            array. Therefore, there will be fewer maximum iterations in
+            ``squarem=True, opt_array=True`` than in ``squarem=True, opt_array=False``.
+        
+        If None, use default from ``optimization_limits.squarem``.
+        The default is None.
     reset_niter : bool, optional
         Tells the algorithm whether or not to reset the iteration counter of the
         model, True means that even if the model was previously optimized, the 
@@ -2875,7 +3023,6 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         max_iter, as the optimization will count the previous iterations towards
         the max_iter threshold.
         Default is False
-    
     ll : bool, optional
         Whether or not to return array of loglikelihood of each burst.
         The default is False
@@ -2928,6 +3075,7 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
     cdef int64_t i
     cdef bint ll_ = bool(ll)
     cdef bint gamma_ = bool(gamma)
+    cdef bint squarem_ = optimization_limits._get_squarem(squarem)
     cdef int opt_array_ = int(opt_array)
     if opt_array_ not in (0, 1, 2):
         raise ValueError("opt_array must be True, False, 0 (False), 1 (True), or 2 (return all assigned models)")
@@ -3050,25 +3198,49 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         if ll_:
             if gamma_:
                 if opt_array_:
-                    res =  h2mm_optimize_ll_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_ll_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_ll_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
                 else:
-                    res =  h2mm_optimize_ll_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_ll_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_ll_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
             else:
                 if opt_array_:
-                    res =  h2mm_optimize_ll_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_ll_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_ll_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
                 else:
-                    res =  h2mm_optimize_ll(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_ll(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_ll(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, llarr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
         else:
             if gamma_:
                 if opt_array_:
-                    res =  h2mm_optimize_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_gamma_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
                 else:
-                    res =  h2mm_optimize_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_gamma(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &gamma_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
             else:
                 if opt_array_:
-                    res =  h2mm_optimize_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize_array(nbursts, burst_sizes, deltas, idxs, mdl.model, &out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
                 else:
-                    res =  h2mm_optimize(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    if squarem_:
+                        res =  h2mm_squarem(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
+                    else:
+                        res =  h2mm_optimize(nbursts, burst_sizes, deltas, idxs, mdl.model, out_arr, &limits, bound_func, bnd_ptr, ptr_print_func, <void*> &prnt_strct)
     free_idx_diffs_arrays(nbursts, burst_sizes, idxs, deltas)
     if gamma_arr is not NULL:
         PyMem_Free(gamma_arr)
@@ -3121,7 +3293,9 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         raise bound_err
     elif res == -6:
         raise print_err
-    elif res < -6:
+    elif res == -7:
+        print("Bad limits function in squarem evaluation")
+    elif res < -6 or res == 0 or res > 2:
         raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}')
     # next error should be essentially imposible
     for i in range(out.shape[0]):
@@ -3138,6 +3312,8 @@ def EM_H2MM_C(h2mm_model model, indexes, times, max_iter=None,
         out_text = f'An error occured on iteration {niter}, returning previous model'
     elif conv == -1:
         raise ValueError(f'Unknown error, check C code- raise issue on GitHub, res={res}, conv={conv}')
+    else:
+        out_text = f'conv-code: 0x{conv:x}'
     if not opt_array_:
         out = out[0]
     if ptr_print_func is not NULL:
