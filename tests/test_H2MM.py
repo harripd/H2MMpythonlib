@@ -865,6 +865,7 @@ def sqkwargs(request):
 
 
 def test_squarem_eval(simple_data_tuple, sqkwargs):
+    """Test squarem with EM_H2MM_C loglik correctly recorded"""
     indexes, times, nphot = simple_data_tuple
     model = hm.factory_h2mm_model(2, 3)
     for miter in range(10,20):
@@ -884,6 +885,7 @@ def test_squarem_eval(simple_data_tuple, sqkwargs):
             comp_gamma(model, gamma, indexes, times)
 
 def test_context_manager():
+    """Test context manager restores old state, note:: may want to make more rigorous"""
     squarem = hm.optimization_limits.squarem
     with hm.optimization_limits(squarem=not squarem) as lm:
         assert hm.optimization_limits.squarem == (not squarem), "optlimits not reset"
