@@ -35,6 +35,7 @@ First, our obligatory imports and loading of 3 detector data:
 
     color3, times3 = load_txtdata('sample_data_3det.txt')
 
+
 Optimization Control
 --------------------
 
@@ -263,4 +264,142 @@ This is useful if you want to save your data for later:
 | 0.840976670297041, 0.07645342127367338, 0.08256990842928548
 
 
+New in v2.3
+-----------
+
+SQUAREM acceleration
+********************
+
+The primary addition going from v2.2 to v2.3 is SQUAREM acceleration 
+for the expectation-maximization (EM) aspect of |H2MM| algorithm.
+
+Many thanks to Thomas Peulen for recomending this method.
+
+
+The method is based on the pseudo-code of |Du2018|,
+which was derived from ideas in |Varadhan2008|.
+Note that all implementation was done at the C level.
+
+SQUAREM expands/modifies the normal expectation-maximization loop.
+
+We will represent a model with :math:`\theta`.
+In |H2MM|, there are several sub-steps.
+Usally refered two as the forward-back algorithm, 
+The  loglikelihood of a model :math:`\theta` is calculated,
+and also computes a model that is guaunteed to have a better loglikelihood 
+(unless the optimal model has already been found, also subject to floating point errors).
+This algorithm has two phases, the $fwd$ phase which computes that loglikelihood,
+and the :math:`bck` phase, (which relies on an array computed in :math:`fwd` ), 
+which computes the improved model.
+
+The standard EM loop for |H2MM| uses the loop below:
+
+-------
+
+while :math:`ll(\theta_{n-1} < ll(\theta_{n})` \:\:
+
+1. Compute loglikelihood of current model :math:`ll(\theta_{n}) = fwd(\theta_{n})`
+2. Compute maximization step next model :math:`\theta_{n+1} = bck(\theta_{n})`
+
+
+--------
+
+SQUAREM expands this loop, so that a quadractic projection of :math:`\theta` is computed based on the 3 most recent models.
+Then if the projected model has a better loglikelhood that the last model, use the projected model in the next round.
+
+The SQUAREM optimization loop works as follows:
+
+-----------
+
+Initialize :math;`ll(\theta_{0}) = fwd(\theta_{0})` (compute loglikelihood of initial model)
+
+while optimal model not found::
+1. Compute :math:`\theta_{n+1} = bck(\theta{n^{\prime}})`
+2. Compute :math:`ll(\theta_{n+1}) = fwd(\theta_{n+1})`
+3. Compute :math:`\theta_{n+2} = bck(\theta_{n+1})`
+4. Compute :math:`ll(\theta_{n+2}) = fwd(\theta_{n+2})`
+5. Compute projection using the following definitions:
+
+    - :math:`r = \theta_{n+1} - \theta_{n}`
+    - :math:`b = \theta_{n+2} - \theta_{n+1}`
+    - :math:`\alpha = - \frac{||r||}{||v||}`
+    - :math:`\theta_{SQ} = \theta_{n} - 2\alpha r + \alpha^{2} v`
+    - **note** it is possible for :math:`\theta_{SQ}` to have negative (impossible) values, 
+      if this occurs, skip to step 7, and assume :math:`\theta_{SQ}` has the worst possible loglikelihood
+
+6. Compute :math:`ll(\theta_{SQ}) = fwd(\theta_{SQ})`
+7. Set :math:`\theta_{{n+2}^{\prime}}` as which model has the better loglikelihood between :math:`\theta_{n+1}` and :math:`\theta_{SQ}`
+
+-------------
+
+Note that after each evaluation of $fwd$, the loglik is tested for convergence.
+Also, between these evaluation, the models are normalized and bounded with the bounding function.
+
+.. code-block::
+
+    imodel_4s3d = hm.factory_h2mm_model(4,3)
+    model_4s3d = hm.EM_H2MM_C(imodel_4s3d, color3, times3, squarem=True)
+    model_4s3d
+
+| Optimization reached maximum number of iterations
+| 
+| nstate: 4, ndet: 3, nphot: 436084, niter: 1000, loglik: -408233.7176734728 converged state: 0x146
+| prior:
+| 0.6252741215262306, 0.030612454324407904, 0.19173015960537806, 0.1523832645439835
+| trans:
+| 0.9057287693195645, 0.04050721299160209, 0.05376401768883339, 1.960153729459685e-38
+| 2.0596457882248302e-05, 0.9999671506799463, 1.0257544140118528e-05, 1.995318031340882e-06
+| 4.9711944981109055e-06, 6.354917051447945e-06, 0.9999787515213548, 9.922367095667794e-06
+| 3.0728033099149917e-06, 2.564195058738289e-06, 3.7901004759624195e-05, 0.9999564619968717
+| obs:
+| 0.6178100534248961, 0.3821899465751039, 1.0611886068674382e-22
+| 0.14422555137985735, 0.2894894306973517, 0.566285017922791
+| 0.4416303955720442, 0.08699556344822588, 0.4713740409797299
+| 0.8409816137668159, 0.07645524944471362, 0.08256313678847053
+
+
+A note on using ``opt_array`` with SQUAREM:
+
+When using SQUAREM with ``opt_array=False`` (the default), the maximum number of iteratons and the ``hm.h2mm_model.niter`` values match,
+and importantly the :math:`\theta_{SQ}` models are counted as having the same number of iteration as the :math:`\theta_{n+2}` model.
+
+However, when using :code:`opt_array=True` the :math:`\theta_{n+2}` and :math:`\theta_{SQ}` models are both stored.
+The maximum number of iterations then becomes the number of models in the output array.
+Therefore fewer iterations will be evalueated with :code:`opt_array=True, squarem=True` than with :math:`opt_array=False, squarem=True`.
+
+
+optimization_limits context manager
+***********************************
+
+Similar to how in matplotlib ``rcParams`` can open a context manager,
+where changes inside the `with` block are restored upon exit,
+:attr:`H2MM_C.optimization_limits` can now also be used inside a with block.
+
+Context-limited values can be set either in the kwargs of the with statement,
+setting :attr:`H2MM_C.optimization_limits`, or using the return value of the context manager.
+
+.. code-block::
+
+    print(f'before opening context: {hm.optimization_limits}')
+    with hm.optimization_limits(squarem=True) as lm:
+        print(f'inside context: {hm.optimization_limits}')
+        hm.optimization_limits.max_iter = 123
+        lm.converged_min = 1e-4
+        print(f'set values inside context: {hm.optimization_limits}')
+        models_4s3d = hm.EM_H2MM_C(imodel_4s3d, color3, times3, opt_array=True)
+    print(f'after context: {hm.optimization_limits}')
+
+| before opening context: Optimization limits:: num_cores: 2, max_iter: 1000, converged_min: 1e-07, max_time: inf,squarem=False
+| formatter: StdPrinter, outstream=<cyfunction get_stdout at 0x7704fe257d10>
+| inside context: Optimization limits:: num_cores: 2, max_iter: 1000, converged_min: 1e-07, max_time: inf,squarem=True
+| formatter: StdPrinter, outstream=<cyfunction get_stdout at 0x7704fe257d10>
+| set values inside context: Optimization limits:: num_cores: 2, max_iter: 123, converged_min: 0.0001, max_time: inf,squarem=True
+| formatter: StdPrinter, outstream=<cyfunction get_stdout at 0x7704fe257d10>
+| Optimization reached maximum number of iterations
+| after context: Optimization limits:: num_cores: 2, max_iter: 1000, converged_min: 1e-07, max_time: inf,squarem=False
+| formatter: StdPrinter, outstream=<cyfunction get_stdout at 0x7704fe257d10>
+
+
+.. |Du2018| replace:: `Du & Varadhan 2018 <https://doi.org/10.48550/arXiv.1810.11163>`__
+.. |Varadhan2008| replace:: `Varadhan & Roland 2008. <https://doi.org/10.1111/j.1467-9469.2007.00585.x>`__
 .. |H2MM| replace:: H\ :sup:`2`\ MM

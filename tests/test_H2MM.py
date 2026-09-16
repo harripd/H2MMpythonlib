@@ -883,6 +883,13 @@ def test_squarem_eval(simple_data_tuple, sqkwargs):
             gamma = out[0]
             comp_gamma(model, gamma, indexes, times)
 
+def test_context_manager():
+    squarem = hm.optimization_limits.squarem
+    with hm.optimization_limits(squarem=not squarem) as lm:
+        assert hm.optimization_limits.squarem == (not squarem), "optlimits not reset"
+        assert lm is hm.optimization_limits, 'wrong optimization limits from context manager'
+    assert hm.optimization_limits.squarem == squarem, "optlimits not restored"
+
 
 if __name__ == '__main__':
     pytest.main(['-x, -v, tests/test_H2MM.py'])

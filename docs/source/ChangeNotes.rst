@@ -3,6 +3,18 @@ Change Notes
 
 .. currentmodule:: H2MM_C
 
+Changed in Version 2.3.1
+------------------------
+
+The main addition in v2.3.1 is the context manager for optimization limits
+
+- Added:
+    - Optimization limits context manager. :attr:`H2MM_C.optimization_limits`` can now be called in a with block to
+      modify the limits only withing the with block. This also added the :class:`H2MM_C.OptlimContext`class to support it.
+
+- Fixed:
+    - ``squarem`` keyword argument not passed in :meth:`H2MM_C.h2mm_model.optimize` this has now been fixed
+
 
 Changed in Version 2.3.0
 ------------------------

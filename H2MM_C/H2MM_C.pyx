@@ -16,6 +16,7 @@ from libc.stdint cimport int64_t, int32_t, uint8_t, INT32_MAX
 from libc.string cimport memcpy
 from cpython cimport array
 cimport numpy as cnp
+import contextlib
 
 import os
 import numpy as np
@@ -446,6 +447,8 @@ cdef class opt_lim_const:
     The optimization_limits module variable should be of this class
     
     """
+    _attrs = ('max_iter', 'max_time', 'converged_min', 'num_cores', 'squarem', 
+              'formatter', 'outstream')
     cdef:
         int64_t _max_iter
         double _max_time
@@ -454,6 +457,7 @@ cdef class opt_lim_const:
         bint _squarem
         object _formatter
         object _outstream
+    
     def __cinit__(self, max_iter=2046, max_time=np.inf, converged_min=1e-14, 
                   num_cores=os.cpu_count()//2, squarem=False, formatter=StdPrinter,
                   outstream=lambda: sys.stdout):
@@ -473,6 +477,7 @@ cdef class opt_lim_const:
     def max_iter(self):
         """Maximum number of iterations before ending optimization"""
         return self._max_iter
+    
     @max_iter.setter
     def max_iter(self, max_iter):
         assert max_iter > 0 and np.issubdtype(type(max_iter), np.integer), ValueError("max_iter must be integer greater than 0")
@@ -489,6 +494,7 @@ cdef class opt_lim_const:
             
         """
         return self._max_time
+    
     @max_time.setter
     def max_time(self, max_time):
         assert max_time > 0 and np.issubdtype(type(max_time), np.floating), ValueError("max_time must be float and greater than 0")
@@ -507,7 +513,8 @@ cdef class opt_lim_const:
 
     @property
     def num_cores(self):
-        """Number of cores to use in optimization
+        """
+        Number of cores to use in optimization
         
         .. note::
             
@@ -561,7 +568,7 @@ cdef class opt_lim_const:
     
     def __repr__(self):
         return (f'Optimization limits:: num_cores: {self._num_cores}, max_iter: {self._max_iter}, '
-                f'converged_min: {self._converged_min}, max_time: {self._max_time},\n'
+                f'converged_min: {self._converged_min}, max_time: {self._max_time},squarem={self._squarem}\n'
                 f'formatter: {self._formatter.__qualname__}, outstream={self._outstream}')
     
     def _get_max_iter(self, max_iter):
@@ -722,25 +729,132 @@ cdef class opt_lim_const:
         Parameters
         ----------
         outstream : Output Stream
-            Stream .
+            Stream to assign as outptu stream.
 
         Returns
         -------
         OutputStream
-            DESCRIPTION.
+            default output stream object.
 
         """
         if outstream is None:
             return self._outstream()
         return outstream
+    
+    def __call__(self, **kwargs):
+        """
+        Open a context manager, all keyword arguments must be valid attributes
+        of optimization_limits. Values set in kwargs, or to optimization limits
+        within the ``with`` block will be reset upon exciting the ``with`` block.
+        
+        This can be used as follows::
+            
+            with hm.optimization_limits(converged_min=1e-5):
+                out = hm.EM_H2MM_C(init, index, times)
+        
+        
+        Parameters
+        ----------
+        max_iter : int, optional
+            Maximum number of iterations before ending optimization
+        max_time : float, optional
+            Maximum time of optimization.
+        converged_min : float, optional
+            Minimum difference between loglik of succesive iterations for a
+            model to be considered converged
+        num_cores : int, optional
+            Number of cores to use in optimization.
+        squarem : bool, optional
+            Choice of whether or not to use SQUAREM (|Varadhan2008|) method of
+            accelerating optimization using quadratic projection of 3 successive
+            models.
+        formatter : Printer
+            A :class:`Printer` subclass, used to format result of print_func 
+            for display of optimiation progress
+        outstream : Callable, optional
+            Callable, when called, generates an output stream for where to 
+            print displayed progress
+        
+        Returns
+        -------
+        OptlimContext
+            Special context manager class for managing :class:opt_lim_const`
+            This class only defines the ``__init__``, ``__enter__`` and ``__exit__``
+            magic methods for use in with statemetns
+        """
+        for key in kwargs.keys():
+            if key not in self._attrs:
+                raise TypeError(f"{key} is not a valid keyword argument for context manager")
+        cntx = OptlimContext(self)
+        for key, value in kwargs.items():
+            if value is None:
+                continue
+            try:
+                self[key] = value
+            except Exception as e:
+                print("exception raised")
+                for k, v in cntx._values.items():
+                    self[key] = value
+                raise e
+        return cntx
+
+
+cdef class OptlimContext:
+    """
+    Context manager class, upon enter, records the values of ``optlim`` and
+    restores upont exit
+    
+    Parameters
+    ----------
+    optlim : opt_lim_const
+        The optimization_limits to restore after exiting the context manager.
+    """
+    cdef:
+        opt_lim_const _optlim
+        dict _values
+        
+    def __cinit__(self, opt_lim_const optlim):
+        self._optlim = optlim
+        self._values = {key:optlim[key] for key in opt_lim_const._attrs}
+    
+    def __enter__(self):
+        return self._optlim
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        for key, value in self._values.items():
+            self._optlim[key] = value
+
 
 def get_stdout():
     """Simple callable returns sys.stdout"""
     return sys.stdout
 
-#: Like rcParams, a place to set defaults for optimization limits
+#: This module variable stores default values for optimization limits.
+#: if the values are not supplied as keyword arguments to the optimization functions,
+#: ``H2MM_C`` will fall back to the values stored in this variable.
+#: The options can be accessed either as attributions or keys.
+#: 
+#: Options are:
+#: - max_iter: maximum number of iterations to perform during optimization
+#: - max_time: maximum 
+#: - converged_min: difference between loglik of iteration at which to terminate optimization 
+#:   (if difference is less than this value, the model is considered optimized)
+#: - num_cores: number of cores to use in optimization
+#: - squarem: Whether or not to use squarem acceleration
+#: - formatter: printer object, defines how to format optimization progress
+#: - outstream: output stream buffer
+#: 
+#: 
+#: Support context manager to temporarily set a value:
+#:
+#: .. code-block::
+#:
+#:     with hm.optimization_limits(max_iter=1000):
+#:         model = hm.EM_H2MM_C(model, index, time)
+#: 
 optimization_limits = opt_lim_const(max_iter=2046, max_time=np.inf, 
                                     converged_min=1e-14, num_cores=os.cpu_count()//2,
+                                    squarem=False,
                                     formatter=StdPrinter, outstream=get_stdout)
 
 cdef class ConvCodes:
@@ -1715,7 +1829,7 @@ cdef class h2mm_model:
                       print_stream=print_stream, print_formatter=print_formatter,
                       print_fmt_args=print_fmt_args, print_fmt_kwargs=print_fmt_kwargs,
                       max_time=max_time, converged_min=converged_min, num_cores=num_cores, 
-                      reset_niter=reset_niter, ll=ll, gamma=gamma, opt_array=opt_array)
+                      reset_niter=reset_niter, ll=ll, gamma=gamma, opt_array=opt_array, squarem=squarem)
         if inplace:
             # separate the models from ll_array / gamma
             if gamma or ll:
